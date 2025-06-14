@@ -2,7 +2,8 @@
     "name": "LoveBug Dev Container",
     "build": {
         "dockerfile": "Dockerfile",
-        "context": ".."
+        "context": "..",
+        "target": "development"
     },
     "customizations": {
         "vscode": {
@@ -17,7 +18,7 @@
                 "redhat.vscode-yaml"
             ],
             "settings": {
-                "python.defaultInterpreterPath": "/usr/local/bin/python",
+                "python.defaultInterpreterPath": "/app/.venv/bin/python",
                 "python.terminal.activateEnvironment": false,
                 "terminal.integrated.defaultProfile.linux": "fish"
             }
@@ -26,6 +27,10 @@
     "forwardPorts": [
         8000
     ],
-    "postCreateCommand": "fish -c 'echo Welcome to LoveBug development environment!'",
+    "postCreateCommand": [
+        "/bin/bash",
+        "-c",
+        "source /app/.venv/bin/activate && uv pip install -e . && pre-commit install && fish -c 'echo Welcome to LoveBug development environment!'"
+    ],
     "remoteUser": "dev"
 }
