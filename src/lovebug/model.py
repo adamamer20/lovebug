@@ -74,7 +74,6 @@ class LoveBugs(AgentSetPolars):
         super().__init__(model)
         self += pl.DataFrame(
             {
-                "unique_id": pl.arange(n, eager=True).cast(pl.UInt32),
                 "genome": np.random.randint(0, 2**32, size=n, dtype=np.uint32),
                 "energy": pl.Series([10.0] * n, dtype=pl.Float32),
                 "age": pl.Series([0] * n, dtype=pl.UInt16),
