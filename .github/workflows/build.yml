@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-22.04, windows-latest, macos-latest]
         python-version: ['3.11', '3.12', '3.13']
 
     steps:
@@ -40,12 +40,12 @@ jobs:
 
       - name: Test installation from wheel
         run: |
-          uv pip install --force-reinstall --find-links dist {{ cookiecutter.package_name }}
-          python -c "import {{ cookiecutter.package_name }}; print({{ cookiecutter.package_name }}.__version__)"
+          uv pip install --force-reinstall --find-links dist lovebug
+          python -c "import lovebug; print(lovebug.__version__)"
 
       - name: Upload wheel artifacts
         uses: actions/upload-artifact@v4
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        if: matrix.os == 'ubuntu-22.04' && matrix.python-version == '3.12'
         with:
           name: wheels
           path: dist/*.whl

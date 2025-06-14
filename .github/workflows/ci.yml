@@ -7,7 +7,7 @@ on:
     branches: [ main, develop ]
 
 concurrency:
-  group: "{{ '${{ github.workflow }}-${{ github.ref }}' }}"
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -15,7 +15,7 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
@@ -24,10 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python "{{ '${{ matrix.python-version }}' }}"
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "{{ '${{ matrix.python-version }}' }}"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -41,7 +41,7 @@ jobs:
           uv run ruff format --check .
 
       - name: Test with pytest
-        run: uv run pytest -v --cov={{ cookiecutter.package_name }} --cov-report=xml
+        run: uv run pytest -v --cov=lovebug --cov-report=xml
 
       - name: Test with runtime type checking
         run: uv run env DEV_TYPECHECK=1 pytest -v
@@ -68,5 +68,5 @@ jobs:
       - name: Enable auto-merge for Dependabot PRs
         run: gh pr merge --auto --merge "$PR_URL"
         env:
-          PR_URL: "{{ '${{ github.event.pull_request.html_url }}' }}"
-          GITHUB_TOKEN: "{{ '${{ secrets.GITHUB_TOKEN }}' }}"
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

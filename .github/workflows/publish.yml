@@ -9,10 +9,10 @@ env:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     environment:
       name: pypi
-      url: https://pypi.org/p/{{ cookiecutter.package_name }}
+      url: https://pypi.org/p/lovebug
     permissions:
       id-token: write
 
