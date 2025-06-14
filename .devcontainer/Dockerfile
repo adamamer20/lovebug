@@ -68,7 +68,7 @@ USER dev
 WORKDIR /workspace
 
 # Copy entire project for development
-COPY --chown=dev:dev . .
+COPY --chown=dev:dev . ./
 
 # Install pre-commit hooks
 RUN uv run pre-commit install
