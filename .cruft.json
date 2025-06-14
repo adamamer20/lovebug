@@ -1,0 +1,22 @@
+{
+    "template": "https://github.com/adamamer20/pythonic-template",
+    "commit": null,
+    "checkout": null,
+    "context": {
+        "cookiecutter": {
+            "project_name": "LoveBug",
+            "package_name": "lovebug",
+            "repo_name": "lovebug",
+            "author_name": "Adam Amer",
+            "author_email": "adam@example.com",
+            "github_username": "adamamer20",
+            "python_version": "3.12",
+            "initial_version": "0.1.0",
+            "ruff_version": "v0.11.13",
+            "license": "MIT",
+            "use_docker": "y",
+            "project_short_description": "An agent‑based model (ABM) of sexual selection and mating‑preference co‑evolution, built with Mesa‑Frames + Polars."
+        }
+    },
+    "directory": null
+}

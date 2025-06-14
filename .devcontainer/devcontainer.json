@@ -1,0 +1,30 @@
+{
+    "name": "LoveBug Dev Container",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "charliermarsh.ruff",
+                "ms-python.python",
+                "ms-python.debugpy",
+                "davidanson.vscode-markdownlint",
+                "github.copilot",
+                "github.copilot-chat",
+                "tamasfe.even-better-toml",
+                "redhat.vscode-yaml"
+            ],
+            "settings": {
+                "python.defaultInterpreterPath": "/usr/local/bin/python",
+                "python.terminal.activateEnvironment": false,
+                "terminal.integrated.defaultProfile.linux": "fish"
+            }
+        }
+    },
+    "forwardPorts": [
+        8000
+    ],
+    "postCreateCommand": "fish -c 'echo Welcome to LoveBug development environment!'",
+    "remoteUser": "dev"
+}
