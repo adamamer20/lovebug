@@ -4,7 +4,9 @@ LoveBug: An agent‑based model (ABM) of sexual selection and mating‑preferenc
 
 from importlib import metadata as _metadata
 
-__all__ = ["__version__"]
+from .model import LoveBugs, LoveModel
+
+__all__ = ["__version__", "LoveBugs", "LoveModel"]
 
 try:
     __version__: str = _metadata.version(__name__)

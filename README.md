@@ -55,7 +55,7 @@ $ uv pip install -e .[dev]  # mesa‑frames, polars, numpy, beartype, pytest
 
 ```bash
 # Run 5 000 bugs for 200 steps
-$ python lovebugs_model.py
+$ uv run python -m lovebug.model
 Final population: 8124
 ```
 
@@ -73,7 +73,7 @@ Graphs & CSVs drop into `outputs/` (hook up your own collector or use the sample
 | **Energy**            | Each tick: `energy -= 0.2`; death at `energy ≤ 0` or `age ≥ 100`.                                                          |
 | **Population update** | Fully vectorised; offspring appended to the shared frame.                                                                  |
 
-### Tunable Parameters *(see top of `lovebugs_model.py`)*
+### Tunable Parameters *(see top of `src/lovebug/model.py`)*
 
 * `MUTATION_RATE` — per‑bit flip probability.
 * `ENERGY_DECAY`, `MAX_AGE`.

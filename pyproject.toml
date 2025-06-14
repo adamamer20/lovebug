@@ -6,11 +6,9 @@ build-backend = "hatchling.build"
 name = "lovebug"
 version = "0.1.0"
 description = "An agent‑based model (ABM) of sexual selection and mating‑preference co‑evolution, built with Mesa‑Frames + Polars."
-authors = [
-    { name = "Adam Amer", email = "adam@example.com" }
-]
+authors = [{ name = "Adam Amer", email = "adam@example.com" }]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -21,7 +19,13 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
-dependencies = []
+dependencies = [
+    "mesa-frames @ git+https://github.com/projectmesa/mesa-frames.git",
+    "polars>=0.20.0",
+    "numpy>=1.24.0",
+    "beartype>=0.15.0",
+    "pandas>=2.0.0",                                                    # Required by mesa-frames but not properly declared
+]
 
 [dependency-groups]
 dev = [
@@ -37,15 +41,8 @@ dev = [
 ]
 
 [project.optional-dependencies]
-data = [
-    "polars>=0.20.0",
-    "numpy>=1.24.0",
-    "matplotlib>=3.7.0",
-]
-ml = [
-    "torch>=2.0.0",
-    "transformers>=4.30.0",
-]
+data = ["polars>=0.20.0", "numpy>=1.24.0", "matplotlib>=3.7.0"]
+ml = ["torch>=2.0.0", "transformers>=4.30.0"]
 
 [project.urls]
 Homepage = "https://github.com/adamamer20/lovebug"
@@ -59,19 +56,19 @@ target-version = "py39"
 
 [tool.ruff.lint]
 select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "F",  # pyflakes
-    "I",  # isort
-    "B",  # flake8-bugbear
-    "C4", # flake8-comprehensions
-    "UP", # pyupgrade
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
     "RUF100", # unused noqa
 ]
 ignore = [
-    "E501",  # line too long, handled by black
-    "B008",  # do not perform function calls in argument defaults
-    "C901",  # too complex
+    "E501", # line too long, handled by black
+    "B008", # do not perform function calls in argument defaults
+    "C901", # too complex
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -113,3 +110,6 @@ path = "src/lovebug/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lovebug"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
