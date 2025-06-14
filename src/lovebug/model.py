@@ -1,35 +1,24 @@
-"""
-LoveBugs ABM using mesa‑frames + Polars
-------------    def     def __init__(self, n: int, model: "LoveModel"):
-        super().__init__(model)
-        self += pl.DataFrame(
-            {
-                "genome": np.random.randint(0, 2**32, size=n, dtype=np.uint32),
-                "energy": pl.Series([10.0] * n, dtype=pl.Float32),
-                "age": pl.Series([0] * n, dtype=pl.UInt16),
-            }
-        )elf, n: int, model: "LoveModel"):
-        super().__init__(model)
-        self += pl.DataFrame(
-            {
-                "genome": np.random.randint(0, 2**32, size=n, dtype=np.uint32),
-                "energy": pl.Series([10.0] * n, dtype=pl.Float32),
-                "age": pl.Series([0] * n, dtype=pl.UInt16),
-            }
-        )-----------------
+"""LoveBugs ABM using Mesa-Frames + Polars.
 
-Minimal, vectorised starter scaffold for an evolutionary sexual‑selection model.
+Minimal, vectorised starter scaffold for an evolutionary sexual-selection
+model.
 
-Genome layout (32‑bit unsigned int)
+Genome layout (32-bit unsigned int)
 +------------+--------------+----------------+
-| Bits 24‑31 | Bits 16‑23   | Bits 0‑15      |
+| Bits 24-31 | Bits 16-23   | Bits 0-15      |
 +------------+--------------+----------------+
 | Threshold  | Preference   | Display traits |
 +------------+--------------+----------------+
 
-Agents accept a mate if *Hamming similarity* between their preference mask and
-partner display ≥ their threshold *and* vice‑versa. Offspring inherit a genome
-via uniform crossover + point mutation.
+Agents accept a mate if the Hamming similarity between their preference mask
+and their partner's display is at least their threshold, and vice versa.
+Offspring genomes are produced via uniform crossover with per-bit mutation.
+
+Example
+-------
+>>> from lovebug import LoveModel
+>>> model = LoveModel(1000)
+>>> model.run(10)
 
 Dependencies:
   pip install mesa-frames polars beartype numpy
@@ -59,9 +48,17 @@ MAX_AGE = 100
 # ── Helper: fast Hamming similarity on 16‑bit halves ────────────────────────
 
 
+def _bit_count_u32(values: np.ndarray) -> np.ndarray:
+    """Return the number of set bits for each 32-bit integer."""
+    if hasattr(np, "bit_count"):
+        return np.bit_count(values)
+    bits = np.unpackbits(values.view(np.uint8))
+    return bits.reshape(values.size, 32).sum(axis=1)
+
+
 def hamming_similarity(a: np.ndarray, b: np.ndarray) -> np.ndarray:  # type: ignore
     """Return similarity (16 – Hamming distance) for lower 16 bits."""
-    return 16 - np.bit_count((a ^ b) & DISPLAY_MASK)
+    return 16 - _bit_count_u32((a ^ b) & DISPLAY_MASK)
 
 
 # ── Agent container ─────────────────────────────────────────────────────────
@@ -108,7 +105,7 @@ class LoveBugs(AgentSetPolars):
 
         partners = np.random.permutation(n)  # random partner for each agent
 
-        genomes_self = self.agents["genome"].to_numpy(dtype=np.uint32)
+        genomes_self = self.agents["genome"].to_numpy().astype(np.uint32)
         genomes_partner = genomes_self[partners]
 
         # Slice genomes into fields
@@ -121,8 +118,8 @@ class LoveBugs(AgentSetPolars):
         thr_partner = (genomes_partner & BEHAV_MASK) >> BEHAV_SHIFT
 
         # Similarity scores (0‑16)
-        sim_self = 16 - np.bit_count(disp_partner ^ pref_self)
-        sim_partner = 16 - np.bit_count(disp_self ^ pref_partner)
+        sim_self = 16 - _bit_count_u32(disp_partner ^ pref_self)
+        sim_partner = 16 - _bit_count_u32(disp_self ^ pref_partner)
 
         accepted = (sim_self >= thr_self) & (sim_partner >= thr_partner)
         if not accepted.any():
