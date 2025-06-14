@@ -107,9 +107,8 @@ class LoveBugs(AgentSetPolars):
             return
 
         partners = np.random.permutation(n)  # random partner for each agent
-        df = self.to_polars()
 
-        genomes_self = df["genome"].to_numpy(dtype=np.uint32)
+        genomes_self = self.agents["genome"].to_numpy(dtype=np.uint32)
         genomes_partner = genomes_self[partners]
 
         # Slice genomes into fields
@@ -134,7 +133,7 @@ class LoveBugs(AgentSetPolars):
         parents_b = genomes_partner[idx]
 
         # Uniform crossover via random mask
-        mask = np.random.randint(0, 2**32, size=len(idx), dtype=np.uint32)
+        mask = np.random.randint(0, 2**32, size=len(idx))
         offspring_genomes = (parents_a & mask) | (parents_b & ~mask)
 
         # Bit‑flip mutation
