@@ -23,14 +23,14 @@ ENV PATH="/root/.local/bin:$PATH"
 WORKDIR /app
 
 # Copy dependency files first for better caching
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml uv.lock* README.md ./
 
 # Sync dependencies and create virtual environment
 RUN uv sync --frozen
 
 # Copy source code and build wheel
 COPY src/ ./src/
-COPY README.md LICENSE ./
+COPY LICENSE ./
 RUN uv build --wheel
 
 # Stage 2: Runtime - Minimal production image
