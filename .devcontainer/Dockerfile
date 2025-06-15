@@ -25,10 +25,9 @@ RUN QUARTO_TAG=$(curl -s https://api.github.com/repos/quarto-dev/quarto-cli/rele
  && rm quarto.tar.gz \
  && quarto --version
 
-# Install uv from source
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-
-ENV PATH="/root/.local/bin:$PATH"
+# Install uv to /usr/local/bin (system-wide accessible)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+ && mv /root/.local/bin/uv /usr/local/bin/uv
 
 WORKDIR /app
 
@@ -71,23 +70,18 @@ ENV PATH="/home/app/.local/bin:${PATH}"
 CMD ["python", "-m", "lovebug"]
 
 # Stage 4: Development - For local development with all dev tools
-FROM python:3.12-slim AS development
+FROM deps AS development
 
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
+# ENV variables are inherited from 'deps' stage
+# Quarto, uv, git, curl, build-essential are all inherited from 'deps'
 
-# Install system dependencies
+# Install additional development-specific system tools
 RUN apt-get update && apt-get install -y \
     fish \
-    git \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy uv and virtual environment from deps stage
-COPY --from=deps /root/.local/bin/uv /usr/local/bin/uv
-COPY --from=deps /app/.venv /app/.venv
-
 # Set PATH to include the project's virtual environment
+# (uv is system-wide in /usr/local/bin, venv takes priority)
 ENV PATH="/app/.venv/bin:${PATH}"
 
 # Create dev user with fish shell
