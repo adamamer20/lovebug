@@ -73,25 +73,37 @@ CMD ["python", "-m", "lovebug"]
 # Stage 4: Development - For local development with all dev tools
 FROM python:3.12-slim AS development
 
+ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Install system dependencies
+# Install system dependencies, including sudo
 RUN apt-get update && apt-get install -y \
     fish \
     git \
     curl \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy uv and virtual environment from deps stage
+# Copy uv from deps stage
 COPY --from=deps /root/.local/bin/uv /usr/local/bin/uv
+
+# Prepare /app directory for venv and its project files
+RUN mkdir -p /app
 COPY --from=deps /app/.venv /app/.venv
+COPY --from=deps /app/pyproject.toml /app/pyproject.toml
+COPY --from=deps /app/uv.lock /app/uv.lock
 
 # Set PATH to include the project's virtual environment
 ENV PATH="/app/.venv/bin:${PATH}"
 
-# Create dev user with fish shell
-RUN useradd --create-home --shell /usr/bin/fish --uid 1000 dev
+# Create dev user, configure passwordless sudo, and set ownership
+RUN echo "dev ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/dev-nopasswd \
+    && chmod 0440 /etc/sudoers.d/dev-nopasswd \
+    && useradd --create-home --shell /usr/bin/fish --uid 1000 dev \
+    && mkdir -p /workspace \
+    && chown -R dev:dev /home/dev /workspace /app
+
 USER dev
 WORKDIR /workspace
 
