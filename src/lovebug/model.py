@@ -1,35 +1,24 @@
-"""
-LoveBugs ABM using mesa‑frames + Polars
-------------    def     def __init__(self, n: int, model: "LoveModel"):
-        super().__init__(model)
-        self += pl.DataFrame(
-            {
-                "genome": np.random.randint(0, 2**32, size=n, dtype=np.uint32),
-                "energy": pl.Series([10.0] * n, dtype=pl.Float32),
-                "age": pl.Series([0] * n, dtype=pl.UInt16),
-            }
-        )elf, n: int, model: "LoveModel"):
-        super().__init__(model)
-        self += pl.DataFrame(
-            {
-                "genome": np.random.randint(0, 2**32, size=n, dtype=np.uint32),
-                "energy": pl.Series([10.0] * n, dtype=pl.Float32),
-                "age": pl.Series([0] * n, dtype=pl.UInt16),
-            }
-        )-----------------
+"""LoveBugs ABM using Mesa-Frames + Polars.
 
-Minimal, vectorised starter scaffold for an evolutionary sexual‑selection model.
+Minimal, vectorised starter scaffold for an evolutionary sexual-selection
+model.
 
-Genome layout (32‑bit unsigned int)
+Genome layout (32-bit unsigned int)
 +------------+--------------+----------------+
-| Bits 24‑31 | Bits 16‑23   | Bits 0‑15      |
+| Bits 24-31 | Bits 16-23   | Bits 0-15      |
 +------------+--------------+----------------+
 | Threshold  | Preference   | Display traits |
 +------------+--------------+----------------+
 
-Agents accept a mate if *Hamming similarity* between their preference mask and
-partner display ≥ their threshold *and* vice‑versa. Offspring inherit a genome
-via uniform crossover + point mutation.
+Agents accept a mate if the Hamming similarity between their preference mask
+and their partner's display is at least their threshold, and vice versa.
+Offspring genomes are produced via uniform crossover with per-bit mutation.
+
+Example
+-------
+>>> from lovebug import LoveModel
+>>> model = LoveModel(1000)
+>>> model.run(10)
 
 Dependencies:
   pip install mesa-frames polars beartype numpy
@@ -56,12 +45,46 @@ MUTATION_RATE = 1e-4
 ENERGY_DECAY = 0.2
 MAX_AGE = 100
 
+# ── Cultural evolution parameters ─────────────────────────────────────────
+CULTURE_WEIGHT = 0.5
+P_LEARN = 0.1
+prestige_cut = 0.2
+conformist_k = 3
+USE_PRESTIGE = True  # False -> conformist rule
+
 # ── Helper: fast Hamming similarity on 16‑bit halves ────────────────────────
+
+
+def _bit_count_u32(values: np.ndarray) -> np.ndarray:
+    """Return the number of set bits for each 32-bit integer."""
+    return pl.Series(values.astype(np.uint32), dtype=pl.UInt32).bitwise_count_ones().to_numpy()
 
 
 def hamming_similarity(a: np.ndarray, b: np.ndarray) -> np.ndarray:  # type: ignore
     """Return similarity (16 – Hamming distance) for lower 16 bits."""
-    return 16 - np.bit_count((a ^ b) & DISPLAY_MASK)
+    diff = (
+        (pl.Series(a.astype(np.uint32), dtype=pl.UInt32) ^ pl.Series(b.astype(np.uint32), dtype=pl.UInt32))
+        & DISPLAY_MASK
+    ).bitwise_count_ones()
+    return (16 - diff).to_numpy()
+
+
+def get_effective_pref(df: pl.DataFrame) -> np.ndarray:
+    """Return effective preference blending genetic and cultural layers."""
+    gene = (df["genome"].to_numpy() & PREF_MASK) >> PREF_SHIFT
+    culture = (
+        df.get_column("pref_culture").to_numpy().astype(np.uint8)
+        if "pref_culture" in df.columns
+        else gene.astype(np.uint8)
+    )
+    if CULTURE_WEIGHT <= 0:
+        return gene
+    if CULTURE_WEIGHT >= 1:
+        return culture
+    choose = np.random.random(len(df)) < CULTURE_WEIGHT
+    out = gene.copy()
+    out[choose] = culture[choose]
+    return out
 
 
 # ── Agent container ─────────────────────────────────────────────────────────
@@ -72,13 +95,18 @@ class LoveBugs(AgentSetPolars):
 
     def __init__(self, n: int, model: LoveModel):
         super().__init__(model)
+        genomes = np.random.randint(0, 2**32, size=n, dtype=np.uint32)
+        self.prev_matings = np.zeros(n, dtype=np.uint16)
         self += pl.DataFrame(
             {
-                "genome": np.random.randint(0, 2**32, size=n, dtype=np.uint32),
+                "genome": genomes,
                 "energy": pl.Series([10.0] * n, dtype=pl.Float32),
                 "age": pl.Series([0] * n, dtype=pl.UInt16),
+                "pref_culture": ((genomes & PREF_MASK) >> PREF_SHIFT).astype(np.uint8),
             }
         )
+        # ensure internal mask matches new length
+        self._mask = pl.repeat(True, len(self.agents), dtype=pl.Boolean, eager=True)
 
     # ── Properties for lazy genome slices ──────────────────────────────────
     @property
@@ -87,15 +115,16 @@ class LoveBugs(AgentSetPolars):
 
     @property
     def preference(self):
-        return ((pl.col("genome") & PREF_MASK) >> PREF_SHIFT).alias("preference")
+        return ((pl.col("genome") & PREF_MASK) // (1 << PREF_SHIFT)).alias("preference")
 
     @property
     def threshold(self):
-        return ((pl.col("genome") & BEHAV_MASK) >> BEHAV_SHIFT).alias("threshold")
+        return ((pl.col("genome") & BEHAV_MASK) // (1 << BEHAV_SHIFT)).alias("threshold")
 
     # ── Main timestep ──────────────────────────────────────────────────────
     def step(self) -> None:
         self.courtship()
+        self.social_learning()
         self.metabolism()
         self.age_and_die()
 
@@ -108,29 +137,34 @@ class LoveBugs(AgentSetPolars):
 
         partners = np.random.permutation(n)  # random partner for each agent
 
-        genomes_self = self.agents["genome"].to_numpy(dtype=np.uint32)
+        genomes_self = self.agents["genome"].to_numpy().astype(np.uint32)
         genomes_partner = genomes_self[partners]
+        self.prev_matings = np.zeros(n, dtype=np.uint16)
 
         # Slice genomes into fields
         disp_self = genomes_self & DISPLAY_MASK
-        pref_self = (genomes_self & PREF_MASK) >> PREF_SHIFT
+        pref_self = get_effective_pref(self.agents)
         thr_self = (genomes_self & BEHAV_MASK) >> BEHAV_SHIFT
 
         disp_partner = genomes_partner & DISPLAY_MASK
-        pref_partner = (genomes_partner & PREF_MASK) >> PREF_SHIFT
+        pref_partner = pref_self[partners]
         thr_partner = (genomes_partner & BEHAV_MASK) >> BEHAV_SHIFT
 
         # Similarity scores (0‑16)
-        sim_self = 16 - np.bit_count(disp_partner ^ pref_self)
-        sim_partner = 16 - np.bit_count(disp_self ^ pref_partner)
+        sim_self = hamming_similarity(disp_partner, pref_self)
+        sim_partner = hamming_similarity(disp_self, pref_partner)
 
         accepted = (sim_self >= thr_self) & (sim_partner >= thr_partner)
         if not accepted.any():
             return
 
         idx = np.where(accepted)[0]
+        partner_idx = partners[idx]
         parents_a = genomes_self[idx]
         parents_b = genomes_partner[idx]
+
+        np.add.at(self.prev_matings, idx, 1)
+        np.add.at(self.prev_matings, partner_idx, 1)
 
         # Uniform crossover via random mask
         mask = np.random.randint(0, 2**32, size=len(idx))
@@ -149,8 +183,38 @@ class LoveBugs(AgentSetPolars):
                 "genome": offspring_genomes,
                 "energy": pl.Series([10.0] * len(idx), dtype=pl.Float32),
                 "age": pl.Series([0] * len(idx), dtype=pl.UInt16),
+                "pref_culture": ((offspring_genomes & PREF_MASK) >> PREF_SHIFT).astype(np.uint8),
             }
         )
+
+    def social_learning(self) -> None:
+        """Learners copy cultural preferences from teachers."""
+        n = len(self)
+        if n == 0 or P_LEARN <= 0:
+            return
+
+        learners = np.random.random(n) < P_LEARN
+        if not learners.any():
+            return
+
+        culture = self.agents["pref_culture"].to_numpy().astype(np.uint8)
+
+        if USE_PRESTIGE:
+            top_n = max(1, int(prestige_cut * n))
+            ranked = np.argsort(-self.prev_matings)[:top_n]
+            teachers = np.random.choice(ranked, learners.sum(), replace=True)
+            culture[learners] = culture[teachers]
+        else:
+            k = max(1, int(conformist_k))
+            choices = np.random.randint(0, n, size=(learners.sum(), k))
+            prefs = culture[choices]
+            bits = (prefs[:, :, None] >> np.arange(8, dtype=np.uint8)) & 1
+            sums = bits.sum(axis=1)
+            majority = (sums >= (k / 2)).astype(np.uint8)
+            teacher_pref = np.left_shift(majority, np.arange(8, dtype=np.uint8)).sum(axis=1)
+            culture[learners] = teacher_pref
+
+        self["pref_culture"] = pl.Series(culture, dtype=pl.UInt8)
 
     def metabolism(self) -> None:
         self["energy"] -= ENERGY_DECAY
@@ -172,6 +236,11 @@ class LoveModel(ModelDF):
 
     def step(self):
         self.agents.do("step")
+        df = self.agents._agentsets[0].agents
+        gene = ((df["genome"] & PREF_MASK) // (1 << PREF_SHIFT)).cast(pl.UInt32)
+        culture = df["pref_culture"].cast(pl.UInt32)
+        dist = ((gene ^ culture) & 0xFF).bitwise_count_ones().mean()
+        print(f"Mean gene-culture Hamming distance: {float(dist):.2f}")
 
     def run(self, n_steps: int = 100):
         for _ in range(n_steps):
