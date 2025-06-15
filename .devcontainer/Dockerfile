@@ -6,19 +6,18 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Install system dependencies (fish shell, build tools, etc.)
+# Install system dependencies (fish shell, build tools, curl, etc.)
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
     fish \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install pipx and uv
-RUN pip install --no-cache-dir pipx && \
-    pipx install uv && \
-    pipx ensurepath
+# Install uv from source
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-ENV PATH="/root/.local/bin:$PATH"
+ENV PATH="/root/.cargo/bin:$PATH"
 
 WORKDIR /app
 
@@ -66,14 +65,18 @@ ENV PYTHONDONTWRITEBYTECODE=1
 RUN apt-get update && apt-get install -y \
     fish \
     git \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Install uv from source
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
 # Copy uv and virtual environment from deps stage
-COPY --from=deps /root/.local /root/.local
+COPY --from=deps /root/.cargo/bin/uv /usr/local/bin/uv
 COPY --from=deps /app/.venv /app/.venv
 
-# Set PATH to include uv and the project's virtual environment
-ENV PATH="/app/.venv/bin:/root/.local/bin:${PATH}"
+# Set PATH to include the project's virtual environment
+ENV PATH="/app/.venv/bin:${PATH}"
 
 # Create dev user with fish shell
 RUN useradd --create-home --shell /usr/bin/fish --uid 1000 dev
