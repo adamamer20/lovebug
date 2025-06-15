@@ -30,7 +30,7 @@
     "postCreateCommand": [
         "/bin/bash",
         "-c",
-        "source /app/.venv/bin/activate && uv pip install -e . && pre-commit install && fish -c 'echo Welcome to LoveBug development environment!'"
+        "source /app/.venv/bin/activate && uv sync --dev && pre-commit install && fish -c 'echo Welcome to LoveBug development environment!'"
     ],
     "remoteUser": "dev"
 }

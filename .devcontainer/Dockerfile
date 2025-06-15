@@ -6,18 +6,16 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Install system dependencies (fish shell, build tools, curl, etc.)
+# Install system dependencies (build tools, curl, etc.)
 RUN apt-get update && apt-get install -y \
     build-essential \
-    git \
-    fish \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv from source
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-ENV PATH="/root/.cargo/bin:$PATH"
+ENV PATH="/root/.local/bin:$PATH"
 
 WORKDIR /app
 
@@ -50,7 +48,11 @@ WORKDIR /app
 COPY --from=builder --chown=app:app /app/dist/*.whl ./
 
 # Install only the wheel for minimal footprint
-RUN pip install --no-cache-dir *.whl
+RUN python -m pip install --no-cache-dir --user *.whl && \
+    rm *.whl
+
+# Set PATH to include user's local bin for packages installed with --user
+ENV PATH="/home/app/.local/bin:${PATH}"
 
 # Default command (override as needed)
 CMD ["python", "-m", "lovebug"]
@@ -68,11 +70,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv from source
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-
 # Copy uv and virtual environment from deps stage
-COPY --from=deps /root/.cargo/bin/uv /usr/local/bin/uv
+COPY --from=deps /root/.local/bin/uv /usr/local/bin/uv
 COPY --from=deps /app/.venv /app/.venv
 
 # Set PATH to include the project's virtual environment
