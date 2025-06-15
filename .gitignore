@@ -84,3 +84,8 @@ docs/_build/
 
 # Local overrides
 .env
+
+# PAPER
+paper/*.tex
+paper/*.bst
+paper/_build

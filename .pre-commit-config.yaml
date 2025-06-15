@@ -1,5 +1,5 @@
 ci:
-  autoupdate_schedule: 'monthly'
+  autoupdate_schedule: "monthly"
   autofix_commit_msg: |
     [pre-commit.ci] auto fixes from pre-commit.com hooks
 
@@ -31,10 +31,11 @@ repos:
     rev: v2.4.1
     hooks:
       - id: codespell
-        args: [
-          "--skip=*.lock,*.css,*.js,paper/template/*",
-          "--ignore-words-list=nd,jupyter"
-        ]
+        args:
+          [
+            "--skip=*.lock,*.css,*.js,paper/template/*,paper/references.bib",
+            "--ignore-words-list=nd,jupyter",
+          ]
 
   - repo: local
     hooks:
