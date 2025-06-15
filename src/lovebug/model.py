@@ -105,6 +105,8 @@ class LoveBugs(AgentSetPolars):
                 "pref_culture": ((genomes & PREF_MASK) >> PREF_SHIFT).astype(np.uint8),
             }
         )
+        # ensure internal mask matches new length
+        self._mask = pl.repeat(True, len(self.agents), dtype=pl.Boolean, eager=True)
 
     # ── Properties for lazy genome slices ──────────────────────────────────
     @property
