@@ -2,33 +2,55 @@ name: Render Quarto paper
 
 on:
   push:
-    branches: ["main"]        # rebuild when main changes
-  pull_request:               # and on every PR
+    branches: ["main"]
+  pull_request:
 
 jobs:
   render:
     runs-on: ubuntu-latest
+    env:
+      # For a PR event use the head ref, otherwise use the push ref name
+      TARGET_BRANCH: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
 
     steps:
-    # 1 – check out your sources
-    - uses: actions/checkout@v4
+      # 1 – checkout the exact branch/ref
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # On PRs this will check out the head branch, on pushes it'll check out the branch you pushed to
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
 
-    # 2 – install Quarto + TinyTeX in one shot
-    - name: Setup Quarto
-      uses: quarto-dev/quarto-actions/setup@v2
-      with:
-        tinytex: true            # install TinyTeX (enough for most papers)
-        # cache: true            # uncomment to cache TinyTeX between runs
+      # 2 – install Quarto + TinyTeX
+      - name: Setup Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          tinytex: true
 
-    # 3 – render just the paper (other .qmd stay untouched)
-    - name: Render PDF
-      working-directory: paper
-      run: |
-        make paper
+      # 3 – render PDF
+      - name: Render PDF
+        working-directory: paper
+        run: make paper
 
-    # 4 – upload the artefact so you can grab it from the “Actions” tab
-    - name: Upload PDF
-      uses: actions/upload-artifact@v4
-      with:
-        name: paper
-        path: paper/paper.pdf
+      # 4 – move the PDF up one level
+      - name: Move PDF into paper/
+        run: mv paper/_build/paper.pdf paper/paper.pdf
+
+      # 5 – commit & push back to whichever branch we're on
+      - name: Commit rendered PDF
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add paper/paper.pdf
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "chore: update rendered paper.pdf"
+            git push origin "${TARGET_BRANCH}"
+          else
+            echo "🚫 No changes to commit"
+          fi
+
+      # 6 – upload as artifact for easy download
+      - name: Upload PDF
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper
+          path: paper/paper.pdf
