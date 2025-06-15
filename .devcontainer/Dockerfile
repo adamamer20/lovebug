@@ -34,59 +34,6 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
 
 WORKDIR /app
 
-# Copy dependency files first for better caching
-COPY pyproject.toml uv.lock* README.md ./
-
-# Sync dependencies and create virtual environment (dev dependencies included)
-RUN uv sync --frozen
-
-# Stage 2: Builder - Build wheel (for production image)
-FROM deps AS builder
-
-# Copy source code and build wheel
-COPY src/ ./src/
-COPY LICENSE ./
-RUN uv build --wheel
-
-# Stage 3: Runtime - Minimal production image
-FROM python:3.12-slim AS runtime
-
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-
-# Create non-root user
-RUN useradd --create-home --uid 1000 app
-USER app
-WORKDIR /app
-
-# Copy built wheel from builder stage
-COPY --from=builder --chown=app:app /app/dist/*.whl ./
-
-# Install only the wheel for minimal footprint
-RUN python -m pip install --no-cache-dir --user *.whl && \
-    rm *.whl
-
-# Set PATH to include user's local bin for packages installed with --user
-ENV PATH="/home/app/.local/bin:${PATH}"
-
-# Default command (override as needed)
-CMD ["python", "-m", "lovebug"]
-
-# Stage 4: Development - For local development with all dev tools
-FROM deps AS development
-
-# ENV variables are inherited from 'deps' stage
-# Quarto, uv, git, curl, build-essential are all inherited from 'deps'
-
-# Install additional development-specific system tools
-RUN apt-get update && apt-get install -y \
-    fish \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set PATH to include the project's virtual environment
-# (uv is system-wide in /usr/local/bin, venv takes priority)
-ENV PATH="/app/.venv/bin:${PATH}"
-
 # Create dev user with fish shell
 RUN useradd --create-home --shell /usr/bin/fish --uid 1000 dev
 USER dev
@@ -97,3 +44,24 @@ WORKDIR /workspace
 
 # Set fish as default shell
 CMD ["/usr/bin/fish", "-l"]
+
+# Copy dependency files first for better caching
+COPY pyproject.toml uv.lock* README.md ./
+
+# Install additional development-specific system tools
+RUN apt-get update && apt-get install -y \
+    fish \
+    && rm -rf /var/lib/apt/lists/*
+
+# Stage 4: Development - For local development with all dev tools
+FROM deps AS development
+
+# ENV variables are inherited from 'deps' stage
+# Quarto, uv, git, curl, build-essential are all inherited from 'deps'
+
+# Sync dependencies and create virtual environment (dev dependencies included)
+RUN uv sync
+
+# Set PATH to include the project's virtual environment
+# (uv is system-wide in /usr/local/bin, venv takes priority)
+ENV PATH="/app/.venv/bin:${PATH}"
