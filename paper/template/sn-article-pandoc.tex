@@ -15,12 +15,11 @@
 $if(documentclass)$
 \documentclass[$for(classoption)$$classoption$$sep$,$endfor$]{$documentclass$}
 $else$
+% Default class if not specified in YAML
 \documentclass[pdflatex,sn-mathphys-num]{sn-jnl}% Math and Physical Sciences Numbered Reference Style
 $endif$
 
-%%%% Standard Packages
-%%<additional latex packages if required can be included here>
-
+%%%% Standard Packages from original template
 \usepackage{graphicx}%
 \usepackage{multirow}%
 \usepackage{amsmath,amssymb,amsfonts}%
@@ -35,9 +34,11 @@ $endif$
 \usepackage{algorithmicx}%
 \usepackage{algpseudocode}%
 \usepackage{listings}%
+%%%%
 
 $if(cite-method)$
 $if(natbib)$
+% Natbib is often used by sn-jnl class, loaded if citation style needs it
 \usepackage{natbib}
 $endif$
 $endif$
@@ -45,8 +46,6 @@ $endif$
 $for(header-includes)$
 $header-includes$
 $endfor$
-
-%%%%
 
 %%%%%=============================================================================%%%%
 %%%%  Remarks: This template is provided to aid authors with the preparation
@@ -82,31 +81,83 @@ $endfor$
 \begin{document}
 
 $if(title)$
-\title{$title$}
+\title[$if(shorttitle)$$shorttitle$$else$Article Title$endif$]{$title$}
 $endif$
 
 %%=============================================================%%
-%% GivenName	-> \fnm{Joergen W.}
-%% Particle	-> \spfx{van der} -> surname prefix
-%% FamilyName	-> \sur{Ploeg}
-%% Suffix	-> \sfx{IV}
-%% \author*[1,2]{\fnm{Joergen W.} \spfx{van der} \sur{Ploeg}
-%%  \sfx{IV}}\email{iauthor@gmail.com}
+%% Author formatting based on sn-jnl.cls conventions          %%
 %%=============================================================%%
 
-$if(author)$
-$for(author)$
-$if(author.corresponding)$
-\author*[$if(author.affiliations)$$for(author.affiliations)$$author.affiliations$$sep$,$endfor$$endif$]{$if(author.name.given)$\fnm{$author.name.given$} $endif$$if(author.name.family)$\sur{$author.name.family$}$endif$}$if(author.email)$\email{$author.email$}$endif$
+$if(paper_authors)$
+$for(paper_authors)$
+$if(paper_authors.corresponding)$
+\author*[$if(paper_authors.affiliations)$%
+$for(paper_authors.affiliations)$%
+$it$$sep$,%
+$endfor$%
+$endif$]{%
+$if(paper_authors.name.given)$\fnm{$paper_authors.name.given$}$endif$%
+$if(paper_authors.name.particle)$ \spfx{$paper_authors.name.particle$}$endif$%
+$if(paper_authors.name.family)$ \sur{$paper_authors.name.family$}$endif$%
+$if(paper_authors.name.suffix)$ \sfx{$paper_authors.name.suffix$}$endif$%
+}
+% $if(paper_authors.email)$\email{$paper_authors.email$}$endif$ % Email output removed
 $else$
-\author[$if(author.affiliations)$$for(author.affiliations)$$author.affiliations$$sep$,$endfor$$endif$]{$if(author.name.given)$\fnm{$author.name.given$} $endif$$if(author.name.family)$\sur{$author.name.family$}$endif$}$if(author.email)$\email{$author.email$}$endif$
+\author[$if(paper_authors.affiliations)$%
+$for(paper_authors.affiliations)$%
+$it$$sep$,%
+$endfor$%
+$endif$]{%
+$if(paper_authors.name.given)$\fnm{$paper_authors.name.given$}$endif$%
+$if(paper_authors.name.particle)$ \spfx{$paper_authors.name.particle$}$endif$%
+$if(paper_authors.name.family)$ \sur{$paper_authors.name.family$}$endif$%
+$if(paper_authors.name.suffix)$ \sfx{$paper_authors.name.suffix$}$endif$%
+}
+% $if(paper_authors.email)$\email{$paper_authors.email$}$endif$ % Email output removed
 $endif$
+$if(paper_authors.equal_contributor_note)$\equalcont{$paper_authors.equal_contributor_note$}$endif$
 $endfor$
 $endif$
 
 $if(affiliations)$
 $for(affiliations)$
-\affil$if(affiliations.corresponding)$*$endif$[$affiliations.id$]{$if(affiliations.department)$\orgdiv{$affiliations.department$}, $endif$$if(affiliations.name)$\orgname{$affiliations.name$}, $endif$$if(affiliations.address)$\orgaddress{$if(affiliations.address.street)$\street{$affiliations.address.street$}, $endif$$if(affiliations.address.city)$\city{$affiliations.address.city$}, $endif$$if(affiliations.address.postal-code)$\postcode{$affiliations.address.postal-code$}, $endif$$if(affiliations.address.state)$\state{$affiliations.address.state$}, $endif$$if(affiliations.address.country)$\country{$affiliations.address.country$}$endif$}$endif$}
+\affil$if(affiliations.corresponding)$*$endif$[$affiliations.id$]{%
+$if(affiliations.department)$\orgdiv{$affiliations.department$}$if(affiliations.name)$%
+, %
+$else$$if(affiliations.address)$%
+, %
+$endif$$endif$$endif$%
+$if(affiliations.name)$\orgname{$affiliations.name$}$if(affiliations.address)$%
+, %
+$endif$$endif$%
+$if(affiliations.address)$\orgaddress{%
+$if(affiliations.address.street)$\street{$affiliations.address.street$}$if(affiliations.address.city)$%
+, %
+$else$$if(affiliations.address.postal-code)$%
+, %
+$else$$if(affiliations.address.state)$%
+, %
+$else$$if(affiliations.address.country)$%
+, %
+$endif$$endif$$endif$$endif$$endif$%
+$if(affiliations.address.city)$\city{$affiliations.address.city$}$if(affiliations.address.postal-code)$%
+, %
+$else$$if(affiliations.address.state)$%
+, %
+$else$$if(affiliations.address.country)$%
+, %
+$endif$$endif$$endif$$endif$%
+$if(affiliations.address.postal-code)$\postcode{$affiliations.address.postal-code$}$if(affiliations.address.state)$%
+, %
+$else$$if(affiliations.address.country)$%
+, %
+$endif$$endif$$endif$%
+$if(affiliations.address.state)$\state{$affiliations.address.state$}$if(affiliations.address.country)$%
+, %
+$endif$$endif$%
+$if(affiliations.address.country)$\country{$affiliations.address.country$}$endif$%
+}$endif$%
+}
 $endfor$
 $endif$
 
@@ -118,12 +169,28 @@ $if(keywords)$
 \keywords{$for(keywords)$$keywords$$sep$, $endfor$}
 $endif$
 
+$if(pacs)$
+$if(pacs.jel)$
+\pacs[JEL Classification]{$for(pacs.jel)$$pacs.jel$$sep$, $endfor$}
+$endif$
+$if(pacs.msc)$
+\pacs[MSC Classification]{$for(pacs.msc)$$pacs.msc$$sep$, $endfor$}
+$endif$
+$endif$
+
 \maketitle
 
 $body$
 
 $if(bibliography)$
-\bibliography{$for(bibliography)$$bibliography$$sep$,$endfor$}
+$if(biblio-title)$
+\newpage % Recommended by some styles before bibliography
+\phantomsection % Ensure hyperref targets correctly
+\addcontentsline{toc}{section}{$biblio-title$} % Add bib to ToC if applicable
+\printbibliography[title={$biblio-title$}] % For biblatex
+$else$
+\bibliography{$for(bibliography)$$bibliography$$sep$,$endfor$} % For bibtex
+$endif$
 $endif$
 
 \end{document}

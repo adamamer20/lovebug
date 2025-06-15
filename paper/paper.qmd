@@ -1,25 +1,22 @@
 ---
-title: "LoveBug: A Novel Approach to Bioinformatics Analysis"
-author:
+title: "LoveBug"
+# author: "Adam Amer et al." # Optional: for default pandoc handling if needed
+paper_authors:
   - name:
       given: Adam
       family: Amer
-    affiliations: [1]
-    corresponding: true
-    email: adam.amer@example.com
+    affiliations: ["1"]
+    email: adam@example.com
 affiliations:
-  - id: 1
-    name: Bocconi University
-    department: Department of Computer Science
+  - id: "1"
+    name: "Bocconi University"
     address:
-      street: Via Roentgen 1
-      city: Milan
-      postal-code: "20136"
-      country: Italy
-date: 2025-06-15
-abstract: |
+      city: "Milan"
+      country: "Italy"
 
-keywords: [bioinformatics, genomic analysis, computational biology]
+date: 2025-06-15 # Make sure date is defined if template uses $date$
+abstract: "The abstract..."
+keywords: ["bioinformatics", "genomic analysis", "computational biology"]
 bibliography: references.bib
 format:
   pdf:
@@ -32,12 +29,6 @@ format:
     keep-tex: true
     cite-method: natbib
     listings: true
-    include-in-header:
-      text: |
-        \usepackage{longtable}
-        \providecommand{\tightlist}{%
-          \setlength{\itemsep}{0pt}%
-          \setlength{\parskip}{0pt}}
 ---
 
 # Introduction {#sec-intro}
