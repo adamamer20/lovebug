@@ -25,6 +25,9 @@ RUN QUARTO_TAG=$(curl -s https://api.github.com/repos/quarto-dev/quarto-cli/rele
  && rm quarto.tar.gz \
  && quarto --version
 
+# Install TinyTeX via Quarto (cleaner integration)
+RUN quarto install tinytex --update-path
+
 # Install uv to /usr/local/bin (system-wide accessible)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
  && mv /root/.local/bin/uv /usr/local/bin/uv
