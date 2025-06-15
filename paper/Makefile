@@ -4,7 +4,7 @@
 .PHONY: all clean paper view structure help
 
 # Build the paper
-paper: figures
+paper:
 	@echo "Building paper with Quarto..."
 	quarto render paper.qmd
 	chmod +x scripts/move_build_files.sh
