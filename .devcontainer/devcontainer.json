@@ -5,6 +5,9 @@
         "context": "..",
         "target": "development"
     },
+    // Use non-root 'dev' user for security and host file ownership consistency
+    // The dev user has passwordless sudo access when system changes are needed
+    "remoteUser": "dev",
     "customizations": {
         "vscode": {
             "extensions": [
@@ -28,6 +31,5 @@
     "forwardPorts": [
         8000
     ],
-    "postCreateCommand": "uv sync --dev && pre-commit install && fish -c 'echo Welcome to LoveBug development environment!'",
-    "remoteUser": "dev"
+    "postCreateCommand": "uv sync --dev && pre-commit install && fish -c 'echo Welcome to LoveBug development environment!'"
 }
