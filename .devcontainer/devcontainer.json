@@ -19,7 +19,8 @@
                 "github.copilot-chat",
                 "tamasfe.even-better-toml",
                 "redhat.vscode-yaml",
-                "quarto.quarto"
+                "quarto.quarto",
+                "RooVeterinaryInc.roo-cline"
             ],
             "settings": {
                 "python.defaultInterpreterPath": "/app/.venv/bin/python",
