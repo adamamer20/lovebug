@@ -13,6 +13,18 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
+# Install latest Quarto CLI dynamically
+RUN QUARTO_TAG=$(curl -s https://api.github.com/repos/quarto-dev/quarto-cli/releases/latest \
+                   | grep -Po '"tag_name": "\K.*?(?=")') \
+ && VERSION=${QUARTO_TAG#v} \
+ && curl -LsSf https://github.com/quarto-dev/quarto-cli/releases/download/${QUARTO_TAG}/quarto-${VERSION}-linux-amd64.tar.gz \
+      -o quarto.tar.gz \
+ && mkdir -p /usr/local/quarto \
+ && tar -xzf quarto.tar.gz -C /usr/local/quarto --strip-components=1 \
+ && ln -s /usr/local/quarto/bin/quarto /usr/local/bin/quarto \
+ && rm quarto.tar.gz \
+ && quarto --version
+
 # Install uv from source
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
