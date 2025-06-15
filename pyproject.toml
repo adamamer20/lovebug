@@ -26,6 +26,8 @@ dependencies = [
     "beartype>=0.15.0",
     "seaborn>=0.13.2",
     "matplotlib>=3.10.3",
+    "marimo>=0.13.15",
+    "plotly>=6.1.2",
 ]
 
 [dependency-groups]
