@@ -89,3 +89,4 @@ docs/_build/
 paper/*.tex
 paper/*.bst
 paper/_build
+output
