@@ -32,7 +32,7 @@ repos:
     hooks:
       - id: codespell
         args: [
-          "--skip=*.lock,*.css,*.js",
+          "--skip=*.lock,*.css,*.js,paper/template/*",
           "--ignore-words-list=nd,jupyter"
         ]
 

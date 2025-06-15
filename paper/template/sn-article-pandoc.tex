@@ -1,0 +1,129 @@
+%Version 3.1 December 2024
+% Adapted for Quarto/Pandoc by adding template variables
+% See section 11 of the User Manual for version history
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                                                                 %%
+%% Please do not use \input{...} to include other tex files.       %%
+%% Submit your LaTeX manuscript as one .tex document.              %%
+%%                                                                 %%
+%% All additional figures and files should be attached             %%
+%% separately and not embedded in the \TeX\ document itself.       %%
+%%                                                                 %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+$if(documentclass)$
+\documentclass[$for(classoption)$$classoption$$sep$,$endfor$]{$documentclass$}
+$else$
+\documentclass[pdflatex,sn-mathphys-num]{sn-jnl}% Math and Physical Sciences Numbered Reference Style
+$endif$
+
+%%%% Standard Packages
+%%<additional latex packages if required can be included here>
+
+\usepackage{graphicx}%
+\usepackage{multirow}%
+\usepackage{amsmath,amssymb,amsfonts}%
+\usepackage{amsthm}%
+\usepackage{mathrsfs}%
+\usepackage[title]{appendix}%
+\usepackage{xcolor}%
+\usepackage{textcomp}%
+\usepackage{manyfoot}%
+\usepackage{booktabs}%
+\usepackage{algorithm}%
+\usepackage{algorithmicx}%
+\usepackage{algpseudocode}%
+\usepackage{listings}%
+
+$if(cite-method)$
+$if(natbib)$
+\usepackage{natbib}
+$endif$
+$endif$
+
+$for(header-includes)$
+$header-includes$
+$endfor$
+
+%%%%
+
+%%%%%=============================================================================%%%%
+%%%%  Remarks: This template is provided to aid authors with the preparation
+%%%%  of original research articles intended for submission to journals published
+%%%%  by Springer Nature. The guidance has been prepared in partnership with
+%%%%  production teams to conform to Springer Nature technical requirements.
+%%%%  Editorial and presentation requirements differ among journal portfolios and
+%%%%  research disciplines. You may find sections in this template are irrelevant
+%%%%  to your work and are empowered to omit any such section if allowed by the
+%%%%  journal you intend to submit to. The submission guidelines and policies
+%%%%  of the journal take precedence. A detailed User Manual is available in the
+%%%%  template package for technical guidance.
+%%%%%=============================================================================%%%%
+
+%% as per the requirement new theorem styles can be included as shown below
+\theoremstyle{thmstyleone}%
+\newtheorem{theorem}{Theorem}%  meant for continuous numbers
+%%\newtheorem{theorem}{Theorem}[section]% meant for sectionwise numbers
+%% optional argument [theorem] produces theorem numbering sequence instead of independent numbers for Proposition
+\newtheorem{proposition}[theorem]{Proposition}%
+%%\newtheorem{proposition}{Proposition}% to get separate numbers for theorem and proposition etc.
+
+\theoremstyle{thmstyletwo}%
+\newtheorem{example}{Example}%
+\newtheorem{remark}{Remark}%
+
+\theoremstyle{thmstylethree}%
+\newtheorem{definition}{Definition}%
+
+\raggedbottom
+%%\unnumbered% uncomment this for unnumbered level heads
+
+\begin{document}
+
+$if(title)$
+\title{$title$}
+$endif$
+
+%%=============================================================%%
+%% GivenName	-> \fnm{Joergen W.}
+%% Particle	-> \spfx{van der} -> surname prefix
+%% FamilyName	-> \sur{Ploeg}
+%% Suffix	-> \sfx{IV}
+%% \author*[1,2]{\fnm{Joergen W.} \spfx{van der} \sur{Ploeg}
+%%  \sfx{IV}}\email{iauthor@gmail.com}
+%%=============================================================%%
+
+$if(author)$
+$for(author)$
+$if(author.corresponding)$
+\author*[$if(author.affiliations)$$for(author.affiliations)$$author.affiliations$$sep$,$endfor$$endif$]{$if(author.name.given)$\fnm{$author.name.given$} $endif$$if(author.name.family)$\sur{$author.name.family$}$endif$}$if(author.email)$\email{$author.email$}$endif$
+$else$
+\author[$if(author.affiliations)$$for(author.affiliations)$$author.affiliations$$sep$,$endfor$$endif$]{$if(author.name.given)$\fnm{$author.name.given$} $endif$$if(author.name.family)$\sur{$author.name.family$}$endif$}$if(author.email)$\email{$author.email$}$endif$
+$endif$
+$endfor$
+$endif$
+
+$if(affiliations)$
+$for(affiliations)$
+\affil$if(affiliations.corresponding)$*$endif$[$affiliations.id$]{$if(affiliations.department)$\orgdiv{$affiliations.department$}, $endif$$if(affiliations.name)$\orgname{$affiliations.name$}, $endif$$if(affiliations.address)$\orgaddress{$if(affiliations.address.street)$\street{$affiliations.address.street$}, $endif$$if(affiliations.address.city)$\city{$affiliations.address.city$}, $endif$$if(affiliations.address.postal-code)$\postcode{$affiliations.address.postal-code$}, $endif$$if(affiliations.address.state)$\state{$affiliations.address.state$}, $endif$$if(affiliations.address.country)$\country{$affiliations.address.country$}$endif$}$endif$}
+$endfor$
+$endif$
+
+$if(abstract)$
+\abstract{$abstract$}
+$endif$
+
+$if(keywords)$
+\keywords{$for(keywords)$$keywords$$sep$, $endfor$}
+$endif$
+
+\maketitle
+
+$body$
+
+$if(bibliography)$
+\bibliography{$for(bibliography)$$bibliography$$sep$,$endfor$}
+$endif$
+
+\end{document}
