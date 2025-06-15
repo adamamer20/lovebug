@@ -1,5 +1,5 @@
 ---
-title: "LoveBug"
+title: "LoveBug: An ABM on Sexual Selection"
 # author: "Adam Amer et al." # Optional: for default pandoc handling if needed
 paper_authors:
   - name:
@@ -16,7 +16,7 @@ affiliations:
 
 date: 2025-06-15 # Make sure date is defined if template uses $date$
 abstract: |
-  Sexual selection theory has long predicted the evolution of elaborate traits through runaway dynamics, yet empirical validation remains challenging due to the difficulty of manipulating genetic architectures and mate-choice behaviors in natural populations. We present Love-Bugs, a high-performance agent-based model that simulates sexual selection dynamics in populations of 10⁴–10⁵ individuals using vectorized operations in pure Python. Our model implements classical Fisher-Lande-Kirkpatrick mechanisms through a compact genomic representation where each agent carries a 32-bit genome encoding display traits (bits 0-15), mate preferences (bits 16-23), and choosiness thresholds (bits 24-31). Bilateral mate choice occurs when Hamming similarity between partners' display-preference combinations exceeds individual thresholds, creating explicit costs of choosiness while maintaining genetic linkage between trait and preference loci. Through uniform crossover and per-bit mutation (μ = 10⁻⁴), we reproduce Mendelian inheritance dynamics that drive genetic covariance essential for runaway evolution. Our purely genetic baseline establishes a foundation for exploring gene-culture coevolution by incorporating social learning mechanisms that blend genetic preferences with culturally transmitted information. This framework enables systematic investigation of sexual selection theory while maintaining computational efficiency necessary for population-scale evolutionary dynamics.
+  Sexual selection theory has long predicted the evolution of elaborate traits through runaway dynamics, yet empirical validation remains challenging due to the difficulty of manipulating genetic architectures and mate-choice behaviors in natural populations. We present LoveBug, a high-performance agent-based model that simulates sexual selection dynamics in populations of 10⁴–10⁵ individuals. Our model implements classical Fisher-Lande-Kirkpatrick mechanisms through a compact genomic representation where each agent carries a 32-bit genome encoding display traits (bits 0-15), mate preferences (bits 16-23), and choosiness thresholds (bits 24-31). Bilateral mate choice occurs when Hamming similarity between partners' display-preference combinations exceeds individual thresholds, creating explicit costs of choosiness while maintaining genetic linkage between trait and preference loci. Through uniform crossover and per-bit mutation (μ = 10⁻⁴), we reproduce Mendelian inheritance dynamics that drive genetic covariance essential for runaway evolution. Our purely genetic baseline establishes a foundation for exploring gene-culture coevolution by incorporating social learning mechanisms that blend genetic preferences with culturally transmitted information. This framework enables systematic investigation of sexual selection theory while maintaining computational efficiency necessary for population-scale evolutionary dynamics.
 keywords: ["sexual selection", "agent-based modeling", "Fisher-Lande-Kirkpatrick", "genetic algorithms", "mate choice", "runaway evolution", "gene-culture coevolution", "computational biology"]
 bibliography: references.bib
 format:
@@ -34,13 +34,13 @@ format:
 
 # Introduction {#sec-intro}
 
-Sexual selection, first articulated by Darwin [-@darwin1871] and formalized by Fisher [-@fisher1930], represents one of evolution's most dramatic forces, capable of producing elaborate ornaments that appear to contradict natural selection for survival. The Fisher-Lande-Kirkpatrick mechanism [@lande1981; @kirkpatrick1982] predicts that genetic correlation between attractive traits and preferences for those traits can drive "runaway" evolution, where both trait expression and preference strength escalate through positive feedback until constrained by survival costs or genetic limits.
+Sexual selection, first articulated by Darwin [darwin1871] and formalized by Fisher [@fisher1930], represents one of evolution's most dramatic forces, capable of producing elaborate ornaments that appear to contradict natural selection for survival. The Fisher-Lande-Kirkpatrick mechanism [@lande1981; @kirkpatrick1982] predicts that genetic correlation between attractive traits and preferences for those traits can drive "runaway" evolution, where both trait expression and preference strength escalate through positive feedback until constrained by survival costs or genetic limits.
 
 Despite nearly a century of theoretical development, empirical validation of sexual selection theory faces fundamental challenges. Manipulating genetic architectures and mate-choice behaviors in natural populations remains technically difficult, while laboratory studies often involve small populations or simplified choice scenarios that may not capture the complexity of natural mating systems [@prum2010; @rosenthal2017]. Agent-based models (ABMs) offer a powerful alternative, enabling precise control over genetic mechanisms, population structure, and selection regimes while maintaining individual-level complexity [@grimm2005].
 
 Existing computational approaches to sexual selection have typically focused on either highly simplified genetic architectures [@miller2011] or continuous trait models that abstract away from discrete genomic inheritance [@pomiankowski1991]. Few models successfully bridge the gap between realistic genetic mechanisms and the population-scale dynamics necessary to observe emergent evolutionary phenomena [@santos2017]. Moreover, most existing frameworks lack the computational efficiency required to simulate the large populations (N > 10⁴) where genetic drift effects become negligible and deterministic selection dynamics dominate.
 
-Here we present Love-Bugs, a high-performance agent-based model designed to address these limitations. Our approach leverages vectorized operations through the Mesa-Frames framework to simulate sexual selection dynamics in populations of 10⁴–10⁵ individuals using pure Python. The model implements classical genetic mechanisms through a compact 32-bit genomic representation that maintains explicit linkage between trait and preference loci while incorporating realistic inheritance patterns including crossover and mutation.
+Here we present LoveBug, a high-performance agent-based model designed to address these limitations. Our approach leverages vectorized operations through the Mesa-Frames framework to simulate sexual selection dynamics in populations of 10⁴–10⁵ individuals using pure Python. The model implements classical genetic mechanisms through a compact 32-bit genomic representation that maintains explicit linkage between trait and preference loci while incorporating realistic inheritance patterns including crossover and mutation.
 
 Our contribution is threefold: (1) we provide a computationally efficient platform for testing sexual selection theory at population scales, (2) we establish a purely genetic baseline that faithfully reproduces Fisher-Lande-Kirkpatrick dynamics, and (3) we create a foundation for exploring gene-culture coevolution by incorporating social learning mechanisms that can blend genetic preferences with culturally transmitted information. This framework enables systematic investigation of how cultural inheritance might reshape classical sexual selection dynamics, addressing recent calls for integrative approaches to evolutionary biology [@whitehead2019].
 
@@ -49,7 +49,7 @@ Our contribution is threefold: (1) we provide a computationally efficient platfo
 
 ## Theoretical Foundations of Sexual Selection
 
-The modern theory of sexual selection builds upon Fisher's [-@fisher1930] original insight that genetic correlation between attractive traits and preferences for those traits can generate self-reinforcing evolutionary dynamics. Fisher's verbal argument was later formalized through quantitative genetic models by Lande [-@lande1981] and Kirkpatrick [-@kirkpatrick1982], who demonstrated that runaway evolution occurs when the genetic covariance between trait and preference exceeds a critical threshold determined by the strength of natural selection against the trait.
+The modern theory of sexual selection builds upon Fisher's [@fisher1930] original insight that genetic correlation between attractive traits and preferences for those traits can generate self-reinforcing evolutionary dynamics. Fisher's verbal argument was later formalized through quantitative genetic models by Lande [@lande1981] and Kirkpatrick [@kirkpatrick1982], who demonstrated that runaway evolution occurs when the genetic covariance between trait and preference exceeds a critical threshold determined by the strength of natural selection against the trait.
 
 The Lande-Kirkpatrick mechanism operates through a simple feedback loop: individuals with strong preferences mate preferentially with highly ornamented partners, creating genetic associations between ornament genes and preference genes in their offspring. As these associations strengthen over generations, preference evolution accelerates ornament evolution, which in turn selects for stronger preferences, potentially leading to runaway dynamics until constrained by survival costs or genetic limits [@kokkonuts2020].
 
@@ -59,7 +59,7 @@ Critical to this process is the assumption of genetic linkage or correlation bet
 
 Agent-based models have emerged as powerful tools for exploring sexual selection dynamics, offering advantages over analytical approaches by enabling complex individual behaviors, spatial structure, and stochastic effects [@grimm2005]. Early computational work focused on simple preference functions and continuous trait distributions [@pomiankowski1991], while more recent studies have incorporated discrete genetic architectures [@miller2011] and social learning mechanisms [@santos2017].
 
-Santos et al. [-@santos2017] developed an influential agent-based model incorporating mate-choice copying, where individuals learn preferences by observing the mating decisions of others. Their work demonstrated that social learning can facilitate the evolution of costly ornaments even when genetic preferences are weak, highlighting the potential importance of cultural transmission in sexual selection. However, their model employed simplified genetic mechanisms and did not explicitly track the interplay between genetic and cultural inheritance.
+Santos et al. [@santos2017] developed an influential agent-based model incorporating mate-choice copying, where individuals learn preferences by observing the mating decisions of others. Their work demonstrated that social learning can facilitate the evolution of costly ornaments even when genetic preferences are weak, highlighting the potential importance of cultural transmission in sexual selection. However, their model employed simplified genetic mechanisms and did not explicitly track the interplay between genetic and cultural inheritance.
 
 A key limitation of existing computational approaches is scalability. Most agent-based models of sexual selection operate with populations of 10²–10³ individuals due to computational constraints, limiting their ability to capture population-scale phenomena where genetic drift effects are minimal [@miller2011]. This constraint is particularly problematic for sexual selection studies, where runaway dynamics typically require large effective population sizes to overcome the homogenizing effects of genetic drift [@lande1981].
 
@@ -77,13 +77,13 @@ The computational demands of large-scale agent-based models have traditionally r
 
 Mesa-Frames leverages the Polars DataFrame library to implement vectorized operations that can process thousands of agents simultaneously, achieving performance improvements of several orders of magnitude compared to traditional object-oriented ABM implementations [@polars2024]. This approach is particularly well-suited to genetic algorithms where the same operations (mutation, crossover, selection) are applied to large numbers of similar entities.
 
-Our Love-Bugs model builds upon this foundation to create a high-performance sexual selection simulator that maintains explicit genetic mechanisms while achieving the population scales necessary to observe emergent evolutionary dynamics. The following section details our methodological approach and model architecture.
+Our LoveBug model builds upon this foundation to create a high-performance sexual selection simulator that maintains explicit genetic mechanisms while achieving the population scales necessary to observe emergent evolutionary dynamics. The following section details our methodological approach and model architecture.
 
 # Methodology {#sec-methodology}
 
 ## Model Architecture and Implementation
 
-Love-Bugs is implemented as a Mesa-Frames agent-based model, leveraging the Polars DataFrame backend for vectorized operations on large populations. The entire population state is maintained within a single Polars DataFrame, enabling efficient batch operations that scale to 10⁴–10⁵ agents using pure Python. This approach provides significant performance advantages over traditional object-oriented ABM implementations while maintaining the flexibility to incorporate complex individual behaviors.
+LoveBug is implemented as a Mesa-Frames agent-based model, leveraging the Polars DataFrame backend for vectorized operations on large populations. The entire population state is maintained within a single Polars DataFrame, enabling efficient batch operations that scale to 10⁴–10⁵ agents using pure Python. This approach provides significant performance advantages over traditional object-oriented ABM implementations while maintaining the flexibility to incorporate complex individual behaviors.
 
 The model operates on discrete time steps (ticks), with each step consisting of six sequential phases: (1) mate selection and reproduction, (2) offspring mutation and inheritance, (3) population integration, (4) energy metabolism, (5) aging and mortality, and (6) data collection. This lifecycle ensures demographic turnover while maintaining bounded population sizes without ad-hoc culling procedures.
 
@@ -135,9 +135,13 @@ Initial populations are generated with random 32-bit genomes, age uniformly dist
 Default parameters were chosen to balance biological realism with computational efficiency:
 
 - Population size: N = 10,000 (scalable to 100,000+)
+
 - Mutation rate: μ = 10⁻⁴ per bit per generation
+
 - Energy decay: 1 unit per time step
+
 - Maximum age: 100 time steps
+
 - Crossover: uniform across all 32 bits
 
 Performance benchmarks on standard hardware (Intel i7, 16GB RAM) demonstrate stable simulation of 10,000 agents for 1,000 generations in approximately 30 seconds, enabling extensive parameter exploration and statistical analysis across multiple replicates.
@@ -147,9 +151,13 @@ Performance benchmarks on standard hardware (Intel i7, 16GB RAM) demonstrate sta
 The model tracks population-level statistics each time step, including:
 
 - Mean and variance of display, preference, and threshold traits
+
 - Genetic covariance between display and preference
+
 - Mating success rates and assortment indices
+
 - Population demographics (age structure, energy distribution)
+
 - Allele frequencies at individual bit positions
 
 These metrics enable direct comparison with theoretical predictions from quantitative genetic models of sexual selection [@lande1981; @kirkpatrick1982] while providing insights into emergent population dynamics not captured by analytical approaches.
