@@ -16,7 +16,8 @@ import numpy as np
 import polars as pl
 import pytest
 
-from lovebug.model import LoveModel
+from lovebug.layer_activation import LayerActivationConfig
+from lovebug.unified_mesa_model import UnifiedLoveModel
 from lovebug.visualization.core import ChartFactory, VisualizationEngine
 from lovebug.visualization.data import DataCollector, DataLoader
 
@@ -24,13 +25,14 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def sample_model() -> LoveModel:
-    """Create a small LoveModel for testing.
+def sample_model() -> UnifiedLoveModel:
+    """Create a small UnifiedLoveModel for testing.
 
     Returns:
-        LoveModel instance with 50 agents
+        UnifiedLoveModel instance with 50 agents
     """
-    return LoveModel(n_agents=50)
+    config = LayerActivationConfig.genetic_only()
+    return UnifiedLoveModel(layer_config=config, n_agents=50)
 
 
 @pytest.fixture
@@ -145,7 +147,7 @@ class TestDataCollector:
 
     @pytest.mark.integration
     def test_collect_step_data_with_live_model(
-        self, sample_data_collector: DataCollector, sample_model: LoveModel
+        self, sample_data_collector: DataCollector, sample_model: UnifiedLoveModel
     ) -> None:
         """Test data collection with a live model."""
         # Run model for a few steps
@@ -180,7 +182,7 @@ class TestDataCollector:
         assert len(sample_data_collector.data_history) == 3
 
     def test_save_and_clear_data(
-        self, sample_data_collector: DataCollector, sample_model: LoveModel, tmp_path: Path
+        self, sample_data_collector: DataCollector, sample_model: UnifiedLoveModel, tmp_path: Path
     ) -> None:
         """Test saving data to file and clearing memory."""
         # Collect some data
@@ -440,7 +442,7 @@ class TestVisualizationEngine:
 class TestVisualizationIntegration:
     """Integration tests for the complete visualization pipeline."""
 
-    def test_end_to_end_data_collection_and_loading(self, sample_model: LoveModel, tmp_path: Path) -> None:
+    def test_end_to_end_data_collection_and_loading(self, sample_model: UnifiedLoveModel, tmp_path: Path) -> None:
         """Test complete pipeline from model to visualization data."""
         # Step 1: Collect data
         collector = DataCollector()

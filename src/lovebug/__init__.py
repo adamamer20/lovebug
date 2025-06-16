@@ -4,9 +4,25 @@ LoveBug: An agent‑based model (ABM) of sexual selection and mating‑preferenc
 
 from importlib import metadata as _metadata
 
-from .model import LoveBugs, LoveModel
+from .lande_kirkpatrick import LandeKirkpatrickParams
+from .layer2.config import Layer2Config
 
-__all__ = ["__version__", "LoveBugs", "LoveModel"]
+# Import core configuration classes
+from .layer_activation import LayerActivationConfig
+
+# Import the enhanced UnifiedLoveModel as the primary interface
+from .unified_mesa_model import UnifiedLoveBugs, UnifiedLoveModel
+
+__all__ = [
+    "__version__",
+    # Enhanced primary interface
+    "UnifiedLoveModel",
+    "UnifiedLoveBugs",
+    # Configuration classes
+    "LayerActivationConfig",
+    "LandeKirkpatrickParams",
+    "Layer2Config",
+]
 
 try:
     __version__: str = _metadata.version(__name__)

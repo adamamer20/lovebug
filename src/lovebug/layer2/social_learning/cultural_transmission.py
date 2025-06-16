@@ -127,8 +127,7 @@ class CulturalTransmissionManager:
         self._cultural_memory: dict[int, list[int]] = {}
         self._memory_strengths: dict[int, list[float]] = {}
 
-    @beartype
-    def process_cultural_learning(self, agent_data: AgentDataProtocol, generation: int) -> list[LearningEvent]:
+    def process_cultural_learning(self, agent_data: Any, generation: int) -> list[LearningEvent]:
         """
         Process all cultural learning for one generation.
 

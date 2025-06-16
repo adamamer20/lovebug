@@ -148,7 +148,7 @@ class SimulationMonitor:
             self.end_simulation()
 
     @beartype
-    def log_generation(self, generation: int, metrics: dict[str, float], log_frequency: int = 10) -> None:
+    def log_generation(self, generation: int, metrics: dict[str, float | int], log_frequency: int = 10) -> None:
         """
         Log metrics for a specific generation.
 
@@ -182,7 +182,7 @@ class SimulationMonitor:
         if self.show_debug and generation % (log_frequency * 2) == 0:
             ic(f"Generation {generation} metrics", metrics)
 
-    def _display_generation_metrics(self, generation: int, metrics: dict[str, float]) -> None:
+    def _display_generation_metrics(self, generation: int, metrics: dict[str, float | int]) -> None:
         """Display detailed metrics table for a generation."""
         table = Table(title=f"Generation {generation} Metrics", show_header=True, header_style="bold cyan")
         table.add_column("Metric", style="cyan", no_wrap=True)
@@ -196,7 +196,7 @@ class SimulationMonitor:
 
         self.console.print(table)
 
-    def _get_metric_status(self, metric_name: str, value: float) -> str:
+    def _get_metric_status(self, metric_name: str, value: float | int) -> str:
         """Get status indicator for a metric value."""
         if "diversity" in metric_name.lower():
             if value > 0.7:

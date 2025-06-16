@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 import polars as pl
 
-from ..model import LoveModel
+from ..unified_mesa_model import UnifiedLoveModel
 
 
 class DataCollector:
@@ -28,7 +28,9 @@ class DataCollector:
 
     Example:
         collector = DataCollector()
-        model = LoveModel(1000)
+        from lovebug.layer_activation import LayerActivationConfig
+        config = LayerActivationConfig.genetic_only()
+        model = UnifiedLoveModel(layer_config=config, n_agents=1000)
 
         for step in range(100):
             model.step()
@@ -41,7 +43,7 @@ class DataCollector:
         self.data_history: list[dict[str, Any]] = []
         self.metadata: dict[str, Any] = {}
 
-    def collect_step_data(self, model: LoveModel, step: int) -> dict[str, Any]:
+    def collect_step_data(self, model: UnifiedLoveModel, step: int) -> dict[str, Any]:
         """
         Collect key metrics for one time step.
 

@@ -238,7 +238,8 @@ class SocialNetwork:
         if n_agents == 0:
             return []
 
-        return list(np.random.choice(available_agents, n_agents, replace=False))
+        selected = np.random.choice(available_agents, n_agents, replace=False)
+        return [int(agent) for agent in selected]  # Convert to Python int
 
     @beartype
     def update_network_size(self, new_size: int) -> None:
@@ -284,7 +285,7 @@ class SocialNetwork:
             # Preferential attachment
             existing_nodes = [n for n in self.graph.nodes() if n != node_id]
             if existing_nodes:
-                degrees = [dict(self.graph.degree())[n] + 1 for n in existing_nodes]  # +1 to avoid zero
+                degrees = [self.graph.degree[n] + 1 for n in existing_nodes]  # +1 to avoid zero
                 probabilities = np.array(degrees, dtype=float)
                 probabilities /= probabilities.sum()
 
@@ -328,7 +329,7 @@ class SocialNetwork:
             stats["density"] = nx.density(self.graph)
 
             # Degree statistics
-            degree_dict = dict(self.graph.degree())
+            degree_dict = dict(self.graph.degree)
             degrees = list(degree_dict.values())
             stats["mean_degree"] = np.mean(degrees)
             stats["std_degree"] = np.std(degrees)
