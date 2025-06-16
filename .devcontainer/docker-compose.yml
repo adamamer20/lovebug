@@ -1,0 +1,36 @@
+version: '3.8'
+services:
+  app: # This will be your main dev environment
+    build:
+      context: .. # Assuming .devcontainer is a subfolder of your project root
+      dockerfile: .devcontainer/Dockerfile # Path to your main Dockerfile relative to context
+      target: development
+    volumes:
+      - ..:/workspaces/lovebug:cached # Mount your project code
+      - /var/run/docker.sock:/var/run/docker.sock # For Docker access from within container
+    user: dev # Should match remoteUser in devcontainer.json
+    # Keep the container running indefinitely
+    command: sleep infinity
+    # If your app needs specific ports exposed FROM the app container to the host
+    # (beyond what forwardPorts in devcontainer.json does for localhost access)
+    # you can add them here, but usually forwardPorts is sufficient for dev.
+    # ports:
+    #   - "8000:8000" # Example if your app runs on 8000 in the container
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333" # Exposes qdrant to your host machine
+    environment:
+      QDRANT__SERVICE__API_KEY: ""
+    # Optional: For persistent Qdrant data
+    # volumes:
+    #   - qdrant_data:/qdrant/storage
+
+# Optional: Define the named volume if used above for Qdrant persistence
+# volumes:
+#   qdrant_data:
+
+# Docker Compose automatically creates a 'default' network for these services.
+# All services in this file will be on that network and can resolve each other by service name.
+# e.g., 'app' can reach 'qdrant' at http://qdrant:6333
