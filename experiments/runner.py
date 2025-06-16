@@ -25,7 +25,7 @@ import sys
 import threading
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -66,6 +66,7 @@ from lovebug.lande_kirkpatrick import LandeKirkpatrickParams, simulate_lande_kir
 from lovebug.layer2.config import Layer2Config  # noqa: E402
 from lovebug.layer2.social_learning.cultural_transmission import CulturalTransmissionManager  # noqa: E402
 from lovebug.layer2.social_learning.social_networks import NetworkTopology, SocialNetwork  # noqa: E402
+from lovebug.layer_activation import LayerActivationConfig  # noqa: E402
 
 __all__ = ["UnifiedConfig", "CleanExperimentRunner", "run_experiments"]
 
@@ -75,7 +76,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True, frozen=False)
 class UnifiedConfig:
-    """Unified configuration for all experiment types."""
+    """Unified configuration for all experiment types with layer activation support."""
 
     # Runner configuration
     experiment_type: str = "combined"
@@ -93,6 +94,20 @@ class UnifiedConfig:
     results_dir: str = "experiments/results"
     logs_dir: str = "experiments/logs/current"
     batch_size: int = 200
+
+    # Layer activation configuration (new)
+    genetic_enabled: bool = True
+    cultural_enabled: bool = True
+    genetic_weight: float = 0.5
+    cultural_weight: float = 0.5
+    blending_mode: str = "weighted_average"
+    normalize_weights: bool = True
+
+    # Parameter sweep configuration (new)
+    enable_parameter_sweeps: bool = False
+    sweep_genetic_weights: list[float] = field(default_factory=lambda: [0.0, 0.5, 1.0])
+    sweep_cultural_weights: list[float] = field(default_factory=lambda: [0.0, 0.5, 1.0])
+    sweep_replications_per_combo: int = 5
 
     # Layer1 (Lande-Kirkpatrick) parameters
     layer1_n_generations: int = 2000
@@ -116,6 +131,41 @@ class UnifiedConfig:
     def __post_init__(self) -> None:
         if self.n_workers is None:
             self.n_workers = max(1, int(mp.cpu_count() * 0.9))
+
+        # Validate layer activation configuration
+        self._validate_layer_activation()
+
+    def _validate_layer_activation(self) -> None:
+        """Validate layer activation parameters."""
+        if not self.genetic_enabled and not self.cultural_enabled:
+            raise ValueError("At least one layer must be enabled")
+
+        if not (0.0 <= self.genetic_weight <= 1.0):
+            raise ValueError(f"genetic_weight must be in [0.0, 1.0], got {self.genetic_weight}")
+        if not (0.0 <= self.cultural_weight <= 1.0):
+            raise ValueError(f"cultural_weight must be in [0.0, 1.0], got {self.cultural_weight}")
+
+        valid_modes = {"weighted_average", "probabilistic", "competitive"}
+        if self.blending_mode not in valid_modes:
+            raise ValueError(f"blending_mode must be one of {valid_modes}, got {self.blending_mode}")
+
+    def get_layer_activation_config(self) -> LayerActivationConfig:
+        """
+        Create LayerActivationConfig from current settings.
+
+        Returns
+        -------
+        LayerActivationConfig
+            Layer activation configuration instance
+        """
+        return LayerActivationConfig(
+            genetic_enabled=self.genetic_enabled,
+            cultural_enabled=self.cultural_enabled,
+            genetic_weight=self.genetic_weight,
+            cultural_weight=self.cultural_weight,
+            blending_mode=self.blending_mode,  # type: ignore[arg-type]
+            normalize_weights=self.normalize_weights,
+        )
 
 
 class MockAgentData:
