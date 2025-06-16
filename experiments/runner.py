@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Unified Experiment Runner for Evolutionary Simulations
+Clean Experiment Runner for Evolutionary Simulations
 
+Refactored to use type-safe data models and eliminate null pollution.
 Supports Layer1 (Lande-Kirkpatrick), Layer2 (Cultural transmission), and combined experiments
-with built-in logging, progress tracking, and result organization.
+with clean data storage and built-in analysis capabilities.
 
 Usage:
     uv run python experiments/runner.py --config experiments/config.toml
@@ -23,6 +24,7 @@ import signal
 import sys
 import threading
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -46,14 +48,23 @@ except ImportError:
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+# Import our clean data models
+from experiments.collectors import ExperimentStorage
+from experiments.models import (
+    CommonParameters,
+    CulturalExperimentResult,
+    ExperimentMetadata,
+    GeneticExperimentResult,
+)
 from lovebug.lande_kirkpatrick import LandeKirkpatrickParams, simulate_lande_kirkpatrick
 from lovebug.layer2.config import Layer2Config
 from lovebug.layer2.social_learning.cultural_transmission import CulturalTransmissionManager
 from lovebug.layer2.social_learning.social_networks import NetworkTopology, SocialNetwork
 
-__all__ = ["UnifiedConfig", "UnifiedExperimentRunner", "run_experiments"]
+__all__ = ["UnifiedConfig", "CleanExperimentRunner", "run_experiments"]
 
 console = Console()
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True, frozen=False)
@@ -132,9 +143,231 @@ class MockAgentData:
             self.cultural_preferences[agent_id] = new_preference
 
 
-def run_single_experiment(params_dict: dict[str, Any]) -> dict[str, Any]:
+@beartype
+def run_genetic_experiment(params_dict: dict[str, Any]) -> GeneticExperimentResult:
     """
-    Execute a single experiment (Layer1, Layer2, or combined).
+    Execute a single genetic evolution experiment with clean results.
+
+    Parameters
+    ----------
+    params_dict : dict[str, Any]
+        Experiment parameters including configuration and genetic parameters
+
+    Returns
+    -------
+    GeneticExperimentResult
+        Type-safe genetic experiment result with no null fields
+
+    Raises
+    ------
+    ValueError
+        If required parameters are missing or invalid
+    Exception
+        If simulation fails for any reason
+    """
+    experiment_start = time.time()
+    start_time = datetime.now()
+
+    try:
+        exp_config = params_dict.get("config", {})
+        all_params = params_dict["params"]
+
+        # Extract parameters for Lande-Kirkpatrick model
+        lk_params = {
+            k: v
+            for k, v in all_params.items()
+            if k
+            in {
+                "n_generations",
+                "pop_size",
+                "h2_trait",
+                "h2_preference",
+                "selection_strength",
+                "genetic_correlation",
+                "mutation_variance",
+                "preference_cost",
+            }
+        }
+
+        # Map pop_size to population_size for consistency
+        if "pop_size" in lk_params:
+            lk_params["pop_size"] = lk_params.pop("pop_size", 2000)
+
+        # Run genetic simulation
+        lk_model_params = LandeKirkpatrickParams(**lk_params)
+        results = simulate_lande_kirkpatrick(lk_model_params)
+
+        # Extract final values
+        final_trait = float(results.select(pl.col("mean_trait").last()).item())
+        final_preference = float(results.select(pl.col("mean_preference").last()).item())
+        final_covariance = float(results.select(pl.col("genetic_covariance").last()).item())
+
+        # Classify outcome
+        if abs(final_covariance) > 0.3:
+            outcome = "runaway"
+        elif abs(final_covariance) < 0.01:
+            outcome = "stasis"
+        else:
+            outcome = "equilibrium"
+
+        # Create clean result object
+        experiment_id = str(uuid.uuid4())[:8]
+
+        metadata = ExperimentMetadata(
+            experiment_id=experiment_id,
+            name=exp_config.get("name", f"genetic_{experiment_id}"),
+            experiment_type="genetic",
+            start_time=start_time,
+            duration_seconds=time.time() - experiment_start,
+            success=True,
+            process_id=os.getpid(),
+        )
+
+        common_params = CommonParameters(
+            n_generations=lk_model_params.n_generations,
+            population_size=lk_model_params.pop_size,
+            random_seed=params_dict.get("random_seed"),
+        )
+
+        return GeneticExperimentResult(
+            metadata=metadata,
+            common_params=common_params,
+            final_trait=final_trait,
+            final_preference=final_preference,
+            final_covariance=final_covariance,
+            outcome=outcome,
+            generations_completed=len(results),
+            h2_trait=lk_model_params.h2_trait,
+            h2_preference=lk_model_params.h2_preference,
+            genetic_correlation=lk_model_params.genetic_correlation,
+            selection_strength=lk_model_params.selection_strength,
+            preference_cost=lk_model_params.preference_cost,
+            mutation_variance=lk_model_params.mutation_variance,
+        )
+
+    except Exception as e:
+        logger.exception(f"Genetic experiment failed: {e}")
+        raise
+
+
+@beartype
+def run_cultural_experiment(params_dict: dict[str, Any]) -> CulturalExperimentResult:
+    """
+    Execute a single cultural evolution experiment with clean results.
+
+    Parameters
+    ----------
+    params_dict : dict[str, Any]
+        Experiment parameters including configuration and cultural parameters
+
+    Returns
+    -------
+    CulturalExperimentResult
+        Type-safe cultural experiment result with no null fields
+
+    Raises
+    ------
+    ValueError
+        If required parameters are missing or invalid
+    Exception
+        If simulation fails for any reason
+    """
+    experiment_start = time.time()
+    start_time = datetime.now()
+
+    try:
+        exp_config = params_dict.get("config", {})
+        all_params = params_dict["params"]
+
+        # Extract Layer2 config parameters
+        valid_config_fields = set(Layer2Config.__dataclass_fields__.keys())
+        layer2_params = {k: v for k, v in all_params.items() if k in valid_config_fields}
+        layer2_config = Layer2Config(**layer2_params)
+
+        # Setup cultural simulation
+        topology = NetworkTopology(
+            network_type=layer2_config.network_type, connectivity=layer2_config.network_connectivity
+        )
+
+        n_agents = params_dict.get("n_agents", 2000)
+        social_network = SocialNetwork(n_agents, topology)
+        transmission_manager = CulturalTransmissionManager(layer2_config, social_network)
+
+        # Agent data with process-specific seed
+        seed = hash(f"{os.getpid()}_{time.time()}") % (2**32)
+        agent_data = MockAgentData(n_agents, seed=seed)
+
+        # Run cultural simulation
+        n_generations = params_dict.get("n_generations", 1000)
+        diversity_samples = []
+        total_events = 0
+
+        for generation in range(n_generations):
+            events = transmission_manager.process_cultural_learning(agent_data, generation)
+            total_events += len(events)
+
+            if generation % 50 == 0:
+                cultural_diversity = len(np.unique(agent_data.get_cultural_preferences())) / 256.0
+                diversity_samples.append(cultural_diversity)
+
+        # Final analysis
+        final_diversity = diversity_samples[-1] if diversity_samples else 0.0
+        diversity_trend = (
+            np.polyfit(range(len(diversity_samples)), diversity_samples, 1)[0] if len(diversity_samples) > 1 else 0.0
+        )
+
+        # Classify cultural outcome
+        if final_diversity > 0.7:
+            cultural_outcome = "high_diversity"
+        elif final_diversity < 0.2:
+            cultural_outcome = "low_diversity"
+        else:
+            cultural_outcome = "moderate_diversity"
+
+        # Create clean result object
+        experiment_id = str(uuid.uuid4())[:8]
+
+        metadata = ExperimentMetadata(
+            experiment_id=experiment_id,
+            name=exp_config.get("name", f"cultural_{experiment_id}"),
+            experiment_type="cultural",
+            start_time=start_time,
+            duration_seconds=time.time() - experiment_start,
+            success=True,
+            process_id=os.getpid(),
+        )
+
+        common_params = CommonParameters(
+            n_generations=n_generations, population_size=n_agents, random_seed=params_dict.get("random_seed")
+        )
+
+        return CulturalExperimentResult(
+            metadata=metadata,
+            common_params=common_params,
+            final_diversity=final_diversity,
+            diversity_trend=diversity_trend,
+            total_events=total_events,
+            cultural_outcome=cultural_outcome,
+            generations_completed=n_generations,
+            innovation_rate=layer2_config.innovation_rate,
+            horizontal_transmission_rate=layer2_config.horizontal_transmission_rate,
+            oblique_transmission_rate=layer2_config.oblique_transmission_rate,
+            network_type=layer2_config.network_type,
+            network_connectivity=layer2_config.network_connectivity,
+            cultural_memory_size=layer2_config.cultural_memory_size,
+        )
+
+    except Exception as e:
+        logger.exception(f"Cultural experiment failed: {e}")
+        raise
+
+
+def run_single_experiment(params_dict: dict[str, Any]) -> GeneticExperimentResult | CulturalExperimentResult:
+    """
+    Execute a single experiment and return properly typed result.
+
+    This function routes to the appropriate experiment type and returns
+    clean, type-safe results with no null pollution.
 
     Parameters
     ----------
@@ -143,159 +376,39 @@ def run_single_experiment(params_dict: dict[str, Any]) -> dict[str, Any]:
 
     Returns
     -------
-    dict[str, Any]
-        Experiment results with success status and metrics
+    GeneticExperimentResult | CulturalExperimentResult
+        Type-safe experiment result
+
+    Raises
+    ------
+    ValueError
+        If experiment type is unknown
     """
-    experiment_start = time.time()
+    exp_type = params_dict["type"]
 
-    try:
-        exp_type = params_dict["type"]
-        exp_config = params_dict.get("config", {})
-
-        if exp_type == "layer1":
-            # Layer 1 experiments
-            lk_params = {
-                k: v
-                for k, v in params_dict["params"].items()
-                if k
-                in {
-                    "n_generations",
-                    "pop_size",
-                    "h2_trait",
-                    "h2_preference",
-                    "selection_strength",
-                    "genetic_correlation",
-                    "mutation_variance",
-                    "preference_cost",
-                }
-            }
-            params = LandeKirkpatrickParams(**lk_params)
-            results = simulate_lande_kirkpatrick(params)
-
-            # Extract final values
-            final_trait = float(results.select(pl.col("mean_trait").last()).item())
-            final_preference = float(results.select(pl.col("mean_preference").last()).item())
-            final_covariance = float(results.select(pl.col("genetic_covariance").last()).item())
-
-            # Classify outcome
-            if abs(final_covariance) > 0.3:
-                outcome = "runaway"
-            elif abs(final_covariance) < 0.01:
-                outcome = "stasis"
-            else:
-                outcome = "equilibrium"
-
-            return {
-                "experiment_type": "layer1",
-                "name": exp_config.get("name", "unnamed"),
-                "duration_seconds": time.time() - experiment_start,
-                "final_trait": final_trait,
-                "final_preference": final_preference,
-                "final_covariance": final_covariance,
-                "outcome": outcome,
-                "generations": len(results),
-                "success": True,
-                "process_id": os.getpid(),
-                **{k: v for k, v in params_dict["params"].items() if k not in ["expected_outcome"]},
-            }
-
-        elif exp_type == "layer2":
-            # Layer 2 experiments
-            all_params = params_dict["params"]
-            valid_config_fields = set(Layer2Config.__dataclass_fields__.keys())
-
-            # Filter parameters for Layer2Config
-            layer2_params = {k: v for k, v in all_params.items() if k in valid_config_fields}
-            layer2_config = Layer2Config(**layer2_params)
-
-            # Create network and manager
-            topology = NetworkTopology(
-                network_type=layer2_config.network_type, connectivity=layer2_config.network_connectivity
-            )
-
-            n_agents = params_dict.get("n_agents", 2000)
-            social_network = SocialNetwork(n_agents, topology)
-            transmission_manager = CulturalTransmissionManager(layer2_config, social_network)
-
-            # Agent data with process-specific seed
-            seed = hash(f"{os.getpid()}_{time.time()}") % (2**32)
-            agent_data = MockAgentData(n_agents, seed=seed)
-
-            # Run simulation
-            n_generations = params_dict.get("n_generations", 1000)
-            diversity_samples = []
-            total_events = 0
-
-            for generation in range(n_generations):
-                events = transmission_manager.process_cultural_learning(agent_data, generation)
-                total_events += len(events)
-
-                if generation % 50 == 0:
-                    cultural_diversity = len(np.unique(agent_data.get_cultural_preferences())) / 256.0
-                    diversity_samples.append(cultural_diversity)
-
-            # Final analysis
-            final_diversity = diversity_samples[-1] if diversity_samples else 0.0
-            diversity_trend = (
-                np.polyfit(range(len(diversity_samples)), diversity_samples, 1)[0]
-                if len(diversity_samples) > 1
-                else 0.0
-            )
-
-            # Classify cultural outcome
-            if final_diversity > 0.7:
-                cultural_outcome = "high_diversity"
-            elif final_diversity < 0.2:
-                cultural_outcome = "low_diversity"
-            else:
-                cultural_outcome = "moderate_diversity"
-
-            return {
-                "experiment_type": "layer2",
-                "name": exp_config.get("name", "unnamed"),
-                "duration_seconds": time.time() - experiment_start,
-                "final_diversity": final_diversity,
-                "diversity_trend": diversity_trend,
-                "total_events": total_events,
-                "cultural_outcome": cultural_outcome,
-                "n_agents": n_agents,
-                "generations_completed": n_generations,
-                "success": True,
-                "process_id": os.getpid(),
-                **layer2_params,
-            }
-
-        else:
-            raise ValueError(f"Unknown experiment type: {exp_type}")
-
-    except Exception as e:
-        exp_type_for_error = params_dict.get("type", "unknown")
-        exp_name_for_error = params_dict.get("config", {}).get("name", "unnamed")
-        logging.error(f"Experiment {exp_name_for_error} (type: {exp_type_for_error}) failed: {e}", exc_info=True)
-        return {
-            "experiment_type": exp_type_for_error,
-            "name": exp_name_for_error,
-            "error": str(e),
-            "duration_seconds": time.time() - experiment_start,
-            "success": False,
-            "process_id": os.getpid(),
-        }
+    if exp_type == "layer1":
+        return run_genetic_experiment(params_dict)
+    elif exp_type == "layer2":
+        return run_cultural_experiment(params_dict)
+    else:
+        raise ValueError(f"Unknown experiment type: {exp_type}")
 
 
-class UnifiedExperimentRunner:
+class CleanExperimentRunner:
     """
-    Unified experiment runner for all experiment types.
-    Includes built-in logging, progress tracking, and result organization.
+    Clean experiment runner using type-safe storage and eliminating null pollution.
+
+    This runner uses separate collectors for each experiment type and provides
+    clean, analysis-ready data storage.
     """
 
     def __init__(self, config: UnifiedConfig) -> None:
         self.config = config
 
-        # Setup directories
+        # Setup directories and clean storage
         self.results_dir = Path(config.results_dir)
         self.logs_dir = Path(config.logs_dir)
-        self.results_dir.mkdir(parents=True, exist_ok=True)
-        self.logs_dir.mkdir(parents=True, exist_ok=True)
+        self.storage = ExperimentStorage(self.results_dir)
 
         # Setup logging
         self.setup_logging()
@@ -307,8 +420,7 @@ class UnifiedExperimentRunner:
         self.total_experiments = 0
         self.should_stop = False
 
-        # Results storage
-        self.all_results: list[dict[str, Any]] = []
+        # Thread safety
         self.results_lock = threading.Lock()
 
         # Resource monitoring
@@ -318,8 +430,9 @@ class UnifiedExperimentRunner:
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
-        self.logger.info(f"Unified experiment runner initialized: {config.experiment_name}")
+        self.logger.info(f"Clean experiment runner initialized: {config.experiment_name}")
         self.logger.info(f"Workers: {config.n_workers}, Memory limit: {config.memory_limit_gb}GB")
+        self.logger.info("Using clean data architecture - zero null pollution!")
 
     def setup_logging(self) -> None:
         """Setup comprehensive logging to file and console."""
@@ -358,10 +471,11 @@ class UnifiedExperimentRunner:
         return True
 
     def _save_checkpoint(self) -> None:
-        """Save experiment checkpoint."""
+        """Save experiment checkpoint with clean data."""
         checkpoint_path = self.results_dir / "checkpoint.json"
 
         with self.results_lock:
+            result_counts = self.storage.get_total_results()
             checkpoint_data = {
                 "experiment_name": self.config.experiment_name,
                 "start_time": self.start_time,
@@ -369,20 +483,22 @@ class UnifiedExperimentRunner:
                 "experiments_failed": self.experiments_failed,
                 "total_experiments": self.total_experiments,
                 "peak_memory_gb": self.peak_memory_gb,
-                "results_count": len(self.all_results),
+                "results_by_type": result_counts,
+                "total_results": sum(result_counts.values()),
             }
 
         with open(checkpoint_path, "w") as f:
-            json.dump(checkpoint_data, f, indent=2)
+            json.dump(checkpoint_data, f, indent=2, default=str)
 
-        if self.all_results:
+        # Save intermediate results using clean storage
+        if sum(result_counts.values()) > 0:
             try:
-                results_df = pl.DataFrame(self.all_results)
-                results_path = self.results_dir / "checkpoint_results.parquet"
-                results_df.write_parquet(results_path)
-                self.logger.info(f"Checkpoint saved: {len(self.all_results)} results")
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                checkpoint_timestamp = f"checkpoint_{timestamp}"
+                saved_files = self.storage.save_all(checkpoint_timestamp)
+                self.logger.info(f"Checkpoint saved: {result_counts} -> {len(saved_files)} clean files")
             except Exception as e:
-                self.logger.error(f"Failed to save checkpoint results: {e}")
+                self.logger.error(f"Failed to save checkpoint results: {e}", exc_info=True)
 
     def generate_experiments(self) -> list[dict[str, Any]]:
         """Generate experiment tasks based on configuration."""
@@ -433,13 +549,20 @@ class UnifiedExperimentRunner:
 
     @beartype
     def run_experiments(self) -> dict[str, Any]:
-        """Run experiments with progress tracking and result organization."""
+        """Run experiments with clean data storage and progress tracking.
+
+        Returns
+        -------
+        dict[str, Any]
+            Summary of experiment run with statistics and saved file paths
+        """
 
         # Generate experiments
         experiment_tasks = self.generate_experiments()
         self.total_experiments = len(experiment_tasks)
 
         self.logger.info(f"Starting {self.total_experiments} experiments with {self.config.n_workers} workers")
+        self.logger.info("Using clean architecture - no null pollution!")
 
         # Progress tracking
         progress = Progress(
@@ -452,7 +575,7 @@ class UnifiedExperimentRunner:
         )
 
         with progress:
-            main_task = progress.add_task("Experiments", total=self.total_experiments)
+            main_task = progress.add_task("Clean Experiments", total=self.total_experiments)
 
             with concurrent.futures.ProcessPoolExecutor(
                 max_workers=self.config.n_workers, mp_context=mp.get_context("spawn")
@@ -462,7 +585,7 @@ class UnifiedExperimentRunner:
 
                 last_checkpoint = time.time()
 
-                # Process results
+                # Process results with type-safe storage
                 for future in concurrent.futures.as_completed(future_to_task):
                     if self.should_stop:
                         break
@@ -470,12 +593,16 @@ class UnifiedExperimentRunner:
                     try:
                         result = future.result()
 
+                        # Store result in appropriate type-safe collector
                         with self.results_lock:
-                            self.all_results.append(result)
-
-                            if result.get("success", False):
+                            if isinstance(result, GeneticExperimentResult):
+                                self.storage.store_genetic_result(result)
+                                self.experiments_completed += 1
+                            elif isinstance(result, CulturalExperimentResult):
+                                self.storage.store_cultural_result(result)
                                 self.experiments_completed += 1
                             else:
+                                self.logger.error(f"Unknown result type: {type(result)}")
                                 self.experiments_failed += 1
 
                         progress.advance(main_task)
@@ -493,18 +620,22 @@ class UnifiedExperimentRunner:
                             break
 
                     except Exception as e:
-                        self.logger.error(f"Task processing failed: {e}")
+                        self.logger.error(f"Task processing failed: {e}", exc_info=True)
                         self.experiments_failed += 1
 
         # Save final results
         return self._save_final_results()
 
     def _save_final_results(self) -> dict[str, Any]:
-        """Save final results and generate summary."""
+        """Save final results using clean data architecture and generate summary."""
         end_time = time.time()
         duration_hours = (end_time - self.start_time) / 3600
 
-        # Create summary
+        # Get result counts from clean storage
+        result_counts = self.storage.get_total_results()
+        total_results = sum(result_counts.values())
+
+        # Create comprehensive summary
         summary = {
             "experiment_name": self.config.experiment_name,
             "experiment_type": self.config.experiment_type,
@@ -516,40 +647,30 @@ class UnifiedExperimentRunner:
             "failed_experiments": self.experiments_failed,
             "success_rate": self.experiments_completed / max(1, self.total_experiments),
             "peak_memory_gb": self.peak_memory_gb,
+            "results_by_type": result_counts,
+            "total_clean_results": total_results,
             "config": {
                 "n_workers": self.config.n_workers,
                 "stochastic_replications": self.config.stochastic_replications,
             },
+            "architecture": "clean_data_v1.0",  # Mark as clean architecture
         }
 
-        # Save results by experiment type
-        if self.all_results:
-            results_df = pl.DataFrame(self.all_results)
+        # Save all results using clean storage
+        if total_results > 0:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            saved_files = self.storage.save_all(timestamp)
+            summary["saved_files"] = {k: str(v) for k, v in saved_files.items()}
 
-            # Save to appropriate subdirectory
-            if self.config.experiment_type == "layer1":
-                results_path = (
-                    self.results_dir / "layer1" / f"results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.parquet"
-                )
-            elif self.config.experiment_type == "layer2":
-                results_path = (
-                    self.results_dir / "layer2" / f"results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.parquet"
-                )
-            else:  # combined
-                results_path = (
-                    self.results_dir / "combined" / f"results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.parquet"
-                )
-
-            results_path.parent.mkdir(parents=True, exist_ok=True)
-            results_df.write_parquet(results_path)
-
-            # Save summary
-            summary_path = results_path.with_suffix(".json")
-            with open(summary_path, "w") as f:
-                json.dump(summary, f, indent=2, default=str)
+            self.logger.info(f"✅ Clean results saved: {result_counts}")
+            self.logger.info(f"📁 Files: {list(saved_files.keys())}")
+        else:
+            summary["saved_files"] = {}
+            self.logger.warning("No results to save")
 
         self.logger.info(f"Experiments completed: {self.experiments_completed}/{self.total_experiments}")
         self.logger.info(f"Duration: {duration_hours:.2f}h, Peak memory: {self.peak_memory_gb:.1f}GB")
+        self.logger.info("🎉 Clean data architecture - zero null pollution achieved!")
 
         return summary
 
@@ -614,7 +735,7 @@ def run_experiments(config_path: str, **overrides: Any) -> dict[str, Any]:
         if hasattr(config, key):
             setattr(config, key, value)
 
-    runner = UnifiedExperimentRunner(config)
+    runner = CleanExperimentRunner(config)
     return runner.run_experiments()
 
 
