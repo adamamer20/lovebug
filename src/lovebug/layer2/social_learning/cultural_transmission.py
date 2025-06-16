@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 import numpy as np
 import polars as pl
@@ -65,6 +65,7 @@ class LearningEvent:
     generation: int = 0
 
 
+@runtime_checkable
 class AgentDataProtocol(Protocol):
     """Protocol for agent data access."""
 

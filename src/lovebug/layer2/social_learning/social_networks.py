@@ -138,13 +138,13 @@ class SocialNetwork:
         return graph
 
     @beartype
-    def get_neighbors(self, agent_id: int, max_neighbors: int = 5) -> list[int]:
+    def get_neighbors(self, agent_id: int | np.integer, max_neighbors: int = 5) -> list[int]:
         """
         Get neighbors of an agent for cultural learning.
 
         Parameters
         ----------
-        agent_id : int
+        agent_id : int | np.integer
             ID of the agent
         max_neighbors : int, default=5
             Maximum number of neighbors to return
@@ -154,6 +154,9 @@ class SocialNetwork:
         list[int]
             List of neighbor agent IDs
         """
+        # Convert numpy integers to Python int
+        agent_id = int(agent_id)
+
         if agent_id not in self.graph:
             logger.warning(f"Agent {agent_id} not in network")
             return []
@@ -162,14 +165,15 @@ class SocialNetwork:
         if self._cache_valid and agent_id in self._neighbor_cache:
             neighbors = self._neighbor_cache[agent_id]
         else:
-            neighbors = list(self.graph.neighbors(agent_id))
+            neighbors = [int(n) for n in self.graph.neighbors(agent_id)]  # Convert to Python int
             self._neighbor_cache[agent_id] = neighbors
 
         # Return random subset if too many neighbors
         if len(neighbors) <= max_neighbors:
             return neighbors
         else:
-            return list(np.random.choice(neighbors, max_neighbors, replace=False))
+            selected = np.random.choice(neighbors, max_neighbors, replace=False)
+            return [int(n) for n in selected]  # Convert to Python int
 
     @beartype
     def get_local_neighbors(self, agent_id: int, radius: int = 1) -> list[int]:

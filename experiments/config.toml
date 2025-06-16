@@ -1,0 +1,40 @@
+# Unified Experiment Configuration
+# Supports Layer1 (Lande-Kirkpatrick), Layer2 (Cultural transmission), and combined experiments
+
+[runner]
+experiment_type = "combined"  # "layer1", "layer2", or "combined"
+experiment_name = "unified_evolution_study"
+n_workers = 25  # Use 90% of available cores
+max_duration_hours = 12.0
+memory_limit_gb = 75.0  # Use most of available RAM
+stochastic_replications = 10
+checkpoint_interval_minutes = 5
+smart_sampling = true
+sampling_method = "lhs"
+max_samples_per_sweep = 5000
+
+[output]
+results_dir = "experiments/results"
+logs_dir = "experiments/logs/current"
+batch_size = 200
+
+[layer1]
+# Lande-Kirkpatrick experiment parameters
+n_generations = 2000
+pop_size = 5000
+h2_trait = 0.5
+h2_preference = 0.5
+genetic_correlation = 0.2
+selection_strength = 0.1
+preference_cost = 0.05
+mutation_variance = 0.01
+
+[layer2]
+# Cultural transmission experiment parameters
+innovation_rate = 0.1
+horizontal_transmission_rate = 0.3
+oblique_transmission_rate = 0.2
+network_type = "scale_free"  # "random", "grid", "scale_free", "small_world"
+network_connectivity = 0.1
+cultural_memory_size = 10
+n_agents = 2000

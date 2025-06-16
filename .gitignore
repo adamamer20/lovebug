@@ -90,3 +90,6 @@ paper/*.tex
 paper/*.bst
 paper/_build
 output
+
+experiments/results
+experiments/logs

@@ -122,7 +122,7 @@ class Layer2Config:
                 raise ValueError(f"{param_name} must be positive, got {value}")
 
         # Network type validation
-        valid_networks = {"random", "small_world", "scale_free"}
+        valid_networks = {"random", "small_world", "scale_free", "grid"}
         if self.network_type not in valid_networks:
             raise ValueError(f"network_type must be one of {valid_networks}, got {self.network_type}")
 
