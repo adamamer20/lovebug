@@ -33,9 +33,16 @@
             }
         }
     },
-    "forwardPorts": [
-        8000
-    ],
+    "services": {
+        "qdrant": {
+            "image": "qdrant/qdrant:latest",
+            "ports": ["6333:6333"],
+            "environment": {
+                "QDRANT__SERVICE__API_KEY": ""
+            }
+        }
+    },
+    "forwardPorts": [8000, 6333, 11434],
     // The CWD for postCreateCommand is the workspaceFolder (e.g., /workspaces/lovebug)
     // uv sync needs to target the /app directory where pyproject.toml and .venv are for this setup
     // pre-commit install should run in the workspaceFolder where .pre-commit-config.yaml is
