@@ -91,6 +91,10 @@ class LayerActivationConfig:
     # Validation parameters
     normalize_weights: bool = True
 
+    # Perceptual constraint parameters (theoretical mechanisms from paper)
+    theta_detect: float = 8.0  # Detection threshold for courtship signals
+    sigma_perception: float = 2.0  # Perceptual noise standard deviation
+
     def __post_init__(self) -> None:
         """Validate configuration and normalize weights if requested."""
         self._validate_parameters()
@@ -134,6 +138,12 @@ class LayerActivationConfig:
         valid_modes = {"weighted_average", "probabilistic", "competitive"}
         if self.blending_mode not in valid_modes:
             raise ValueError(f"blending_mode must be one of {valid_modes}, got {self.blending_mode}")
+
+        # Validate perceptual constraint parameters
+        if self.theta_detect < 0:
+            raise ValueError(f"theta_detect must be non-negative, got {self.theta_detect}")
+        if self.sigma_perception < 0:
+            raise ValueError(f"sigma_perception must be non-negative, got {self.sigma_perception}")
 
     def _normalize_weights(self) -> None:
         """Normalize weights to sum to 1.0 if both are positive."""
@@ -222,6 +232,8 @@ class LayerActivationConfig:
             "cultural_weight": self.cultural_weight,
             "blending_mode": self.blending_mode,
             "normalize_weights": self.normalize_weights,
+            "theta_detect": self.theta_detect,
+            "sigma_perception": self.sigma_perception,
         }
 
     @classmethod
@@ -258,6 +270,8 @@ class LayerActivationConfig:
             cultural_weight=float(config_dict.get("cultural_weight", 0.5)),
             blending_mode=blending_mode_value,  # type: ignore[arg-type]
             normalize_weights=bool(config_dict.get("normalize_weights", True)),
+            theta_detect=float(config_dict.get("theta_detect", 8.0)),
+            sigma_perception=float(config_dict.get("sigma_perception", 2.0)),
         )
 
     @classmethod

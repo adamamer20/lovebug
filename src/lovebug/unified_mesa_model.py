@@ -195,6 +195,37 @@ class UnifiedLoveBugs(AgentSetPolars):
 
         self["effective_preference"] = pl.Series(effective_prefs, dtype=pl.UInt8)
 
+    def _apply_perceptual_constraints(self, similarity_scores: np.ndarray) -> np.ndarray:
+        """
+        Apply perceptual constraints (θ_detect, σ_perception) from paper theory.
+
+        Implements perceptual noise and detection thresholds that agents
+        experience when evaluating potential mates' display traits.
+
+        Parameters
+        ----------
+        similarity_scores : np.ndarray
+            Raw similarity scores between displays and preferences
+
+        Returns
+        -------
+        np.ndarray
+            Perceived similarity scores after applying constraints
+        """
+        # Apply perceptual noise using σ_perception parameter
+        noise = np.random.normal(0, self.layer_config.sigma_perception, size=similarity_scores.shape)
+        noisy_scores = similarity_scores.astype(np.float32) + noise
+
+        # Apply detection threshold - signals below θ_detect are undetectable
+        perceived_scores = np.where(
+            noisy_scores >= self.layer_config.theta_detect,
+            noisy_scores,
+            0.0,  # Undetectable signals score as 0
+        )
+
+        # Clamp to valid similarity range [0, 16]
+        return np.clip(perceived_scores, 0.0, 16.0)
+
     def get_effective_pref(self) -> np.ndarray:
         """Get effective preference based on layer activation."""
         if self.layer_config.is_genetic_only():
@@ -230,11 +261,15 @@ class UnifiedLoveBugs(AgentSetPolars):
         pref_partner = pref_self[partners]
         thr_partner = (genomes_partner & BEHAV_MASK) >> BEHAV_SHIFT
 
-        # Similarity scores (0‑16)
+        # Similarity scores (0‑16) with perceptual constraints from paper theory
         sim_self = hamming_similarity(disp_partner, pref_self)
         sim_partner = hamming_similarity(disp_self, pref_partner)
 
-        accepted = (sim_self >= thr_self) & (sim_partner >= thr_partner)
+        # Apply perceptual noise and detection thresholds (θ_detect, σ_perception)
+        sim_self_perceived = self._apply_perceptual_constraints(sim_self)
+        sim_partner_perceived = self._apply_perceptual_constraints(sim_partner)
+
+        accepted = (sim_self_perceived >= thr_self) & (sim_partner_perceived >= thr_partner)
         if not accepted.any():
             return
 
@@ -398,28 +433,50 @@ class UnifiedLoveBugs(AgentSetPolars):
         self["prestige_score"] = pl.Series(prestige_scores, dtype=pl.Float32)
 
     def _vectorized_prestige_learning(self, learners: np.ndarray) -> None:
-        """Vectorized prestige-based learning."""
+        """
+        Vectorized prestige-based learning with local radius constraint.
+
+        Uses local_learning_radius from Layer2Config to respect spatial/social
+        constraints on cultural transmission as described in paper theory.
+        """
         if not learners.any():
             return
 
         n = len(self)
         prestige_scores = self.agents["prestige_score"].to_numpy()
         culture_array = self.agents["pref_culture"].to_numpy().copy()
-
-        # Select teachers based on prestige (vectorized)
-        n_learners = int(np.sum(learners))
-
-        # Use prestige-weighted sampling
-        if np.sum(prestige_scores) > 0:
-            teacher_probs = prestige_scores / np.sum(prestige_scores)
-        else:
-            teacher_probs = np.ones(n) / n
-
-        teacher_indices = np.random.choice(n, size=n_learners, p=teacher_probs, replace=True)
-
-        # Apply learning
         learner_indices = np.where(learners)[0]
-        culture_array[learner_indices] = culture_array[teacher_indices]
+
+        # Get local learning radius from config
+        local_radius = 5  # Default fallback
+        if self.model.cultural_params:
+            local_radius = self.model.cultural_params.local_learning_radius
+
+        # Apply learning with local radius constraint
+        for learner_idx in learner_indices:
+            # Get neighbors within local learning radius
+            if hasattr(self, "social_network") and self.social_network:
+                potential_teachers = self.social_network.get_local_neighbors(int(learner_idx), radius=local_radius)
+            else:
+                # Fallback to random subset if no social network
+                potential_teachers = np.random.choice(n, size=min(local_radius * 2, n), replace=False).tolist()
+
+            if not potential_teachers:
+                continue
+
+            # Filter by prestige within local neighborhood
+            teacher_prestige = prestige_scores[potential_teachers]
+
+            if np.sum(teacher_prestige) > 0:
+                # Prestige-weighted selection within local neighborhood
+                teacher_probs = teacher_prestige / np.sum(teacher_prestige)
+                selected_teacher = np.random.choice(potential_teachers, p=teacher_probs)
+            else:
+                # Random selection if no prestige differences
+                selected_teacher = np.random.choice(potential_teachers)
+
+            # Apply cultural transmission
+            culture_array[learner_idx] = culture_array[selected_teacher]
 
         self["pref_culture"] = pl.Series(culture_array, dtype=pl.UInt8)
 

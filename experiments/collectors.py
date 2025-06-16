@@ -363,19 +363,134 @@ class IntegratedResultCollector:
         logger.debug(f"Added integrated result: {result.metadata.experiment_id}")
 
     def to_dataframe(self) -> pl.DataFrame:
-        """Convert integrated results to DataFrame (future implementation)."""
+        """Convert integrated results to clean Polars DataFrame.
+
+        Returns
+        -------
+        pl.DataFrame
+            Clean DataFrame with no null values, optimized for analysis
+
+        Raises
+        ------
+        ValueError
+            If no results have been collected
+        """
         if not self.results:
             raise ValueError("No integrated results to convert")
-        # Future: implement flattening of integrated results
-        return pl.DataFrame()
+
+        # Flatten nested dataclasses into flat dictionary structure
+        rows = []
+        for result in self.results:
+            row = {
+                # Metadata fields
+                "experiment_id": result.metadata.experiment_id,
+                "name": result.metadata.name,
+                "experiment_type": result.metadata.experiment_type,
+                "start_time": result.metadata.start_time,
+                "duration_seconds": result.metadata.duration_seconds,
+                "success": result.metadata.success,
+                "process_id": result.metadata.process_id,
+                # Common parameters
+                "n_generations": result.common_params.n_generations,
+                "population_size": result.common_params.population_size,
+                "random_seed": result.common_params.random_seed,
+                # Integration-specific results
+                "gene_culture_correlation": result.gene_culture_correlation,
+                "interaction_strength": result.interaction_strength,
+                # Genetic component results
+                "genetic_final_trait": result.genetic_component.final_trait,
+                "genetic_final_preference": result.genetic_component.final_preference,
+                "genetic_final_covariance": result.genetic_component.final_covariance,
+                "genetic_outcome": result.genetic_component.outcome,
+                "genetic_h2_trait": result.genetic_component.h2_trait,
+                "genetic_h2_preference": result.genetic_component.h2_preference,
+                "genetic_correlation": result.genetic_component.genetic_correlation,
+                "selection_strength": result.genetic_component.selection_strength,
+                "preference_cost": result.genetic_component.preference_cost,
+                "mutation_variance": result.genetic_component.mutation_variance,
+                # Cultural component results
+                "cultural_final_diversity": result.cultural_component.final_diversity,
+                "cultural_diversity_trend": result.cultural_component.diversity_trend,
+                "cultural_total_events": result.cultural_component.total_events,
+                "cultural_outcome": result.cultural_component.cultural_outcome,
+                "innovation_rate": result.cultural_component.innovation_rate,
+                "horizontal_transmission_rate": result.cultural_component.horizontal_transmission_rate,
+                "oblique_transmission_rate": result.cultural_component.oblique_transmission_rate,
+                "network_type": result.cultural_component.network_type,
+                "network_connectivity": result.cultural_component.network_connectivity,
+                "cultural_memory_size": result.cultural_component.cultural_memory_size,
+                # Emergent properties
+                **{f"emergent_{k}": v for k, v in result.emergent_properties.items()},
+            }
+            rows.append(row)
+
+        df = pl.DataFrame(rows)
+        logger.info(f"Converted {len(self.results)} integrated results to DataFrame")
+        return df
 
     def save_to_file(self, path: Path) -> None:
-        """Save integrated results (future implementation)."""
-        logger.warning("Integrated result saving not yet implemented")
+        """Save integrated results to Parquet file.
+
+        Parameters
+        ----------
+        path : Path
+            Output file path (will create parent directories)
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        df = self.to_dataframe()
+        df.write_parquet(path)
+        logger.info(f"Saved {len(self.results)} integrated results to {path}")
 
     def get_summary_stats(self) -> dict[str, Any]:
-        """Get integrated result statistics (future implementation)."""
-        return {"total_experiments": len(self.results), "status": "placeholder"}
+        """Generate summary statistics for integrated results.
+
+        Returns
+        -------
+        dict[str, Any]
+            Summary statistics including interaction metrics and component summaries
+        """
+        if not self.results:
+            return {"total_experiments": 0}
+
+        df = self.to_dataframe()
+
+        return {
+            "total_experiments": len(self.results),
+            "success_rate": df["success"].mean(),
+            "avg_duration_seconds": df["duration_seconds"].mean(),
+            "interaction_metrics": {
+                "mean_gene_culture_correlation": df["gene_culture_correlation"].mean(),
+                "mean_interaction_strength": df["interaction_strength"].mean(),
+                "correlation_range": {
+                    "min": df["gene_culture_correlation"].min(),
+                    "max": df["gene_culture_correlation"].max(),
+                },
+            },
+            "genetic_component_summary": {
+                "outcome_distribution": df["genetic_outcome"].value_counts().to_dict(),
+                "mean_final_covariance": df["genetic_final_covariance"].mean(),
+            },
+            "cultural_component_summary": {
+                "outcome_distribution": df["cultural_outcome"].value_counts().to_dict(),
+                "mean_final_diversity": df["cultural_final_diversity"].mean(),
+                "total_cultural_events": df["cultural_total_events"].sum(),
+            },
+            "emergent_properties": {
+                col.replace("emergent_", ""): df[col].mean()
+                for col in df.columns
+                if col.startswith("emergent_") and df[col].dtype in [pl.Float32, pl.Float64, pl.Int32, pl.Int64]
+            },
+            "parameter_ranges": {
+                "population_size": {
+                    "min": df["population_size"].min(),
+                    "max": df["population_size"].max(),
+                },
+                "n_generations": {
+                    "min": df["n_generations"].min(),
+                    "max": df["n_generations"].max(),
+                },
+            },
+        }
 
     def clear(self) -> None:
         """Clear integrated results."""

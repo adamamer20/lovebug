@@ -37,4 +37,74 @@ oblique_transmission_rate = 0.2
 network_type = "scale_free"  # "random", "grid", "scale_free", "small_world"
 network_connectivity = 0.1
 cultural_memory_size = 10
+local_learning_radius = 5
 n_agents = 2000
+
+# Layer activation settings for combined experiments
+[layer_activation]
+genetic_enabled = true
+cultural_enabled = true
+genetic_weight = 0.5
+cultural_weight = 0.5
+blending_mode = "weighted_average"  # "weighted_average", "probabilistic", "competitive"
+normalize_weights = true
+
+# Theoretical mechanism parameters
+theta_detect = 8.0  # Detection threshold for courtship signals
+sigma_perception = 2.0  # Perceptual noise standard deviation
+
+# Parameter sweep configuration
+[parameter_sweeps]
+enable_parameter_sweeps = false
+sweep_genetic_weights = [0.0, 0.3, 0.5, 0.7, 1.0]
+sweep_cultural_weights = [0.0, 0.3, 0.5, 0.7, 1.0]
+sweep_replications_per_combo = 3
+
+# Combined experiment configurations
+[combined_experiments]
+# Example configurations demonstrating theoretical mechanisms
+
+# Configuration 1: Balanced gene-culture interaction
+[[combined_experiments.config]]
+name = "balanced_interaction"
+genetic_weight = 0.5
+cultural_weight = 0.5
+theta_detect = 8.0
+sigma_perception = 2.0
+local_learning_radius = 5
+
+# Configuration 2: Cultural dominance with high perceptual noise
+[[combined_experiments.config]]
+name = "cultural_dominance_noisy"
+genetic_weight = 0.2
+cultural_weight = 0.8
+theta_detect = 6.0
+sigma_perception = 3.0
+local_learning_radius = 3
+
+# Configuration 3: Genetic dominance with precise perception
+[[combined_experiments.config]]
+name = "genetic_dominance_precise"
+genetic_weight = 0.8
+cultural_weight = 0.2
+theta_detect = 10.0
+sigma_perception = 1.0
+local_learning_radius = 10
+
+# Configuration 4: High detection threshold (testing perceptual constraints)
+[[combined_experiments.config]]
+name = "high_threshold"
+genetic_weight = 0.5
+cultural_weight = 0.5
+theta_detect = 12.0
+sigma_perception = 2.0
+local_learning_radius = 5
+
+# Configuration 5: Large local learning radius (testing social effects)
+[[combined_experiments.config]]
+name = "large_social_radius"
+genetic_weight = 0.5
+cultural_weight = 0.5
+theta_detect = 8.0
+sigma_perception = 2.0
+local_learning_radius = 15

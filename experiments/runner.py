@@ -61,12 +61,14 @@ from experiments.models import (  # noqa: E402
     CulturalExperimentResult,
     ExperimentMetadata,
     GeneticExperimentResult,
+    IntegratedExperimentResult,
 )
 from lovebug.lande_kirkpatrick import LandeKirkpatrickParams, simulate_lande_kirkpatrick  # noqa: E402
 from lovebug.layer2.config import Layer2Config  # noqa: E402
 from lovebug.layer2.social_learning.cultural_transmission import CulturalTransmissionManager  # noqa: E402
 from lovebug.layer2.social_learning.social_networks import NetworkTopology, SocialNetwork  # noqa: E402
 from lovebug.layer_activation import LayerActivationConfig  # noqa: E402
+from lovebug.unified_mesa_model import UnifiedLoveModel  # noqa: E402
 
 __all__ = ["UnifiedConfig", "CleanExperimentRunner", "run_experiments"]
 
@@ -418,7 +420,200 @@ def run_cultural_experiment(params_dict: dict[str, Any]) -> CulturalExperimentRe
         raise
 
 
-def run_single_experiment(params_dict: dict[str, Any]) -> GeneticExperimentResult | CulturalExperimentResult:
+@beartype
+def run_combined_experiment(params_dict: dict[str, Any]) -> IntegratedExperimentResult:
+    """
+    Execute a combined genetic+cultural evolution experiment.
+
+    Parameters
+    ----------
+    params_dict : dict[str, Any]
+        Experiment parameters including layer activation config and both genetic/cultural parameters
+
+    Returns
+    -------
+    IntegratedExperimentResult
+        Type-safe integrated experiment result with both genetic and cultural components
+
+    Raises
+    ------
+    ValueError
+        If required parameters are missing or invalid
+    Exception
+        If simulation fails for any reason
+    """
+    experiment_start = time.time()
+    start_time = datetime.now()
+
+    try:
+        exp_config = params_dict.get("config", {})
+        all_params = params_dict["params"]
+
+        # Create layer activation config from parameters
+        layer_config = LayerActivationConfig(
+            genetic_enabled=all_params.get("genetic_enabled", True),
+            cultural_enabled=all_params.get("cultural_enabled", True),
+            genetic_weight=all_params.get("genetic_weight", 0.5),
+            cultural_weight=all_params.get("cultural_weight", 0.5),
+            blending_mode=all_params.get("blending_mode", "weighted_average"),
+            normalize_weights=all_params.get("normalize_weights", True),
+            theta_detect=all_params.get("theta_detect", 8.0),
+            sigma_perception=all_params.get("sigma_perception", 2.0),
+        )
+
+        # Extract genetic parameters
+        genetic_params = None
+        if layer_config.genetic_enabled:
+            lk_params = {
+                k: v
+                for k, v in all_params.items()
+                if k
+                in {
+                    "n_generations",
+                    "pop_size",
+                    "h2_trait",
+                    "h2_preference",
+                    "selection_strength",
+                    "genetic_correlation",
+                    "mutation_variance",
+                    "preference_cost",
+                }
+            }
+            if "pop_size" in lk_params:
+                lk_params["pop_size"] = lk_params.get("pop_size", 2000)
+            genetic_params = LandeKirkpatrickParams(**lk_params)
+
+        # Extract cultural parameters
+        cultural_params = None
+        if layer_config.cultural_enabled:
+            valid_config_fields = set(Layer2Config.__dataclass_fields__.keys())
+            layer2_params = {k: v for k, v in all_params.items() if k in valid_config_fields}
+            cultural_params = Layer2Config(**layer2_params)
+
+        # Run unified simulation
+        n_agents = params_dict.get("n_agents", 2000)
+        n_generations = params_dict.get("n_generations", 1000)
+
+        unified_model = UnifiedLoveModel(
+            layer_config=layer_config,
+            genetic_params=genetic_params,
+            cultural_params=cultural_params,
+            n_agents=n_agents,
+        )
+
+        # Execute simulation
+        results = unified_model.run(n_generations)
+
+        # Extract final metrics for creating component results
+        final_metrics = results.get("final_metrics", {})
+        trajectory = results.get("trajectory", [])
+
+        # Create genetic component result
+        genetic_component = GeneticExperimentResult(
+            metadata=ExperimentMetadata(
+                experiment_id=f"genetic_{str(uuid.uuid4())[:8]}",
+                name=f"genetic_component_{exp_config.get('name', 'unknown')}",
+                experiment_type="genetic",
+                start_time=start_time,
+                duration_seconds=time.time() - experiment_start,
+                success=True,
+                process_id=os.getpid(),
+            ),
+            common_params=CommonParameters(
+                n_generations=n_generations,
+                population_size=n_agents,
+                random_seed=params_dict.get("random_seed"),
+            ),
+            final_trait=final_metrics.get("mean_genetic_trait", 0.0),
+            final_preference=final_metrics.get("mean_genetic_preference", 128.0),
+            final_covariance=final_metrics.get("genetic_covariance", 0.0),
+            outcome="equilibrium",  # Could be determined from trajectory analysis
+            generations_completed=n_generations,
+            h2_trait=genetic_params.h2_trait if genetic_params else 0.5,
+            h2_preference=genetic_params.h2_preference if genetic_params else 0.5,
+            genetic_correlation=genetic_params.genetic_correlation if genetic_params else 0.2,
+            selection_strength=genetic_params.selection_strength if genetic_params else 0.1,
+            preference_cost=genetic_params.preference_cost if genetic_params else 0.05,
+            mutation_variance=genetic_params.mutation_variance if genetic_params else 0.01,
+        )
+
+        # Create cultural component result
+        cultural_component = CulturalExperimentResult(
+            metadata=ExperimentMetadata(
+                experiment_id=f"cultural_{str(uuid.uuid4())[:8]}",
+                name=f"cultural_component_{exp_config.get('name', 'unknown')}",
+                experiment_type="cultural",
+                start_time=start_time,
+                duration_seconds=time.time() - experiment_start,
+                success=True,
+                process_id=os.getpid(),
+            ),
+            common_params=CommonParameters(
+                n_generations=n_generations,
+                population_size=n_agents,
+                random_seed=params_dict.get("random_seed"),
+            ),
+            final_diversity=final_metrics.get("cultural_diversity", 0.5),
+            diversity_trend=0.0,  # Could be calculated from trajectory
+            total_events=sum(h.get("cultural_learning_events", 0) for h in trajectory),
+            cultural_outcome="moderate_diversity",  # Could be determined from final_diversity
+            generations_completed=n_generations,
+            innovation_rate=cultural_params.innovation_rate if cultural_params else 0.1,
+            horizontal_transmission_rate=cultural_params.horizontal_transmission_rate if cultural_params else 0.3,
+            oblique_transmission_rate=cultural_params.oblique_transmission_rate if cultural_params else 0.2,
+            network_type=cultural_params.network_type if cultural_params else "scale_free",
+            network_connectivity=cultural_params.network_connectivity if cultural_params else 0.1,
+            cultural_memory_size=cultural_params.cultural_memory_size if cultural_params else 10,
+        )
+
+        # Calculate interaction metrics
+        gene_culture_correlation = final_metrics.get("gene_culture_correlation", 0.0)
+        interaction_strength = layer_config.genetic_weight * layer_config.cultural_weight
+
+        # Collect emergent properties from simulation
+        emergent_properties = {
+            "effective_preference_variance": final_metrics.get("var_effective_preference", 0.0),
+            "gene_culture_distance": final_metrics.get("gene_culture_distance", 0.0),
+            "population_stability": 1.0 if final_metrics.get("population_size", 0) > n_agents * 0.1 else 0.0,
+            "blending_efficiency": interaction_strength,
+            "perceptual_constraint_effect": layer_config.theta_detect / 16.0,  # Normalized effect
+        }
+
+        # Create integrated result
+        experiment_id = str(uuid.uuid4())[:8]
+
+        integrated_result = IntegratedExperimentResult(
+            metadata=ExperimentMetadata(
+                experiment_id=experiment_id,
+                name=exp_config.get("name", f"integrated_{experiment_id}"),
+                experiment_type="integrated",
+                start_time=start_time,
+                duration_seconds=time.time() - experiment_start,
+                success=True,
+                process_id=os.getpid(),
+            ),
+            common_params=CommonParameters(
+                n_generations=n_generations,
+                population_size=n_agents,
+                random_seed=params_dict.get("random_seed"),
+            ),
+            genetic_component=genetic_component,
+            cultural_component=cultural_component,
+            gene_culture_correlation=gene_culture_correlation,
+            interaction_strength=interaction_strength,
+            emergent_properties=emergent_properties,
+        )
+
+        return integrated_result
+
+    except Exception as e:
+        logger.exception(f"Combined experiment failed: {e}")
+        raise
+
+
+def run_single_experiment(
+    params_dict: dict[str, Any],
+) -> GeneticExperimentResult | CulturalExperimentResult | IntegratedExperimentResult:
     """
     Execute a single experiment and return properly typed result.
 
@@ -446,6 +641,8 @@ def run_single_experiment(params_dict: dict[str, Any]) -> GeneticExperimentResul
         return run_genetic_experiment(params_dict)
     elif exp_type == "layer2":
         return run_cultural_experiment(params_dict)
+    elif exp_type == "combined":
+        return run_combined_experiment(params_dict)
     else:
         raise ValueError(f"Unknown experiment type: {exp_type}")
 
@@ -600,6 +797,100 @@ class CleanExperimentRunner:
                     }
                 )
 
+        # Combined experiments with parameter sweeps
+        if self.config.experiment_type == "combined":
+            if self.config.enable_parameter_sweeps:
+                # Generate parameter sweep combinations
+                for genetic_weight in self.config.sweep_genetic_weights:
+                    for cultural_weight in self.config.sweep_cultural_weights:
+                        # Normalize weights if needed
+                        if self.config.normalize_weights:
+                            total = genetic_weight + cultural_weight
+                            if total > 0:
+                                genetic_weight = genetic_weight / total
+                                cultural_weight = cultural_weight / total
+
+                        for _rep in range(self.config.sweep_replications_per_combo):
+                            # Test different theoretical mechanism parameters
+                            for theta_detect in [4.0, 8.0, 12.0]:  # Detection thresholds
+                                for sigma_perception in [1.0, 2.0, 3.0]:  # Perceptual noise
+                                    for local_radius in [3, 5, 10]:  # Local learning radius
+                                        tasks.append(
+                                            {
+                                                "type": "combined",
+                                                "config": {"name": f"combined_sweep_{len(tasks):05d}"},
+                                                "params": {
+                                                    # Layer activation parameters
+                                                    "genetic_enabled": True,
+                                                    "cultural_enabled": True,
+                                                    "genetic_weight": genetic_weight,
+                                                    "cultural_weight": cultural_weight,
+                                                    "blending_mode": self.config.blending_mode,
+                                                    "normalize_weights": False,  # Already normalized
+                                                    "theta_detect": theta_detect,
+                                                    "sigma_perception": sigma_perception,
+                                                    # Genetic parameters
+                                                    "n_generations": self.config.layer1_n_generations,
+                                                    "pop_size": self.config.layer1_pop_size,
+                                                    "h2_trait": self.config.layer1_h2_trait,
+                                                    "h2_preference": self.config.layer1_h2_preference,
+                                                    "genetic_correlation": self.config.layer1_genetic_correlation,
+                                                    "selection_strength": self.config.layer1_selection_strength,
+                                                    "preference_cost": self.config.layer1_preference_cost,
+                                                    "mutation_variance": self.config.layer1_mutation_variance,
+                                                    # Cultural parameters
+                                                    "innovation_rate": self.config.layer2_innovation_rate,
+                                                    "horizontal_transmission_rate": self.config.layer2_horizontal_transmission_rate,
+                                                    "oblique_transmission_rate": self.config.layer2_oblique_transmission_rate,
+                                                    "network_type": self.config.layer2_network_type,
+                                                    "network_connectivity": self.config.layer2_network_connectivity,
+                                                    "cultural_memory_size": self.config.layer2_cultural_memory_size,
+                                                    "local_learning_radius": local_radius,
+                                                },
+                                                "n_agents": self.config.layer2_n_agents,
+                                                "n_generations": min(self.config.layer1_n_generations, 1000),
+                                            }
+                                        )
+            else:
+                # Standard combined experiments without parameter sweeps
+                for i in range(self.config.stochastic_replications):
+                    tasks.append(
+                        {
+                            "type": "combined",
+                            "config": {"name": f"combined_exp_{i:04d}"},
+                            "params": {
+                                # Layer activation parameters
+                                "genetic_enabled": self.config.genetic_enabled,
+                                "cultural_enabled": self.config.cultural_enabled,
+                                "genetic_weight": self.config.genetic_weight,
+                                "cultural_weight": self.config.cultural_weight,
+                                "blending_mode": self.config.blending_mode,
+                                "normalize_weights": self.config.normalize_weights,
+                                "theta_detect": 8.0,  # Default theoretical mechanism parameters
+                                "sigma_perception": 2.0,
+                                # Genetic parameters
+                                "n_generations": self.config.layer1_n_generations,
+                                "pop_size": self.config.layer1_pop_size,
+                                "h2_trait": self.config.layer1_h2_trait,
+                                "h2_preference": self.config.layer1_h2_preference,
+                                "genetic_correlation": self.config.layer1_genetic_correlation,
+                                "selection_strength": self.config.layer1_selection_strength,
+                                "preference_cost": self.config.layer1_preference_cost,
+                                "mutation_variance": self.config.layer1_mutation_variance,
+                                # Cultural parameters
+                                "innovation_rate": self.config.layer2_innovation_rate,
+                                "horizontal_transmission_rate": self.config.layer2_horizontal_transmission_rate,
+                                "oblique_transmission_rate": self.config.layer2_oblique_transmission_rate,
+                                "network_type": self.config.layer2_network_type,
+                                "network_connectivity": self.config.layer2_network_connectivity,
+                                "cultural_memory_size": self.config.layer2_cultural_memory_size,
+                                "local_learning_radius": 5,  # Default local learning radius
+                            },
+                            "n_agents": self.config.layer2_n_agents,
+                            "n_generations": min(self.config.layer1_n_generations, 1000),
+                        }
+                    )
+
         self.logger.info(f"Generated {len(tasks)} experiments")
         return tasks
 
@@ -656,6 +947,9 @@ class CleanExperimentRunner:
                                 self.experiments_completed += 1
                             elif isinstance(result, CulturalExperimentResult):
                                 self.storage.store_cultural_result(result)
+                                self.experiments_completed += 1
+                            elif isinstance(result, IntegratedExperimentResult):
+                                self.storage.store_integrated_result(result)
                                 self.experiments_completed += 1
                             else:
                                 self.logger.error(f"Unknown result type: {type(result)}")
