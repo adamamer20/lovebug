@@ -8,6 +8,9 @@
     // Use non-root 'dev' user for security and host file ownership consistency
     // The dev user has passwordless sudo access when system changes are needed
     "remoteUser": "dev",
+    "runArgs": [
+        "--volume", "/var/run/docker.sock:/var/run/docker.sock"
+    ],
     "customizations": {
         "vscode": {
             "extensions": [
@@ -20,7 +23,8 @@
                 "tamasfe.even-better-toml",
                 "redhat.vscode-yaml",
                 "quarto.quarto",
-                "RooVeterinaryInc.roo-cline"
+                "RooVeterinaryInc.roo-cline",
+                "ms-azuretools.vscode-docker"
             ],
             "settings": {
                 "python.defaultInterpreterPath": "/app/.venv/bin/python",
@@ -35,5 +39,5 @@
     // The CWD for postCreateCommand is the workspaceFolder (e.g., /workspaces/lovebug)
     // uv sync needs to target the /app directory where pyproject.toml and .venv are for this setup
     // pre-commit install should run in the workspaceFolder where .pre-commit-config.yaml is
-    "postCreateCommand": "uv --project-dir /app sync --dev && pre-commit install && fish -c 'echo Welcome to LoveBug development environment!'"
+    "postCreateCommand": "uv sync --dev && pre-commit install && fish -c 'echo Welcome to LoveBug development environment!'"
 }

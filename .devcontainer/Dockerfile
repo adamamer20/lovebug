@@ -77,13 +77,29 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Install system dependencies, including sudo
+# Install system dependencies, including sudo and Docker CLI
 RUN apt-get update && apt-get install -y \
     fish \
     git \
     curl \
     sudo \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg \
+         | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && echo \
+     "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+     https://download.docker.com/linux/debian \
+     $(lsb_release -cs) stable" \
+      > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y docker-ce-cli \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Ollama
+RUN curl -fsSL https://ollama.com/install.sh | sh
 
 # Copy uv from deps stage
 COPY --from=deps /root/.local/bin/uv /usr/local/bin/uv
@@ -97,10 +113,11 @@ COPY --from=deps /app/uv.lock /app/uv.lock
 # Set PATH to include the project's virtual environment
 ENV PATH="/app/.venv/bin:${PATH}"
 
-# Create dev user, configure passwordless sudo, and set ownership
-RUN echo "dev ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/dev-nopasswd \
+# Create docker group and dev user, configure passwordless sudo, and set ownership
+RUN groupadd -g 999 docker \
+    && echo "dev ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/dev-nopasswd \
     && chmod 0440 /etc/sudoers.d/dev-nopasswd \
-    && useradd --create-home --shell /usr/bin/fish --uid 1000 dev \
+    && useradd --create-home --shell /usr/bin/fish --uid 1000 --groups docker dev \
     && mkdir -p /workspace \
     && chown -R dev:dev /home/dev /workspace /app
 
