@@ -37,6 +37,15 @@ from beartype import beartype
 from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeRemainingColumn
 
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+# Add parent directory to path so 'experiments' module can be imported
+# This is needed when running the script directly from the experiments directory
+experiments_parent = str(Path(__file__).parent.parent)
+if experiments_parent not in sys.path:
+    sys.path.insert(0, experiments_parent)
+
 try:
     from scipy.stats import qmc
 
@@ -45,21 +54,18 @@ except ImportError:
     HAS_SCIPY = False
     qmc = None
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 # Import our clean data models
-from experiments.collectors import ExperimentStorage
-from experiments.models import (
+from experiments.collectors import ExperimentStorage  # noqa: E402
+from experiments.models import (  # noqa: E402
     CommonParameters,
     CulturalExperimentResult,
     ExperimentMetadata,
     GeneticExperimentResult,
 )
-from lovebug.lande_kirkpatrick import LandeKirkpatrickParams, simulate_lande_kirkpatrick
-from lovebug.layer2.config import Layer2Config
-from lovebug.layer2.social_learning.cultural_transmission import CulturalTransmissionManager
-from lovebug.layer2.social_learning.social_networks import NetworkTopology, SocialNetwork
+from lovebug.lande_kirkpatrick import LandeKirkpatrickParams, simulate_lande_kirkpatrick  # noqa: E402
+from lovebug.layer2.config import Layer2Config  # noqa: E402
+from lovebug.layer2.social_learning.cultural_transmission import CulturalTransmissionManager  # noqa: E402
+from lovebug.layer2.social_learning.social_networks import NetworkTopology, SocialNetwork  # noqa: E402
 
 __all__ = ["UnifiedConfig", "CleanExperimentRunner", "run_experiments"]
 
