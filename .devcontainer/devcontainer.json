@@ -26,7 +26,8 @@
                 "quarto.quarto",
                 "RooVeterinaryInc.roo-cline",
                 "ms-azuretools.vscode-docker",
-                "dvirtz.parquet-viewer"
+                "dvirtz.parquet-viewer",
+                "eamodio.gitlens"
             ],
             "settings": {
                 "python.defaultInterpreterPath": "/app/.venv/bin/python",
