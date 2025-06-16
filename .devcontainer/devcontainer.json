@@ -10,6 +10,10 @@
     "remoteUser": "dev",
     "runArgs": [
         "--volume", "/var/run/docker.sock:/var/run/docker.sock"
+        // This mount allows the DevContainer to interact with the host's Docker daemon.
+        // Commands like 'docker ps' or 'docker run' executed *inside* the DevContainer
+        // will operate on the host. This is separate from the 'services' defined below,
+        // which run as sibling containers on the same Docker network as this DevContainer.
     ],
     "customizations": {
         "vscode": {
@@ -36,15 +40,32 @@
     "services": {
         "qdrant": {
             "image": "qdrant/qdrant:latest",
-            "ports": ["6333:6333"],
+            "ports": ["6333:6333"], // Host:Container port mapping for Qdrant service
             "environment": {
-                "QDRANT__SERVICE__API_KEY": ""
+                "QDRANT__SERVICE__API_KEY": "" // Set API key if needed
             }
+            // Add volumes here if you want Qdrant data to persist, e.g.:
+            // "volumes": ["qdrant-storage:/qdrant/storage:rw"]
         }
     },
-    "forwardPorts": [8000, 6333, 11434],
+    "forwardPorts": [
+        8000,      // Likely your application port
+        6333,      // Qdrant service (forwarded from its container to host)
+        11434      // Ollama (running in main dev container, forwarded to host)
+    ],
     // The CWD for postCreateCommand is the workspaceFolder (e.g., /workspaces/lovebug)
     // uv sync needs to target the /app directory where pyproject.toml and .venv are for this setup
     // pre-commit install should run in the workspaceFolder where .pre-commit-config.yaml is
-    "postCreateCommand": "uv sync --dev && pre-commit install && fish -c 'echo Welcome to LoveBug development environment!'"
+    "postCreateCommand": "uv sync --dev && pre-commit install && fish -c 'echo Welcome to LoveBug development environment!'",
+    // Runs after the container is created and connected to.
+    "postStartCommand": "ollama serve --listen 0.0.0.0:11434 & echo 'Ollama server starting in background. Access at http://localhost:11434 from inside the container.'"
+
+    // If using volumes for Qdrant persistence, define it here:
+    // "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+    // "workspaceFolder": "/workspace",
+    // "mounts": [
+    //  "source=qdrant-storage,target=/qdrant-storage-do-not-touch,type=volume"
+    // ]
+    // Note: The "qdrant-storage:/qdrant/storage:rw" in the service definition is usually enough
+    // to create and use a named volume.
 }
