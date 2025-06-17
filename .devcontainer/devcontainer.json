@@ -27,7 +27,8 @@
                 "RooVeterinaryInc.roo-cline",
                 "ms-azuretools.vscode-docker",
                 "dvirtz.parquet-viewer",
-                "eamodio.gitlens"
+                "eamodio.gitlens",
+                "marimo-team.vscode-marimo"
             ],
             "settings": {
                 "python.defaultInterpreterPath": "/app/.venv/bin/python",
