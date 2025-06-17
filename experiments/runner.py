@@ -128,6 +128,7 @@ class UnifiedConfig:
     layer2_network_type: str = "scale_free"
     layer2_network_connectivity: float = 0.1
     layer2_cultural_memory_size: int = 10
+    layer2_local_learning_radius: int = 5
     layer2_n_agents: int = 2000
 
     def __post_init__(self) -> None:
