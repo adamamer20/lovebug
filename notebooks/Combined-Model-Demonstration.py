@@ -8,9 +8,7 @@ import marimo
 __generated_with = "0.13.15"
 app = marimo.App(width="full")
 
-
-@app.cell
-def _():
+with app.setup:
     """Setup and imports - centralized in one cell."""
     import logging
     import os
@@ -42,33 +40,19 @@ def _():
     # Configure logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
-    console = Console()  # noqa: F841
+    console = Console()
 
     # Set up plotting style
     plt.style.use("seaborn-v0_8-whitegrid")
     sns.set_palette("husl")
 
-    return (
-        Any,
-        LandeKirkpatrickParams,
-        Layer2Config,
-        LayerActivationConfig,
-        UnifiedLoveModel,
-        beartype,
-        dataclass,
-        logger,
-        matplotlib,
-        mo,
-        pl,
-        plt,
-        time,
-    )
-
 
 @app.cell
-def _(mo):
-    """Introduction and documentation."""
-    intro_md = mo.md("""
+def _():
+    mo.md(
+        r"""
+
+
     # 🧬 Combined Model Demonstration: Interactive Parameter Exploration
 
     This notebook demonstrates the **combined behavior** of genetic and cultural evolutionary
@@ -77,7 +61,7 @@ def _(mo):
 
     ## 🎯 Key Features
 
-    - **🎛️ Interactive Controls**: Real-time parameter adjustment for layer weights and theoretical mechanisms
+    - **️Interactive Controls**: Real-time parameter adjustment for layer weights and theoretical mechanisms
     - **⚡ Live Model Execution**: See how parameter changes affect evolutionary outcomes
     - **📊 Key Visualizations**: Covariance evolution, time-to-runaway, mechanism fingerprints
     - **🔬 Theoretical Alignment**: Connect model behavior to paper equations and predictions
@@ -92,24 +76,14 @@ def _(mo):
     - **Perceptual Constraints**: Detection thresholds (θ_detect) and perceptual noise (σ_perception)
     - **Local Learning**: Spatial/social constraints on cultural transmission
     - **Layer Blending**: Multiple strategies for combining genetic and cultural influences
-    """)
-    return (intro_md,)
+
+    """
+    )
+    return
 
 
 @app.cell
-def _(
-    Any,
-    LandeKirkpatrickParams,
-    Layer2Config,
-    LayerActivationConfig,
-    UnifiedLoveModel,
-    beartype,
-    dataclass,
-    matplotlib,
-    pl,
-    plt,
-    time,
-):
+def _():
     """Model definitions - consolidated into single cell with unique names."""
 
     @dataclass(slots=True, frozen=False)
@@ -235,10 +209,10 @@ def _(
 
 
 @app.cell
-def _(mo):
+def _():
     """Parameter controls for the model."""
 
-    controls_title = mo.md("## 🎛️ Interactive Parameter Controls")
+    controls_title = mo.md("## ️ Interactive Parameter Controls")
 
     # Layer weights
     weights_title = mo.md("### Layer Weights")
@@ -310,8 +284,8 @@ def _(mo):
         ]
     )
 
+    controls_ui
     return (
-        controls_ui,
         blending_mode_ctrl,
         cultural_weight_ctrl,
         genetic_weight_ctrl,
@@ -327,17 +301,12 @@ def _(mo):
 
 @app.cell
 def _(
-    LandeKirkpatrickParams,
-    Layer2Config,
-    LayerActivationConfig,
     blending_mode_ctrl,
     cultural_weight_ctrl,
     genetic_weight_ctrl,
     horizontal_rate_ctrl,
     innovation_rate_ctrl,
     local_radius_ctrl,
-    logger,
-    mo,
     n_agents_ctrl,
     n_generations_ctrl,
     run_demo_experiment,
@@ -438,11 +407,12 @@ def _(
         """)
         demo_results_obj = None
 
-    return demo_output, demo_results_obj
+    demo_output
+    return (demo_results_obj,)
 
 
 @app.cell
-def _(demo_results_obj, mo, plot_covariance_demo):
+def _(demo_results_obj, plot_covariance_demo):
     """Create covariance plots."""
 
     if demo_results_obj is None:
@@ -467,14 +437,14 @@ def _(demo_results_obj, mo, plot_covariance_demo):
 
         cov_plots_output = mo.vstack([cov_fig, cov_explanation])
 
-    return (cov_plots_output,)
+    cov_plots_output
+    return
 
 
 @app.cell
-def _(mo):
-    """Summary and conclusions."""
-
-    summary_md = mo.md("""
+def _():
+    mo.md(
+        r"""
     ## 🎯 Summary and Conclusions
 
     ### Key Demonstration Insights
@@ -512,9 +482,10 @@ def _(mo):
     **🚀 Ready for Research**: This combined model demonstration provides a complete
     framework for exploring gene-culture coevolution in sexual selection, with robust
     theoretical foundations and practical research applications.
-    """)
 
-    return (summary_md,)
+    """
+    )
+    return
 
 
 if __name__ == "__main__":
