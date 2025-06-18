@@ -94,45 +94,13 @@ Santos et al. [@santos2017] developed a spatially explicit individual-based mode
 
 Li and Holman [@li2018] explored how genotype-by-environment interactions and intralocus sexual conflict reshape female choice evolution. Their lattice-based simulation showed that rapidly changing environments or sexual antagonism can cause female preferences to flip from high-condition to low-condition males, as daughters of flashy males may suffer fitness costs. This work highlighted how ecological context can override "good genes" heuristics, but operated independently of social learning or perceptual bias mechanisms.
 
-### Computational Limitations and Integration Challenges
+### The Need for Unified Computational Frameworks
 
 A critical limitation across existing computational approaches is their treatment of sexual selection mechanisms in isolation. While individual models have successfully demonstrated the importance of genetic inheritance [@drezewski2018], social learning [@santos2017], or environmental context [@li2018], none have explored how these factors interact dynamically within populations. This siloing prevents researchers from addressing fundamental questions about which mechanisms dominate under different conditions, how multiple layers interact to produce emergent outcomes, or when causal dependencies between factors become important.
 
 Additionally, most agent-based models of sexual selection operate with populations of 10²–10³ individuals due to computational constraints, limiting their ability to capture population-scale phenomena where genetic drift effects are minimal [@miller2011]. This constraint is particularly problematic for sexual selection studies, where runaway dynamics typically require large effective population sizes to overcome the homogenizing effects of genetic drift [@lande1981], and where rare cultural variants need sufficient population sizes to establish and spread.
 
-### The Need for Unified Computational Frameworks
-
-The empirical evidence reviewed above—from mate-choice copying in guppies [@dugatkin1992] to sensory bias origins [@rodd2002] to environmental modulation of preferences [@witte2002]—suggests that real-world sexual selection emerges from the simultaneous operation of multiple mechanisms. Yet computational tools remain fragmented across genetic, social, and environmental approaches. This gap highlights the need for integrated frameworks that can: (1) implement multiple mechanisms simultaneously, (2) enable controlled "knockout" experiments to assess causal contributions, (3) operate at population scales sufficient for realistic evolutionary dynamics, and (4) generate predictions about mechanism interactions that can guide empirical research.
-
-## LoveBug's Integrative Approach
-
-LoveBug addresses these limitations by unifying mechanisms that previous computational models treated in isolation. The model architecture enables systematic exploration of questions that individual-mechanism models cannot address:
-
-**Causal mechanism decomposition**: By implementing all mechanisms in a single framework with toggleable parameters, LoveBug can ask which factors are necessary versus sufficient for reproducing empirical patterns. For example: Is sensory bias alone enough to produce guppy-like female choice patterns, or is social learning also required? How much mate-choice copying (what fraction of copiers) is needed before population-level preferences flip completely?
-
-**Hidden parameter exploration**: Unlike laboratory experiments that fix population size, mutation rates, and environmental conditions, LoveBug can systematically sweep these factors to identify parameter regimes where the same biological mechanisms produce qualitatively different outcomes. This includes exploring how genetic drift in small populations can swamp Lande-Kirkpatrick runaway, or how sampling costs affect the evolution from "best-of-k" to "threshold-and-go" mate choice strategies.
-
-**Emergent signature identification**: By tracking population-level statistics beyond simple trait and preference means—including trait-preference covariance distributions, time-to-runaway dynamics, and equilibrium stability—LoveBug can identify diagnostic "fingerprints" that researchers could look for in empirical data to infer underlying mechanisms.
-
-**Predictive hypothesis generation**: Once calibrated to reproduce known experimental results (e.g., from stalk-eyed flies or guppies), the model can forecast novel interactions: "If we add moderate post-copulatory choice, covariance should increase by X% in 5 generations," or "In patchy environments with local mate sampling, we should see bimodal trait distributions even when overall genetic variance remains low."
-
-This integrative approach transforms computational sexual selection research from retrospective explanation of known patterns to prospective exploration of mechanism interactions and prediction of novel phenomena.
-
-## Gene-Culture Coevolution and Sexual Selection
-
-Recent theoretical work has begun to explore how cultural transmission might interact with genetic inheritance in sexual selection contexts [@whitehead2019]. Gene-culture coevolution models predict that socially learned preferences can evolve more rapidly than genetic preferences, potentially accelerating or redirecting sexual selection dynamics [@boyd1985]. However, empirical evidence for such interactions remains limited, partly due to the difficulty of distinguishing genetic from cultural components of mate choice in natural populations [@rosenthal2017].
-
-Cultural transmission of mate preferences has been documented across diverse taxa, from songbird vocal learning [@catchpole2008] to human aesthetic preferences [@fisher2016]. In some cases, cultural preferences appear to override genetic predispositions, while in others they seem to amplify existing genetic biases [@laland2017]. The relative importance of genetic versus cultural factors likely depends on the strength of genetic preferences, the fidelity of cultural transmission, and the demographic structure of populations [@whitehead2019].
-
-Mathematical models of gene-culture coevolution in sexual selection contexts have typically assumed simplified genetic architectures and focused on equilibrium analyses [@boyd1985]. Few studies have explored the transient dynamics that occur as populations evolve from one equilibrium to another, or the effects of stochastic fluctuations in cultural transmission [@laland2017]. These gaps highlight the need for computational approaches that can track both genetic and cultural inheritance simultaneously while maintaining realistic population dynamics.
-
-## Computational Frameworks and Performance Considerations
-
-The computational demands of large-scale agent-based models have traditionally required specialized high-performance computing resources or simplified model architectures [@grimm2005]. Recent advances in vectorized computing frameworks, particularly the Mesa-Frames extension of the Mesa ABM platform, have made it possible to simulate large populations using standard computational resources [@mesa2024].
-
-Mesa-Frames leverages the Polars DataFrame library to implement vectorized operations that can process thousands of agents simultaneously, achieving performance improvements of several orders of magnitude compared to traditional object-oriented ABM implementations [@polars2024]. This approach is particularly well-suited to genetic algorithms where the same operations (mutation, crossover, selection) are applied to large numbers of similar entities.
-
-Our LoveBug model builds upon this foundation to create a high-performance sexual selection simulator that maintains explicit genetic mechanisms while achieving the population scales necessary to observe emergent evolutionary dynamics. The following section details our methodological approach and model architecture.
+The empirical evidence reviewed above suggests that real-world sexual selection emerges from the simultaneous operation of multiple mechanisms. Yet computational tools remain fragmented across genetic, social, and environmental approaches. This gap highlights the need for integrated frameworks that can: (1) implement multiple mechanisms simultaneously, (2) enable controlled "knockout" experiments to assess causal contributions, (3) operate at population scales sufficient for realistic evolutionary dynamics, and (4) generate predictions about mechanism interactions that can guide empirical research.
 
 # Methodology {#sec-methodology}
 
