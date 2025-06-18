@@ -4,19 +4,15 @@
 [runner]
 experiment_type = "combined"  # "layer1", "layer2", or "combined"
 experiment_name = "unified_evolution_study"
-n_workers = 25  # Use 90% of available cores
+n_workers = 16  # Use 90% of available cores
 max_duration_hours = 12.0
 memory_limit_gb = 60  # Use most of available RAM
-stochastic_replications = 10
+stochastic_replications = 100
 checkpoint_interval_minutes = 5
-smart_sampling = true
-sampling_method = "lhs"
-max_samples_per_sweep = 5000
 
 [output]
 results_dir = "experiments/results"
 logs_dir = "experiments/logs/current"
-batch_size = 200
 
 [layer1]
 # Lande-Kirkpatrick experiment parameters
