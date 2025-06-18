@@ -153,22 +153,6 @@ Each agent possesses age and energy attributes that govern survival and reproduc
 
 Initial populations are generated with random 32-bit genomes, age uniformly distributed between 0 and MAX_AGE, and energy set to MAX_AGE to ensure survival to reproductive maturity. This initialization provides genetic diversity while maintaining demographic stability during model equilibration.
 
-## Parameter Settings and Computational Performance
-
-Default parameters were chosen to balance biological realism with computational efficiency:
-
-- Population size: N = 10,000 (scalable to 100,000+)
-
-- Mutation rate: μ = 10⁻⁴ per bit per generation
-
-- Energy decay: 1 unit per time step
-
-- Maximum age: 100 time steps
-
-- Crossover: uniform across all 32 bits
-
-Performance benchmarks on standard hardware (Intel i7, 16GB RAM) demonstrate stable simulation of 10,000 agents for 1,000 generations in approximately 30 seconds, enabling extensive parameter exploration and statistical analysis across multiple replicates.
-
 ## Data Collection and Analysis
 
 The model tracks population-level statistics each time step, including:
