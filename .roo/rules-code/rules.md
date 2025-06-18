@@ -75,3 +75,4 @@
 11. Use "uv run" to run python scripts.
 12. Always log exceptions.
 13. Never fail silently
+14. use `uv run pytest` to test it out.
