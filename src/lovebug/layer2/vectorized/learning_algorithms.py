@@ -146,9 +146,9 @@ class ObliqueTransmissionEngine:
         # Create learning events DataFrame
         learning_events = pl.DataFrame(
             {
-                "learner_id": learners.get_column("agent_id"),
-                "new_preference": selected_teachers.get_column("pref_culture"),
-                "teacher_id": selected_teachers.get_column("agent_id"),
+                "learner_id": learners.get_column("agent_id").cast(pl.UInt32),
+                "new_preference": selected_teachers.get_column("pref_culture").cast(pl.UInt8),
+                "teacher_id": selected_teachers.get_column("agent_id").cast(pl.UInt32),
                 "learning_type": ["oblique"] * n_learners,
             }
         )
@@ -282,7 +282,14 @@ class HorizontalTransmissionEngine:
                 .alias("teacher_id"),
                 pl.lit("horizontal").alias("learning_type"),
             ]
-        ).select(["learner_id", "new_preference", "teacher_id", "learning_type"])
+        ).select(
+            [
+                pl.col("learner_id").cast(pl.UInt32),
+                pl.col("new_preference").cast(pl.UInt8),
+                pl.col("teacher_id").cast(pl.UInt32),
+                pl.col("learning_type"),
+            ]
+        )
 
         logger.debug(f"Horizontal transmission: {n_learners} learning events")
         return final_choices
@@ -334,9 +341,9 @@ class CulturalInnovationEngine:
 
         innovation_events = pl.DataFrame(
             {
-                "learner_id": innovators.get_column("agent_id"),
-                "new_preference": new_preferences,
-                "teacher_id": [None] * n_innovators,  # No teacher for innovation
+                "learner_id": innovators.get_column("agent_id").cast(pl.UInt32),
+                "new_preference": pl.Series(new_preferences).cast(pl.UInt8),
+                "teacher_id": pl.Series([None] * n_innovators, dtype=pl.UInt32),  # No teacher for innovation
                 "learning_type": ["innovation"] * n_innovators,
             }
         )

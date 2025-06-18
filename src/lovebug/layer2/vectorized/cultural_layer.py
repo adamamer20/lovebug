@@ -160,6 +160,9 @@ class VectorizedCulturalLayer:
         if "agent_id" not in df.columns:
             df = df.with_row_count("agent_id")
 
+        # Ensure agent_id is UInt32 to match network schema
+        df = df.with_columns([pl.col("agent_id").cast(pl.UInt32)])
+
         # Get network data and merge with agent DataFrame
         network_df = self.network.adjacency_df
 
@@ -171,7 +174,7 @@ class VectorizedCulturalLayer:
                 [
                     # Fill missing network data for new agents
                     pl.col("neighbors").fill_null([]),
-                    pl.col("degree").fill_null(0).alias("network_degree"),
+                    pl.col("degree").fill_null(0).cast(pl.UInt32).alias("network_degree"),
                 ]
             )
 
@@ -182,8 +185,8 @@ class VectorizedCulturalLayer:
             # Add basic network columns with default values
             self.agents.agents = df.with_columns(
                 [
-                    pl.lit([]).cast(pl.List(pl.Int32)).alias("neighbors"),
-                    pl.lit(0).cast(pl.Int32).alias("network_degree"),
+                    pl.lit([]).cast(pl.List(pl.UInt32)).alias("neighbors"),
+                    pl.lit(0).cast(pl.UInt32).alias("network_degree"),
                 ]
             )
 
