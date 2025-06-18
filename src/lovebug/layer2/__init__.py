@@ -1,14 +1,34 @@
 """
-Layer 2 Research Extension for LoveBug
+Vectorized Polars-based Layer 2 implementation.
 
-Enhanced social learning mechanisms implementing Rosenthal's extended framework
-for sexual selection research. Focuses on cultural transmission, social networks,
-and context-dependent decision making.
+High-performance, mesa-frames native cultural transmission system that replaces
+sequential per-agent loops with bulk DataFrame operations, targeting O(n log n)
+complexity instead of O(n²).
 """
 
 from __future__ import annotations
 
 from .config import Layer2Config
+from .cultural_layer import VectorizedCulturalLayer
+from .learning_algorithms import (
+    CulturalInnovationEngine,
+    HorizontalTransmissionEngine,
+    LearningEligibilityComputer,
+    MemoryDecayEngine,
+    ObliqueTransmissionEngine,
+)
 from .monitoring.simulation_monitor import SimulationMonitor
+from .network import NetworkTopology, VectorizedSocialNetwork
 
-__all__ = ["Layer2Config", "SimulationMonitor"]
+__all__ = [
+    "NetworkTopology",
+    "VectorizedSocialNetwork",
+    "VectorizedCulturalLayer",
+    "LearningEligibilityComputer",
+    "ObliqueTransmissionEngine",
+    "HorizontalTransmissionEngine",
+    "CulturalInnovationEngine",
+    "MemoryDecayEngine",
+    "Layer2Config",
+    "SimulationMonitor",
+]
