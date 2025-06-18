@@ -19,6 +19,7 @@ from mesa_frames import AgentSetPolars, ModelDF
 from lovebug.lande_kirkpatrick import LandeKirkpatrickParams
 from lovebug.layer2.config import Layer2Config
 from lovebug.layer2.social_learning.social_networks import NetworkTopology, SocialNetwork
+from lovebug.layer2.vectorized import VectorizedCulturalLayer
 from lovebug.layer_activation import LayerActivationConfig
 
 __all__ = ["UnifiedLoveBugs", "UnifiedLoveModel"]
@@ -104,6 +105,20 @@ class UnifiedLoveBugs(AgentSetPolars):
         if self.layer_config.cultural_enabled and model.cultural_params:
             self._initialize_social_network()
 
+        # Initialize vectorized cultural layer if enabled and configured
+        self.vectorized_cultural_layer = None
+        if (
+            self.layer_config.cultural_enabled
+            and model.cultural_params
+            and getattr(model, "use_vectorized_cultural_layer", True)
+        ):
+            try:
+                self.vectorized_cultural_layer = VectorizedCulturalLayer(self, model.cultural_params)
+                logger.info("Initialized vectorized cultural layer")
+            except Exception as e:
+                logger.warning(f"Failed to initialize vectorized cultural layer: {e}")
+                logger.info("Falling back to sequential cultural learning")
+
         logger.debug(f"Initialized {n} agents with layer config: {self.layer_config}")
 
     def _initialize_social_network(self) -> None:
@@ -150,7 +165,16 @@ class UnifiedLoveBugs(AgentSetPolars):
         self.courtship()
 
         if self.layer_config.cultural_enabled:
-            self._vectorized_cultural_learning()
+            if self.vectorized_cultural_layer:
+                # Use vectorized cultural learning
+                self.vectorized_cultural_layer.step()
+                # Extract statistics for model tracking
+                stats = self.vectorized_cultural_layer.get_generation_statistics()
+                self.model._cultural_learning_events = stats.get("learning_events", 0)
+                self.model._cultural_innovation_events = stats.get("innovation_events", 0)
+            else:
+                # Fallback to sequential cultural learning
+                self._vectorized_cultural_learning()
 
         self.metabolism()
         self.age_and_die()
@@ -568,6 +592,8 @@ class UnifiedLoveModel(ModelDF):
         Parameters for cultural evolution
     n_agents : int, default=1000
         Number of agents in the population
+    use_vectorized_cultural_layer : bool, default=True
+        Whether to use the vectorized cultural layer implementation
 
     Examples
     --------
@@ -591,12 +617,14 @@ class UnifiedLoveModel(ModelDF):
         genetic_params: LandeKirkpatrickParams | None = None,
         cultural_params: Layer2Config | None = None,
         n_agents: int = 1000,
+        use_vectorized_cultural_layer: bool = True,
     ) -> None:
         super().__init__()
 
         self.layer_config = layer_config
         self.genetic_params = genetic_params
         self.cultural_params = cultural_params
+        self.use_vectorized_cultural_layer = use_vectorized_cultural_layer
 
         # Event tracking
         self._cultural_learning_events = 0

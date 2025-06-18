@@ -7,6 +7,9 @@ from importlib import metadata as _metadata
 from .lande_kirkpatrick import LandeKirkpatrickParams
 from .layer2.config import Layer2Config
 
+# Import vectorized components for advanced users
+from .layer2.vectorized import VectorizedCulturalLayer
+
 # Import core configuration classes
 from .layer_activation import LayerActivationConfig
 
@@ -22,6 +25,8 @@ __all__ = [
     "LayerActivationConfig",
     "LandeKirkpatrickParams",
     "Layer2Config",
+    # Vectorized components
+    "VectorizedCulturalLayer",
 ]
 
 try:
