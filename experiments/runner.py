@@ -65,7 +65,7 @@ from experiments.models import (  # noqa: E402
 )
 from lovebug.lande_kirkpatrick import LandeKirkpatrickParams, simulate_lande_kirkpatrick  # noqa: E402
 from lovebug.layer2.config import Layer2Config  # noqa: E402
-from lovebug.layer2.social_learning.cultural_transmission import CulturalTransmissionManager  # noqa: E402
+from lovebug.layer2.cultural_layer.cultural_transmission import CulturalTransmissionManager  # noqa: E402
 from lovebug.layer2.social_learning.social_networks import NetworkTopology, SocialNetwork  # noqa: E402
 from lovebug.layer_activation import LayerActivationConfig  # noqa: E402
 from lovebug.unified_mesa_model import UnifiedLoveModel  # noqa: E402
@@ -85,17 +85,14 @@ class UnifiedConfig:
     experiment_name: str = "unified_evolution_study"
     n_workers: int | None = None
     max_duration_hours: float = 12.0
-    memory_limit_gb: float = 75.0
+    memory_limit_gb: float = 4
     stochastic_replications: int = 10
     checkpoint_interval_minutes: int = 5
     smart_sampling: bool = True
-    sampling_method: str = "lhs"
-    max_samples_per_sweep: int = 5000
 
     # Output configuration
     results_dir: str = "experiments/results"
     logs_dir: str = "experiments/logs/current"
-    batch_size: int = 200
 
     # Layer activation configuration (new)
     genetic_enabled: bool = True

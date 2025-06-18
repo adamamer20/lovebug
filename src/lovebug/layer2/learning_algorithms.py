@@ -15,7 +15,7 @@ import numpy as np
 import polars as pl
 from beartype import beartype
 
-from ..config import Layer2Config
+from .config import Layer2Config
 
 __all__ = [
     "LearningEligibilityComputer",

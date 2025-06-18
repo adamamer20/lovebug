@@ -18,8 +18,8 @@ from mesa_frames import AgentSetPolars, ModelDF
 
 from lovebug.lande_kirkpatrick import LandeKirkpatrickParams
 from lovebug.layer2.config import Layer2Config
-from lovebug.layer2.social_learning.social_networks import NetworkTopology, SocialNetwork
-from lovebug.layer2.vectorized import VectorizedCulturalLayer
+from lovebug.layer2.cultural_layer import VectorizedCulturalLayer
+from lovebug.layer2.network import NetworkTopology, VectorizedSocialNetwork
 from lovebug.layer_activation import LayerActivationConfig
 
 __all__ = ["UnifiedLoveBugs", "UnifiedLoveModel"]
@@ -130,7 +130,7 @@ class UnifiedLoveBugs(AgentSetPolars):
             network_type=self.model.cultural_params.network_type,
             connectivity=self.model.cultural_params.network_connectivity,
         )
-        self.social_network = SocialNetwork(len(self), topology)
+        self.social_network = VectorizedSocialNetwork(len(self), topology)
 
         # Populate neighbor data in DataFrame using vectorized operations
         neighbors_data = []
