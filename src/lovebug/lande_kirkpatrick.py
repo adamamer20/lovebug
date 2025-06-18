@@ -7,7 +7,9 @@ and comprehensive documentation.
 
 The model describes how male display traits and female mating preferences
 can coevolve through genetic correlations, demonstrating conditions for
-"runaway" sexual selection.
+"runaway" sexual selection. The implementation assumes mutation-selection
+balance maintains genetic variance, with simplified linkage dynamics
+governing covariance evolution.
 """
 
 from __future__ import annotations
@@ -30,6 +32,12 @@ logger = logging.getLogger(__name__)
 class LandeKirkpatrickParams:
     """Parameters for the Lande-Kirkpatrick model.
 
+    This model assumes mutation-selection balance where genetic variance
+    is maintained by mutation input (mutation_variance) counterbalanced
+    by selection-driven variance loss (variance_decay_rate). The simplified
+    linkage dynamics approach models covariance buildup proportional to
+    correlated selection pressures.
+
     Parameters
     ----------
     n_generations : int
@@ -48,6 +56,14 @@ class LandeKirkpatrickParams:
         Variance of mutational effects per generation
     preference_cost : float
         Cost of having strong preferences (0-1)
+    variance_decay_rate : float
+        Rate of variance loss per generation due to selection (0-1)
+    stochastic_noise_interval : int
+        Interval (generations) for environmental noise injection
+    stochastic_noise_sigma : float
+        Standard deviation of environmental noise
+    covariance_buildup_rate : float
+        Rate constant for genetic covariance accumulation
     """
 
     n_generations: int = 500
@@ -58,6 +74,29 @@ class LandeKirkpatrickParams:
     genetic_correlation: float = 0.1
     mutation_variance: float = 0.01
     preference_cost: float = 0.05
+    variance_decay_rate: float = 0.01
+    stochastic_noise_interval: int = 10
+    stochastic_noise_sigma: float = 0.001
+    covariance_buildup_rate: float = 0.1
+
+    def __post_init__(self) -> None:
+        """Validate parameter ranges."""
+        if not (0 <= self.h2_trait <= 1):
+            raise ValueError(f"h2_trait must be between 0 and 1, got {self.h2_trait}")
+        if not (0 <= self.h2_preference <= 1):
+            raise ValueError(f"h2_preference must be between 0 and 1, got {self.h2_preference}")
+        if self.pop_size <= 0:
+            raise ValueError(f"pop_size must be positive, got {self.pop_size}")
+        if self.n_generations <= 0:
+            raise ValueError(f"n_generations must be positive, got {self.n_generations}")
+        if not (0 <= self.variance_decay_rate <= 1):
+            raise ValueError(f"variance_decay_rate must be in [0,1], got {self.variance_decay_rate}")
+        if self.stochastic_noise_interval <= 0:
+            raise ValueError(f"stochastic_noise_interval must be positive, got {self.stochastic_noise_interval}")
+        if self.stochastic_noise_sigma < 0:
+            raise ValueError(f"stochastic_noise_sigma must be non-negative, got {self.stochastic_noise_sigma}")
+        if self.covariance_buildup_rate < 0:
+            raise ValueError(f"covariance_buildup_rate must be non-negative, got {self.covariance_buildup_rate}")
 
 
 @beartype
@@ -68,6 +107,14 @@ def simulate_lande_kirkpatrick(params: LandeKirkpatrickParams) -> pl.DataFrame:
     This function implements the core evolutionary dynamics of the Lande-Kirkpatrick
     model, tracking the evolution of mean trait values, preferences, variances,
     and genetic covariances over multiple generations.
+
+    The model includes:
+    - Mutation-selection balance: Genetic variance maintained by balance between
+      mutational input and selection-driven variance loss
+    - Simplified linkage dynamics: Covariance buildup proportional to correlated
+      selection on traits and preferences
+    - Stochastic noise injection: Environmental fluctuations added periodically
+      to model realistic population dynamics
 
     Parameters
     ----------
@@ -104,16 +151,6 @@ def simulate_lande_kirkpatrick(params: LandeKirkpatrickParams) -> pl.DataFrame:
     >>> "mean_trait" in result.columns
     True
     """
-    # Validate parameters
-    if not (0 <= params.h2_trait <= 1):
-        raise ValueError(f"h2_trait must be between 0 and 1, got {params.h2_trait}")
-    if not (0 <= params.h2_preference <= 1):
-        raise ValueError(f"h2_preference must be between 0 and 1, got {params.h2_preference}")
-    if params.pop_size <= 0:
-        raise ValueError(f"pop_size must be positive, got {params.pop_size}")
-    if params.n_generations <= 0:
-        raise ValueError(f"n_generations must be positive, got {params.n_generations}")
-
     logger.info(f"Starting Lande-Kirkpatrick simulation: {params.n_generations} generations")
 
     # Initialize tracking arrays
@@ -172,22 +209,31 @@ def simulate_lande_kirkpatrick(params: LandeKirkpatrickParams) -> pl.DataFrame:
         mean_trait += delta_trait
         mean_preference += delta_preference
 
-        # Update genetic variances (simplified mutation-selection balance)
-        trait_variance = max(0.1, trait_variance + params.mutation_variance - 0.01 * trait_variance)
-        preference_variance = max(0.1, preference_variance + params.mutation_variance - 0.01 * preference_variance)
+        # Update genetic variances using mutation-selection balance
+        # Variance increases by mutation, decreases by selection
+        trait_variance = max(
+            0.1, trait_variance + params.mutation_variance - params.variance_decay_rate * trait_variance
+        )
+        preference_variance = max(
+            0.1, preference_variance + params.mutation_variance - params.variance_decay_rate * preference_variance
+        )
 
-        # Update genetic covariance (simplified linkage dynamics)
-        # Covariance can build up through correlated selection
+        # Update genetic covariance using simplified linkage dynamics
+        # Covariance builds up through correlated selection pressures
         covariance_change = (
-            params.h2_trait * params.h2_preference * total_selection_trait * total_selection_preference * 0.1
+            params.h2_trait
+            * params.h2_preference
+            * total_selection_trait
+            * total_selection_preference
+            * params.covariance_buildup_rate
         )
         genetic_covariance += covariance_change
 
-        # Add small amount of stochastic noise every few generations
-        if generation % 10 == 0 and generation > 0:
-            mean_trait += np.random.normal(0, 0.001)
-            mean_preference += np.random.normal(0, 0.001)
-            genetic_covariance += np.random.normal(0, 0.001)
+        # Add stochastic environmental noise at regular intervals
+        if generation % params.stochastic_noise_interval == 0 and generation > 0:
+            mean_trait += np.random.normal(0, params.stochastic_noise_sigma)
+            mean_preference += np.random.normal(0, params.stochastic_noise_sigma)
+            genetic_covariance += np.random.normal(0, params.stochastic_noise_sigma)
 
     logger.info("Simulation completed successfully")
     return pl.DataFrame(results)
