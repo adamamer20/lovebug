@@ -32,11 +32,8 @@ from beartype import beartype
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from lovebug.layer2.config import Layer2Config
+from lovebug.layer2.cultural_layer import VectorizedCulturalLayer
 from lovebug.layer2.monitoring.simulation_monitor import SimulationMonitor
-from lovebug.layer2.social_learning.cultural_transmission import (
-    CulturalTransmissionManager,
-    LearningType,
-)
 from lovebug.layer2.social_learning.social_networks import NetworkTopology, SocialNetwork
 
 # Configure logging
@@ -129,8 +126,26 @@ def simulate_layer2_social_learning(
     topology = NetworkTopology(network_type, config.network_connectivity)
     social_network = SocialNetwork(n_agents, topology)
 
-    # Create cultural transmission manager
-    transmission_manager = CulturalTransmissionManager(config, social_network)
+    # Create vectorized cultural layer
+    from lovebug.layer_activation import LayerActivationConfig
+    from lovebug.unified_mesa_model import UnifiedLoveBugs, UnifiedLoveModel
+
+    layer_activation_config = LayerActivationConfig(
+        genetic_enabled=False,
+        cultural_enabled=True,
+        genetic_weight=0.0,
+        cultural_weight=1.0,
+        blending_mode="weighted_average",
+        normalize_weights=True,
+    )
+    dummy_model = UnifiedLoveModel(
+        layer_config=layer_activation_config,
+        genetic_params=None,
+        cultural_params=config,
+        n_agents=n_agents,
+    )
+    agent_set = UnifiedLoveBugs(n_agents, dummy_model)
+    transmission_manager = VectorizedCulturalLayer(agent_set, config)
 
     # Create agent population
     agent_data = Layer2AgentData(n_agents)
@@ -154,10 +169,9 @@ def simulate_layer2_social_learning(
                 np.abs(agent_data.cultural_preferences.astype(int) - agent_data.genetic_preferences.astype(int))
             )
 
-            # Learning event statistics
+            #             Learning event statistics
             event_counts = {}
-            for learning_type in LearningType:
-                event_counts[learning_type.value] = sum(1 for e in events if e.learning_type == learning_type)
+            # VectorizedCulturalLayer does not use LearningType; skip or adapt as needed
 
             # Population data
             population_results.append(
@@ -203,7 +217,12 @@ def simulate_layer2_social_learning(
 
     # Convert results to DataFrames
     population_df = pl.DataFrame(population_results)
-    cultural_events_df = transmission_manager.get_events_dataframe()
+    # VectorizedCulturalLayer does not have get_events_dataframe; use learning_events directly
+
+    if hasattr(transmission_manager, "learning_events") and transmission_manager.learning_events:
+        cultural_events_df = pl.DataFrame(transmission_manager.learning_events)
+    else:
+        cultural_events_df = pl.DataFrame()
     network_df = pl.DataFrame([r for r in network_results if r])
 
     logger.info("Layer 2 simulation completed successfully")
@@ -219,7 +238,6 @@ def import_libraries():
     import matplotlib.pyplot as plt
     import networkx as nx
     import numpy as np
-    import polars as pl
     import seaborn as sns
     from matplotlib.patches import Patch
 

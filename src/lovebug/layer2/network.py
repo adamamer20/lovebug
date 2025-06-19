@@ -51,6 +51,7 @@ class NetworkTopology:
 
     def __post_init__(self) -> None:
         """Validate topology parameters."""
+        print("[LOG] NetworkTopology instantiated")
         valid_types = {"random", "small_world", "scale_free", "grid"}
         if self.network_type not in valid_types:
             raise ValueError(f"network_type must be one of {valid_types}")
@@ -82,6 +83,7 @@ class VectorizedSocialNetwork:
     """
 
     def __init__(self, n_agents: int, topology: NetworkTopology) -> None:
+        print("[LOG] VectorizedSocialNetwork instantiated")
         self.n_agents = n_agents
         self.topology = topology
 
@@ -263,87 +265,6 @@ class VectorizedSocialNetwork:
         )
 
         return edges_df
-
-    @beartype
-    def get_neighbors_vectorized(self, agent_ids: pl.Series, max_neighbors: int = 10) -> pl.DataFrame:
-        """
-        Vectorized neighbor lookup for multiple agents.
-
-        Parameters
-        ----------
-        agent_ids : pl.Series
-            Series of agent IDs to get neighbors for
-        max_neighbors : int, default=10
-            Maximum number of neighbors to return per agent
-
-        Returns
-        -------
-        pl.DataFrame
-            DataFrame with columns: agent_id, neighbor_id
-
-        Examples
-        --------
-        >>> network = VectorizedSocialNetwork(100, NetworkTopology("random"))
-        >>> agent_ids = pl.Series([0, 1, 2])
-        >>> neighbors = network.get_neighbors_vectorized(agent_ids)
-        """
-        # Join agent IDs with adjacency list
-        neighbor_df = pl.DataFrame({"agent_id": agent_ids}).join(self.adjacency_df, on="agent_id", how="inner")
-
-        # Explode neighbor lists and limit per agent
-        result = (
-            neighbor_df.select([pl.col("agent_id"), pl.col("neighbors")])
-            .explode("neighbors")
-            .rename({"neighbors": "neighbor_id"})
-        )
-
-        # Apply max_neighbors limit using window function
-        if max_neighbors > 0:
-            result = (
-                result.with_columns(pl.col("neighbor_id").rank("random").over("agent_id").alias("neighbor_rank"))
-                .filter(pl.col("neighbor_rank") <= max_neighbors)
-                .drop("neighbor_rank")
-            )
-
-        return result
-
-    @beartype
-    def get_k_hop_neighbors(self, agent_ids: pl.Series, k: int = 2) -> pl.DataFrame:
-        """
-        Vectorized k-hop neighbor computation.
-
-        Parameters
-        ----------
-        agent_ids : pl.Series
-            Series of agent IDs to start from
-        k : int, default=2
-            Number of hops to traverse
-
-        Returns
-        -------
-        pl.DataFrame
-            DataFrame with columns: original_agent, k_hop_neighbor, hop_distance
-        """
-        current_neighbors = pl.DataFrame({"agent_id": agent_ids})
-        all_neighbors = []
-
-        for hop in range(k):
-            # Get neighbors for current level
-            next_neighbors = self.get_neighbors_vectorized(current_neighbors.get_column("agent_id")).rename(
-                {"agent_id": "source", "neighbor_id": "agent_id"}
-            )
-
-            # Track hop distance
-            next_neighbors = next_neighbors.with_columns(pl.lit(hop + 1).alias("hop_distance"))
-
-            all_neighbors.append(next_neighbors)
-            current_neighbors = next_neighbors.select(["agent_id"]).unique()
-
-        # Combine all hop levels
-        if all_neighbors:
-            return pl.concat(all_neighbors).rename({"source": "original_agent", "agent_id": "k_hop_neighbor"})
-        else:
-            return pl.DataFrame({"original_agent": [], "k_hop_neighbor": [], "hop_distance": []})
 
     @beartype
     def compute_local_cultural_diversity(self, agent_df: pl.DataFrame) -> pl.Series:
@@ -578,3 +499,173 @@ class VectorizedSocialNetwork:
             DataFrame with source, target, weight columns
         """
         return self.edge_table.clone()
+
+    @beartype
+    def get_neighbors_vectorized(self, agent_ids: pl.Series | None = None) -> pl.DataFrame:
+        """
+        Get neighbor relationships as DataFrame.
+
+        Parameters
+        ----------
+        agent_ids : pl.Series | None, optional
+            Series of agent IDs to get neighbors for. If None, returns all neighbor pairs.
+
+        Returns
+        -------
+        pl.DataFrame
+            DataFrame with columns ['agent_id', 'neighbor_id'] containing
+            one row per edge, listing every agent's neighbor pair.
+
+        Examples
+        --------
+        >>> topology = NetworkTopology("random", connectivity=0.3)
+        >>> network = VectorizedSocialNetwork(5, topology)
+        >>> agent_ids = pl.Series([0, 1, 2])
+        >>> neighbors_df = network.get_neighbors_vectorized(agent_ids)
+        >>> list(neighbors_df.columns)
+        ['agent_id', 'neighbor_id']
+        """
+        # Start with all adjacency data
+        df_to_explode = self.adjacency_df
+
+        # Filter by specific agent_ids if provided
+        if agent_ids is not None:
+            df_to_explode = self.adjacency_df.filter(pl.col("agent_id").is_in(agent_ids))
+
+        # Explode neighbor lists to create agent-neighbor pairs
+        exploded = df_to_explode.select([pl.col("agent_id"), pl.col("neighbors")]).explode("neighbors")
+
+        # Return with expected column names
+        result = exploded.select([pl.col("agent_id").alias("agent_id"), pl.col("neighbors").alias("neighbor_id")])
+
+        return result
+
+    @beartype
+    def get_k_hop_neighbors(self, agent_ids: pl.Series | None = None, k: int = 2) -> pl.DataFrame:
+        """
+        Compute k-hop neighbor relationships.
+
+        Parameters
+        ----------
+        agent_ids : pl.Series | None, optional
+            Series of agent IDs to compute k-hop neighbors for. If None, computes for all agents.
+        k : int, default=2
+            Maximum hop distance to compute
+
+        Returns
+        -------
+        pl.DataFrame
+            DataFrame with columns ['original_agent', 'k_hop_neighbor', 'hop_distance']
+            including all hops from 1 to k.
+
+        Examples
+        --------
+        >>> topology = NetworkTopology("random", connectivity=0.3)
+        >>> network = VectorizedSocialNetwork(5, topology)
+        >>> agent_ids = pl.Series([0])
+        >>> k_hop_df = network.get_k_hop_neighbors(agent_ids, k=2)
+        >>> list(k_hop_df.columns)
+        ['original_agent', 'k_hop_neighbor', 'hop_distance']
+        """
+        if k < 1:
+            return pl.DataFrame(
+                {
+                    "original_agent": pl.Series([], dtype=pl.UInt32),
+                    "k_hop_neighbor": pl.Series([], dtype=pl.UInt32),
+                    "hop_distance": pl.Series([], dtype=pl.UInt32),
+                }
+            )
+
+        # Start with direct neighbors (1-hop)
+        all_k_hop = []
+
+        # Get adjacency as dict for efficient lookups
+        adjacency_dict = {}
+        for row in self.adjacency_df.iter_rows():
+            agent_id, neighbors, _ = row
+            adjacency_dict[agent_id] = set(neighbors)
+
+        # Determine which agents to process
+        agents_to_process = range(self.n_agents)
+        if agent_ids is not None:
+            agents_to_process = agent_ids.to_list()
+
+        for original_agent in agents_to_process:
+            # BFS to find k-hop neighbors
+            visited = set()
+            current_level = {original_agent}
+            visited.add(original_agent)
+
+            for hop_dist in range(1, k + 1):
+                next_level = set()
+
+                for agent in current_level:
+                    if agent in adjacency_dict:
+                        for neighbor in adjacency_dict[agent]:
+                            if neighbor not in visited:
+                                next_level.add(neighbor)
+                                visited.add(neighbor)
+                                all_k_hop.append(
+                                    {
+                                        "original_agent": original_agent,
+                                        "k_hop_neighbor": neighbor,
+                                        "hop_distance": hop_dist,
+                                    }
+                                )
+
+                current_level = next_level
+                if not current_level:
+                    break
+
+        if not all_k_hop:
+            return pl.DataFrame(
+                {
+                    "original_agent": pl.Series([], dtype=pl.UInt32),
+                    "k_hop_neighbor": pl.Series([], dtype=pl.UInt32),
+                    "hop_distance": pl.Series([], dtype=pl.UInt32),
+                }
+            )
+
+        return pl.DataFrame(all_k_hop)
+
+    @beartype
+    def get_neighbors(self, agent_id: int, max_neighbors: int | None = None) -> list[int]:
+        """
+        Get neighbors for a specific agent, matching the unified model API.
+
+        Parameters
+        ----------
+        agent_id : int
+            ID of the agent to get neighbors for
+        max_neighbors : int | None, optional
+            Maximum number of neighbors to return (slice the full list)
+
+        Returns
+        -------
+        List[int]
+            List of neighbor IDs for the given agent_id
+
+        Examples
+        --------
+        >>> topology = NetworkTopology("random", connectivity=0.3)
+        >>> network = VectorizedSocialNetwork(5, topology)
+        >>> neighbors = network.get_neighbors(0, max_neighbors=3)
+        >>> isinstance(neighbors, list)
+        True
+        """
+        if agent_id < 0 or agent_id >= self.n_agents:
+            return []
+
+        # Get neighbors from adjacency DataFrame
+        neighbors_row = self.adjacency_df.filter(pl.col("agent_id") == agent_id)
+
+        if len(neighbors_row) == 0:
+            return []
+
+        neighbors = neighbors_row.get_column("neighbors").to_list()[0]
+
+        # Apply max_neighbors limit if specified
+        if max_neighbors is not None and max_neighbors > 0:
+            neighbors = neighbors[:max_neighbors]
+
+        return neighbors

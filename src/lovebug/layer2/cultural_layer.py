@@ -2,7 +2,6 @@
 Mesa-frames native vectorized cultural transmission layer.
 
 Provides the main integration class that replaces the sequential
-CulturalTransmissionManager with a fully vectorized implementation using
 Polars DataFrames and coordinated learning algorithms.
 """
 

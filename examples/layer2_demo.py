@@ -18,9 +18,9 @@ import polars as pl
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from lovebug.layer2.config import Layer2Config
+from lovebug.layer2.cultural_layer import VectorizedCulturalLayer
 from lovebug.layer2.monitoring.simulation_monitor import SimulationMonitor
-from lovebug.layer2.social_learning.cultural_transmission import CulturalTransmissionManager
-from lovebug.layer2.social_learning.social_networks import NetworkTopology, SocialNetwork
+from lovebug.layer2.network import NetworkTopology, SocialNetwork
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -91,11 +91,29 @@ def demonstrate_layer2_functionality() -> None:
         print(f"   • {key}: {value:.3f}")
     print()
 
-    # Create cultural transmission manager
-    transmission_manager = CulturalTransmissionManager(config, social_network)
-
-    # Create mock agent data
+    # Create mock agent data first (needed for transmission manager)
     agent_data = MockAgentData(n_agents)
+
+    # Create cultural transmission manager with proper layer activation
+    from lovebug.layer_activation import LayerActivationConfig
+    from lovebug.unified_mesa_model import UnifiedLoveBugs, UnifiedLoveModel
+
+    layer_activation_config = LayerActivationConfig(
+        genetic_enabled=False,
+        cultural_enabled=True,
+        genetic_weight=0.0,
+        cultural_weight=1.0,
+        blending_mode="weighted_average",
+        normalize_weights=True,
+    )
+    dummy_model = UnifiedLoveModel(
+        layer_config=layer_activation_config,
+        genetic_params=None,
+        cultural_params=config,
+        n_agents=n_agents,
+    )
+    agent_set = UnifiedLoveBugs(n_agents, dummy_model)
+    transmission_manager = VectorizedCulturalLayer(agent_set, config)
 
     print(f"👥 Created {n_agents} agents with:")
     print(f"   • Cultural diversity: {len(np.unique(agent_data.cultural_preferences))} unique preferences")

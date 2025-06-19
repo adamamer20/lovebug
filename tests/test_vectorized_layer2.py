@@ -13,8 +13,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from lovebug.layer2.config import Layer2Config
-from lovebug.layer2.vectorized import (
+from lovebug.layer2 import (
     CulturalInnovationEngine,
     HorizontalTransmissionEngine,
     LearningEligibilityComputer,
@@ -24,6 +23,7 @@ from lovebug.layer2.vectorized import (
     VectorizedCulturalLayer,
     VectorizedSocialNetwork,
 )
+from lovebug.layer2.config import Layer2Config
 
 
 class TestNetworkTopology:

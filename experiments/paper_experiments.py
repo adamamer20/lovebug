@@ -161,8 +161,8 @@ class PaperExperimentRunner:
         self.logger.info("🧬 Starting Layer1 (Genetic) Parameter Sweeps")
 
         # Use larger populations due to efficient O(n) scaling
-        base_population = 2000 if not self.config.quick_test else 500
-        generations = 1000 if not self.config.quick_test else 100
+        base_population = 10000 if not self.config.quick_test else 500
+        generations = 10000 if not self.config.quick_test else 100
 
         # Base parameters for Layer1 experiments
         base_params = {
@@ -238,8 +238,8 @@ class PaperExperimentRunner:
         self.logger.info("🎭 Starting Layer2 (Cultural) Parameter Sweeps")
 
         # Use moderate populations due to O(n²) scaling
-        base_population = 400 if not self.config.quick_test else 200
-        generations = 500 if not self.config.quick_test else 50
+        base_population = 10000 if not self.config.quick_test else 200
+        generations = 10000 if not self.config.quick_test else 50
 
         # Base parameters for Layer2 experiments
         base_params = {
@@ -318,8 +318,8 @@ class PaperExperimentRunner:
         self.logger.info("🔬 Starting Combined (Gene-Culture) Parameter Sweeps")
 
         # Use moderate populations due to cultural component
-        base_population = 300 if not self.config.quick_test else 150
-        generations = 200 if not self.config.quick_test else 50
+        base_population = 10000 if not self.config.quick_test else 150
+        generations = 10000 if not self.config.quick_test else 50
 
         # Base parameters combining genetic and cultural components
         base_params = {

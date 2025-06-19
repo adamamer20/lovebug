@@ -70,7 +70,6 @@ The `config.toml` file contains all experiment parameters organized into section
 ### Output Configuration
 - `results_dir`: Directory for results (organized by experiment type)
 - `logs_dir`: Directory for log files
-- `batch_size`: Batch size for result processing
 
 ### Layer 1 Parameters (Lande-Kirkpatrick Model)
 - `layer1_n_generations`: Number of generations to simulate

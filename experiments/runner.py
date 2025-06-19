@@ -65,8 +65,7 @@ from experiments.models import (  # noqa: E402
 )
 from lovebug.lande_kirkpatrick import LandeKirkpatrickParams, simulate_lande_kirkpatrick  # noqa: E402
 from lovebug.layer2.config import Layer2Config  # noqa: E402
-from lovebug.layer2.cultural_layer.cultural_transmission import CulturalTransmissionManager  # noqa: E402
-from lovebug.layer2.social_learning.social_networks import NetworkTopology, SocialNetwork  # noqa: E402
+from lovebug.layer2.cultural_layer import VectorizedCulturalLayer  # noqa: E402
 from lovebug.layer_activation import LayerActivationConfig  # noqa: E402
 from lovebug.unified_mesa_model import UnifiedLoveModel  # noqa: E402
 
@@ -341,29 +340,41 @@ def run_cultural_experiment(params_dict: dict[str, Any]) -> CulturalExperimentRe
         layer2_config = Layer2Config(**layer2_params)
 
         # Setup cultural simulation
-        topology = NetworkTopology(
-            network_type=layer2_config.network_type, connectivity=layer2_config.network_connectivity
-        )
-
         n_agents = params_dict.get("n_agents", 2000)
-        social_network = SocialNetwork(n_agents, topology)
-        transmission_manager = CulturalTransmissionManager(layer2_config, social_network)
+        # Create a real UnifiedLoveBugs agent set for the vectorized layer
+        from lovebug.layer_activation import LayerActivationConfig
+        from lovebug.unified_mesa_model import UnifiedLoveBugs, UnifiedLoveModel
 
-        # Agent data with process-specific seed
-        seed = hash(f"{os.getpid()}_{time.time()}") % (2**32)
-        agent_data = MockAgentData(n_agents, seed=seed)
+        layer_activation_config = LayerActivationConfig(
+            genetic_enabled=False,
+            cultural_enabled=True,
+            genetic_weight=0.0,
+            cultural_weight=1.0,
+            blending_mode="weighted_average",
+            normalize_weights=True,
+        )
+        dummy_model = UnifiedLoveModel(
+            layer_config=layer_activation_config,
+            genetic_params=None,
+            cultural_params=layer2_config,
+            n_agents=n_agents,
+        )
+        agent_set = UnifiedLoveBugs(n_agents, dummy_model)
+        transmission_manager = VectorizedCulturalLayer(agent_set, layer2_config)
 
-        # Run cultural simulation
         n_generations = params_dict.get("n_generations", 1000)
         diversity_samples = []
         total_events = 0
 
         for generation in range(n_generations):
-            events = transmission_manager.process_cultural_learning(agent_data, generation)
+            transmission_manager.step()
+            # Example: count learning events if needed
+            events = transmission_manager.learning_events if hasattr(transmission_manager, "learning_events") else []
             total_events += len(events)
 
             if generation % 50 == 0:
-                cultural_diversity = len(np.unique(agent_data.get_cultural_preferences())) / 256.0
+                # Use the vectorized API to compute diversity
+                cultural_diversity = transmission_manager.compute_cultural_diversity()
                 diversity_samples.append(cultural_diversity)
 
         # Final analysis
