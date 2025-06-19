@@ -7,9 +7,6 @@ transmission system compared to the original implementation.
 
 from __future__ import annotations
 
-from unittest.mock import Mock
-
-import numpy as np
 import polars as pl
 import pytest
 
@@ -27,21 +24,21 @@ from lovebug.layer2.config import Layer2Config
 
 
 class TestNetworkTopology:
-    """Test network topology configuration."""
+    """Test network topology configuration and validation."""
 
-    def test_default_topology(self) -> None:
+    def test_default_topology_configuration(self) -> None:
         """Test default topology configuration."""
         topology = NetworkTopology()
         assert topology.network_type == "small_world"
         assert topology.connectivity == 0.1
         assert 0.0 <= topology.connectivity <= 1.0
 
-    def test_invalid_network_type(self) -> None:
-        """Test validation of network type."""
+    def test_network_type_validation(self) -> None:
+        """Test validation of network type parameter."""
         with pytest.raises(ValueError, match="network_type must be one of"):
             NetworkTopology(network_type="invalid")
 
-    def test_invalid_connectivity(self) -> None:
+    def test_connectivity_validation(self) -> None:
         """Test validation of connectivity parameter."""
         with pytest.raises(ValueError, match="connectivity must be between 0 and 1"):
             NetworkTopology(connectivity=1.5)
@@ -56,91 +53,75 @@ class TestSocialNetwork:
         topology = NetworkTopology("random", connectivity=0.3)
         return SocialNetwork(10, topology)
 
-    def test_network_creation(self, small_network: SocialNetwork) -> None:
-        """Test network is created successfully."""
+    def test_network_creation_and_structure(self, small_network: SocialNetwork) -> None:
+        """Test that network is created with correct structure."""
         assert small_network.n_agents == 10
         assert len(small_network.adjacency_df) == 10
-        assert "agent_id" in small_network.adjacency_df.columns
-        assert "neighbors" in small_network.adjacency_df.columns
-        assert "degree" in small_network.adjacency_df.columns
 
-    def test_neighbor_lookup(self, small_network: SocialNetwork) -> None:
-        """Test vectorized neighbor lookup."""
+        expected_columns = {"agent_id", "neighbors", "degree"}
+        assert set(small_network.adjacency_df.columns) == expected_columns
+
+    def test_vectorized_neighbor_lookup(self, small_network: SocialNetwork) -> None:
+        """Test vectorized neighbor lookup functionality."""
         agent_ids = pl.Series([0, 1, 2])
         neighbors_df = small_network.get_neighbors_vectorized(agent_ids)
 
         assert isinstance(neighbors_df, pl.DataFrame)
-        assert "agent_id" in neighbors_df.columns
-        assert "neighbor_id" in neighbors_df.columns
+        expected_columns = {"agent_id", "neighbor_id"}
+        assert set(neighbors_df.columns) == expected_columns
 
         # Check that agents appear in results
         agent_ids_in_result = set(neighbors_df.get_column("agent_id").to_list())
         assert agent_ids_in_result.issubset({0, 1, 2})
 
-    def test_k_hop_neighbors(self, small_network: SocialNetwork) -> None:
+    def test_k_hop_neighbor_computation(self, small_network: SocialNetwork) -> None:
         """Test k-hop neighbor computation."""
         agent_ids = pl.Series([0])
         k_hop_df = small_network.get_k_hop_neighbors(agent_ids, k=2)
 
         assert isinstance(k_hop_df, pl.DataFrame)
         if len(k_hop_df) > 0:
-            assert "original_agent" in k_hop_df.columns
-            assert "k_hop_neighbor" in k_hop_df.columns
-            assert "hop_distance" in k_hop_df.columns
+            expected_columns = {"original_agent", "k_hop_neighbor", "hop_distance"}
+            assert set(k_hop_df.columns) == expected_columns
 
     def test_network_statistics(self, small_network: SocialNetwork) -> None:
         """Test network statistics computation."""
         stats = small_network.get_network_statistics()
 
         assert isinstance(stats, dict)
-        assert "num_nodes" in stats
-        assert "num_edges" in stats
-        assert "mean_degree" in stats
+        required_stats = {"num_nodes", "num_edges", "mean_degree"}
+        assert all(stat in stats for stat in required_stats)
         assert stats["num_nodes"] == 10
 
-    def test_network_size_update(self, small_network: SocialNetwork) -> None:
-        """Test updating network size."""
+    def test_network_size_updates(self, small_network: SocialNetwork) -> None:
+        """Test dynamic network size updates."""
+        # Test growing network
         small_network.update_network_size(15)
-
         assert small_network.n_agents == 15
         assert len(small_network.adjacency_df) == 15
 
-        # Test shrinking
+        # Test shrinking network
         small_network.update_network_size(8)
         assert small_network.n_agents == 8
         assert len(small_network.adjacency_df) == 8
 
 
 class TestLearningEligibilityComputer:
-    """Test learning eligibility computation."""
+    """Test learning eligibility computation logic."""
 
     @pytest.fixture
-    def eligibility_computer(self) -> LearningEligibilityComputer:
-        """Create eligibility computer."""
-        config = Layer2Config()
-        return LearningEligibilityComputer(config)
+    def eligibility_computer(self, cultural_params: Layer2Config) -> LearningEligibilityComputer:
+        """Create eligibility computer with standard config."""
+        return LearningEligibilityComputer(cultural_params)
 
-    @pytest.fixture
-    def sample_agents(self) -> pl.DataFrame:
-        """Create sample agent DataFrame."""
-        return pl.DataFrame(
-            {
-                "agent_id": range(5),
-                "age": [0, 1, 2, 5, 10],
-                "energy": [0.5, 1.5, 2.0, 3.0, 5.0],
-                "network_degree": [0, 1, 2, 3, 4],
-                "last_learning_event": [0, 0, 0, 2, 5],
-            }
-        )
-
-    def test_eligibility_computation(
-        self, eligibility_computer: LearningEligibilityComputer, sample_agents: pl.DataFrame
+    def test_eligibility_computation_logic(
+        self, eligibility_computer: LearningEligibilityComputer, sample_agents_df: pl.DataFrame
     ) -> None:
-        """Test eligibility computation."""
-        eligibility = eligibility_computer.compute_eligibility(sample_agents, generation=10)
+        """Test eligibility computation with realistic agent data."""
+        eligibility = eligibility_computer.compute_eligibility(sample_agents_df, generation=10)
 
         assert isinstance(eligibility, pl.Series)
-        assert len(eligibility) == len(sample_agents)
+        assert len(eligibility) == len(sample_agents_df)
         assert eligibility.dtype == pl.Boolean
 
         # Agent 0 should not be eligible (age=0, energy=0.5, no neighbors)
@@ -150,8 +131,8 @@ class TestLearningEligibilityComputer:
         assert eligibility[4]
 
 
-class TestObliqueTransmissionEngine:
-    """Test oblique transmission engine."""
+class TestTransmissionEngines:
+    """Test cultural transmission engines."""
 
     @pytest.fixture
     def oblique_engine(self) -> ObliqueTransmissionEngine:
@@ -160,45 +141,13 @@ class TestObliqueTransmissionEngine:
         return ObliqueTransmissionEngine(config)
 
     @pytest.fixture
-    def sample_agents(self) -> pl.DataFrame:
-        """Create sample agent DataFrame with age distribution."""
-        return pl.DataFrame(
-            {
-                "agent_id": range(10),
-                "age": [1, 1, 2, 2, 5, 5, 10, 10, 15, 20],
-                "pref_culture": [100, 110, 120, 130, 140, 150, 160, 170, 180, 190],
-                "prestige_score": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-                "mating_success": [0, 1, 1, 2, 2, 3, 3, 4, 4, 5],
-            }
-        )
-
-    def test_oblique_transmission(self, oblique_engine: ObliqueTransmissionEngine, sample_agents: pl.DataFrame) -> None:
-        """Test oblique transmission execution."""
-        learner_mask = pl.Series([True, True, False, False, False, False, False, False, False, False])
-
-        result = oblique_engine.execute_transmission(sample_agents, learner_mask)
-
-        assert isinstance(result, pl.DataFrame)
-        expected_columns = {"learner_id", "new_preference", "teacher_id", "learning_type"}
-        assert set(result.columns) == expected_columns
-
-        if len(result) > 0:
-            # Check that learning events are valid
-            assert all(result.get_column("learning_type") == "oblique")
-            assert all(result.get_column("learner_id").is_in([0, 1]))
-
-
-class TestHorizontalTransmissionEngine:
-    """Test horizontal transmission engine."""
-
-    @pytest.fixture
     def horizontal_engine(self) -> HorizontalTransmissionEngine:
         """Create horizontal transmission engine."""
         config = Layer2Config(horizontal_transmission_rate=0.5)
         return HorizontalTransmissionEngine(config)
 
     @pytest.fixture
-    def sample_agents_with_network(self) -> pl.DataFrame:
+    def agents_with_network(self) -> pl.DataFrame:
         """Create sample agents with network connections."""
         return pl.DataFrame(
             {
@@ -215,26 +164,41 @@ class TestHorizontalTransmissionEngine:
             }
         )
 
-    def test_horizontal_transmission(
-        self, horizontal_engine: HorizontalTransmissionEngine, sample_agents_with_network: pl.DataFrame
+    def test_oblique_transmission_execution(
+        self, oblique_engine: ObliqueTransmissionEngine, sample_agents_df: pl.DataFrame
     ) -> None:
-        """Test horizontal transmission execution."""
-        learner_mask = pl.Series([True, True, False, False, False])
+        """Test oblique transmission execution."""
+        learner_mask = pl.Series([True, True, False, False, False, False, False, False, False, False])
 
-        result = horizontal_engine.execute_transmission(sample_agents_with_network, learner_mask)
+        result = oblique_engine.execute_transmission(sample_agents_df, learner_mask)
 
         assert isinstance(result, pl.DataFrame)
         expected_columns = {"learner_id", "new_preference", "teacher_id", "learning_type"}
         assert set(result.columns) == expected_columns
 
         if len(result) > 0:
-            # Check that learning events are valid
+            assert all(result.get_column("learning_type") == "oblique")
+            assert all(result.get_column("learner_id").is_in([0, 1]))
+
+    def test_horizontal_transmission_execution(
+        self, horizontal_engine: HorizontalTransmissionEngine, agents_with_network: pl.DataFrame
+    ) -> None:
+        """Test horizontal transmission execution."""
+        learner_mask = pl.Series([True, True, False, False, False])
+
+        result = horizontal_engine.execute_transmission(agents_with_network, learner_mask)
+
+        assert isinstance(result, pl.DataFrame)
+        expected_columns = {"learner_id", "new_preference", "teacher_id", "learning_type"}
+        assert set(result.columns) == expected_columns
+
+        if len(result) > 0:
             assert all(result.get_column("learning_type") == "horizontal")
             assert all(result.get_column("learner_id").is_in([0, 1]))
 
 
 class TestCulturalInnovationEngine:
-    """Test cultural innovation engine."""
+    """Test cultural innovation mechanisms."""
 
     @pytest.fixture
     def innovation_engine(self) -> CulturalInnovationEngine:
@@ -243,8 +207,8 @@ class TestCulturalInnovationEngine:
         return CulturalInnovationEngine(config)
 
     @pytest.fixture
-    def sample_agents(self) -> pl.DataFrame:
-        """Create sample agents."""
+    def uniform_agents(self) -> pl.DataFrame:
+        """Create agents with uniform preferences for innovation testing."""
         return pl.DataFrame(
             {
                 "agent_id": range(10),
@@ -252,18 +216,18 @@ class TestCulturalInnovationEngine:
             }
         )
 
-    def test_cultural_innovation(
-        self, innovation_engine: CulturalInnovationEngine, sample_agents: pl.DataFrame
+    def test_cultural_innovation_execution(
+        self, innovation_engine: CulturalInnovationEngine, uniform_agents: pl.DataFrame
     ) -> None:
         """Test cultural innovation execution."""
-        result = innovation_engine.execute_innovation(sample_agents, innovation_rate=0.5)
+        result = innovation_engine.execute_innovation(uniform_agents, innovation_rate=0.5)
 
         assert isinstance(result, pl.DataFrame)
         expected_columns = {"learner_id", "new_preference", "teacher_id", "learning_type"}
         assert set(result.columns) == expected_columns
 
         if len(result) > 0:
-            # Check that innovation events are valid
+            # Verify innovation events are properly marked
             assert all(result.get_column("learning_type") == "innovation")
             assert all(result.get_column("teacher_id").is_null())
 
@@ -273,7 +237,7 @@ class TestCulturalInnovationEngine:
 
 
 class TestMemoryDecayEngine:
-    """Test memory decay engine."""
+    """Test cultural memory decay mechanisms."""
 
     @pytest.fixture
     def memory_engine(self) -> MemoryDecayEngine:
@@ -281,10 +245,9 @@ class TestMemoryDecayEngine:
         config = Layer2Config(cultural_memory_size=3, memory_decay_rate=0.1, memory_update_strength=1.0)
         return MemoryDecayEngine(config)
 
-    @pytest.fixture
-    def sample_agents_with_memory(self) -> pl.DataFrame:
-        """Create sample agents with memory."""
-        return pl.DataFrame(
+    def test_memory_decay_application(self, memory_engine: MemoryDecayEngine) -> None:
+        """Test memory decay application."""
+        agents_with_memory = pl.DataFrame(
             {
                 "agent_id": range(3),
                 "pref_culture": [100, 110, 120],
@@ -297,12 +260,10 @@ class TestMemoryDecayEngine:
             }
         )
 
-    def test_memory_decay(self, memory_engine: MemoryDecayEngine, sample_agents_with_memory: pl.DataFrame) -> None:
-        """Test memory decay application."""
-        result = memory_engine.apply_memory_decay(sample_agents_with_memory)
+        result = memory_engine.apply_memory_decay(agents_with_memory)
 
         assert isinstance(result, pl.DataFrame)
-        assert len(result) == len(sample_agents_with_memory)
+        assert len(result) == len(agents_with_memory)
 
         # Check that memory columns are updated
         assert "cultural_memory_0" in result.columns
@@ -310,66 +271,47 @@ class TestMemoryDecayEngine:
 
         # Check that new memory in position 0 comes from current preference
         new_memory_0 = result.get_column("cultural_memory_0").to_list()
-        current_prefs = sample_agents_with_memory.get_column("pref_culture").to_list()
+        current_prefs = agents_with_memory.get_column("pref_culture").to_list()
         assert new_memory_0 == [float(p) for p in current_prefs]
 
-    def test_effective_preference_computation(
-        self, memory_engine: MemoryDecayEngine, sample_agents_with_memory: pl.DataFrame
-    ) -> None:
+    def test_effective_preference_computation(self, memory_engine: MemoryDecayEngine) -> None:
         """Test effective preference computation."""
-        effective_prefs = memory_engine.compute_effective_preference(sample_agents_with_memory)
+        agents_with_memory = pl.DataFrame(
+            {
+                "agent_id": range(3),
+                "pref_culture": [100, 110, 120],  # Add missing pref_culture column
+                "cultural_memory_0": [90.0, 95.0, 105.0],
+                "cultural_memory_1": [80.0, 85.0, 95.0],
+                "cultural_memory_2": [70.0, 75.0, 85.0],
+                "memory_weights_0": [0.8, 0.9, 0.7],
+                "memory_weights_1": [0.6, 0.7, 0.5],
+                "memory_weights_2": [0.4, 0.5, 0.3],
+            }
+        )
+
+        effective_prefs = memory_engine.compute_effective_preference(agents_with_memory)
 
         assert isinstance(effective_prefs, pl.Series)
-        assert len(effective_prefs) == len(sample_agents_with_memory)
+        assert len(effective_prefs) == len(agents_with_memory)
         assert effective_prefs.dtype == pl.UInt8
 
 
 class TestCulturalLayer:
-    """Test the main vectorized cultural layer."""
+    """Test the integrated vectorized cultural layer."""
 
     @pytest.fixture
-    def mock_agent_set(self) -> Mock:
-        """Create mock agent set."""
-        mock_agents = Mock()
-        mock_agents.agents = pl.DataFrame(
-            {
-                "agent_id": range(10),
-                "genome": [123456] * 10,
-                "energy": [5.0] * 10,
-                "age": [2] * 10,
-                "mating_success": [1] * 10,
-                "pref_culture": [128] * 10,
-                "cultural_innovation_count": [0] * 10,
-                "prestige_score": [0.5] * 10,
-                "last_learning_event": [0] * 10,
-                "learning_eligibility": [True] * 10,
-                "effective_preference": [128] * 10,
-                "neighbors": [[] for _ in range(10)],
-                "network_degree": [0] * 10,
-            }
-        )
+    def cultural_layer(self, mock_agent_set, cultural_params: Layer2Config) -> CulturalLayer:
+        """Create vectorized cultural layer with mock agents."""
+        return CulturalLayer(mock_agent_set, cultural_params)
 
-        # Mock len() to return number of agents - fix lambda to accept self parameter
-        mock_agents.__len__ = lambda self: 10
-
-        return mock_agents
-
-    @pytest.fixture
-    def cultural_layer(self, mock_agent_set: Mock) -> CulturalLayer:
-        """Create vectorized cultural layer."""
-        config = Layer2Config(
-            oblique_transmission_rate=0.2, horizontal_transmission_rate=0.3, innovation_rate=0.1, cultural_memory_size=5
-        )
-        return CulturalLayer(mock_agent_set, config)
-
-    def test_cultural_layer_initialization(self, cultural_layer: CulturalLayer, mock_agent_set: Mock) -> None:
+    def test_cultural_layer_initialization(self, cultural_layer: CulturalLayer, mock_agent_set) -> None:
         """Test cultural layer initialization."""
         assert cultural_layer.agents == mock_agent_set
         assert cultural_layer.generation == 0
         assert isinstance(cultural_layer.config, Layer2Config)
         assert isinstance(cultural_layer.network, SocialNetwork)
 
-    def test_cultural_layer_step(self, cultural_layer: CulturalLayer) -> None:
+    def test_cultural_layer_step_execution(self, cultural_layer: CulturalLayer) -> None:
         """Test cultural layer step execution."""
         initial_generation = cultural_layer.generation
 
@@ -393,59 +335,53 @@ class TestCulturalLayer:
         assert diversity >= 0.0
 
     def test_reset_functionality(self, cultural_layer: CulturalLayer) -> None:
-        """Test reset functionality."""
+        """Test cultural layer reset functionality."""
         # Execute some steps
         cultural_layer.step()
         cultural_layer.step()
 
         assert cultural_layer.generation > 0
 
-        # Reset
+        # Reset and verify clean state
         cultural_layer.reset()
-
         assert cultural_layer.generation == 0
         assert len(cultural_layer.learning_events) == 0
 
 
-class TestPerformanceComparison:
+class TestPerformanceCharacteristics:
     """Test performance characteristics of vectorized implementation."""
 
-    def test_vectorized_vs_sequential_performance(self) -> None:
-        """Test that vectorized operations are efficient."""
-        # This is a placeholder for performance testing
-        # In practice, we would benchmark against the original implementation
+    def test_vectorized_operations_efficiency(self, cultural_params: Layer2Config) -> None:
+        """Test that vectorized operations are efficient with large datasets."""
+        import time
 
-        config = Layer2Config()
-        computer = LearningEligibilityComputer(config)
+        computer = LearningEligibilityComputer(cultural_params)
 
         # Create large agent population
+        import numpy as np
+
         large_df = pl.DataFrame(
             {
                 "agent_id": range(1000),
-                "age": np.random.randint(1, 20, 1000),
+                "age": np.random.randint(1, 21, 1000),
                 "energy": np.random.uniform(1, 10, 1000),
-                "network_degree": np.random.randint(0, 10, 1000),
-                "last_learning_event": np.random.randint(0, 5, 1000),
+                "network_degree": np.random.randint(0, 11, 1000),
+                "last_learning_event": np.random.randint(0, 6, 1000),
             }
         )
 
-        # Measure time for vectorized computation
-        import time
-
+        # Measure execution time
         start_time = time.time()
         eligibility = computer.compute_eligibility(large_df, generation=10)
-        end_time = time.time()
-
-        vectorized_time = end_time - start_time
+        execution_time = time.time() - start_time
 
         # Should be very fast for 1000 agents
-        assert vectorized_time < 0.1  # Less than 100ms
+        assert execution_time < 0.1  # Less than 100ms
         assert isinstance(eligibility, pl.Series)
         assert len(eligibility) == 1000
 
     def test_memory_efficiency(self) -> None:
         """Test memory efficiency of vectorized operations."""
-        # Test that operations don't create excessive memory overhead
         config = Layer2Config(cultural_memory_size=10)
         engine = MemoryDecayEngine(config)
 
@@ -465,6 +401,6 @@ class TestPerformanceComparison:
         for _ in range(10):
             df = engine.apply_memory_decay(df)
 
-        # Check that DataFrame is still reasonable size
+        # Check that DataFrame maintains reasonable structure
         assert len(df) == 100
         assert len(df.columns) >= 22  # Base + memory columns
