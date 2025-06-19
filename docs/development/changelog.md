@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial project structure
 
-## [0.1.0] - now().strftime('%Y-%m-%d')
+## [0.1.0] - 2025-01-01
 
 ### Added
 - Initial release

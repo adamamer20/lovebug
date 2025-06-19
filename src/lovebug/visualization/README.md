@@ -32,10 +32,10 @@ src/lovebug/visualization/
 
 ```python
 from lovebug.visualization import VisualizationEngine, DataCollector
-from lovebug.model import LoveModel
+from lovebug import UnifiedLoveModel
 
 # Collect data during simulation
-model = LoveModel(n_agents=1000)
+model = UnifiedLoveModel(population_size=1000)
 collector = DataCollector()
 
 for step in range(100):
@@ -244,10 +244,10 @@ for param_value in [0.1, 0.5, 1.0]:
 ```python
 # examples/complete_workflow.py
 from lovebug.visualization import VisualizationEngine, DataCollector
-from lovebug.model import LoveModel
+from lovebug import UnifiedLoveModel
 
 # 1. Run simulation with data collection
-model = LoveModel(n_agents=5000)
+model = UnifiedLoveModel(population_size=5000)
 collector = DataCollector()
 collector.set_metadata(experiment="baseline_run")
 

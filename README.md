@@ -10,125 +10,156 @@
 
 ---
 
-## 📜 Project Aim
+## 📜 Project Overview
 
-Simulate a large population of digital "love‑bugs" whose *genomes* encode:
+LoveBug simulates large populations of digital "love‑bugs" whose *genomes* encode:
 
-1. **Display traits** (what others see),
-2. **Mate preferences** (what they like),
-3. **Choosiness threshold** (how picky they are).
+1. **Display traits** (what others see)
+2. **Mate preferences** (what they like)
+3. **Choosiness threshold** (how picky they are)
 
-At every step, bugs move, court potential partners, and—if mutual acceptance criteria are met—produce offspring via genetic crossover ★ mutation. The result is an emergent arms‑race of display fashions and evolving preferences, letting you explore classic questions in *sexual selection*, *assortative mating*, and *speciation* from a computational‑evolutionary viewpoint.
+At every step, bugs move, court potential partners, and—if mutual acceptance criteria are met—produce offspring via genetic crossover and mutation. The result is an emergent arms‑race of display fashions and evolving preferences, enabling exploration of classic questions in *sexual selection*, *assortative mating*, and *speciation* from a computational‑evolutionary perspective.
 
 ---
 
 ## ✨ Key Features
 
-* **Vectorised core**: All agents live in a single Polars `DataFrame`; 100 k+ individuals in pure Python.
-* **Genome layout**: 32‑bit unsigned int → `[15‑0 display] [23‑16 preference] [31‑24 threshold]`.
-* **Mutual mate choice** via fast Hamming‑similarity check.
-* **Uniform crossover** + per‑bit mutation.
-* **Energy decay & ageing** stop unbounded growth.
-* **Drop‑in Mesa‑Frames compatibility**: use `BatchRunner`, collectors, grid extensions, etc.
-* **Test scaffold**: simple `pytest` examples to ensure basic invariants (optional).
+* **Vectorized core**: All agents stored in a single Polars `DataFrame`; handles 100k+ individuals in pure Python
+* **Genetic encoding**: 32‑bit unsigned int genome → `[15‑0 display] [23‑16 preference] [31‑24 threshold]`
+* **Mutual mate choice**: Fast Hamming‑similarity based partner selection
+* **Evolutionary mechanics**: Uniform crossover + per‑bit mutation + energy decay & aging
+* **Mesa‑Frames compatibility**: Drop‑in support for `BatchRunner`, collectors, grid extensions
+* **Multi-layer architecture**: Genetic evolution + cultural learning mechanisms
+* **Research-focused**: Designed for sexual selection and evolutionary dynamics research
 
 ---
 
-## 📦 Installation
+## 🚀 Quick Start
+
+### Installation
 
 ```bash
-# 1. Clone the repo
-$ git clone https://github.com/adamamer20/lovebug.git && cd lovebug
+# For general use
+pip install lovebug
 
-# 2. Create env (conda, venv, hatch… your call)
-$ python -m venv .venv && source .venv/bin/activate
-
-# 3. Install deps
-$ uv pip install -e .[dev]  # mesa‑frames, polars, numpy, beartype, pytest
+# For development (see full installation guide)
+git clone https://github.com/adamamer20/lovebug.git
+cd lovebug && uv pip install -e .[dev]
 ```
 
-> **Note**: Polars toggles SIMD and multi‑threading automatically; on Apple Silicon & modern x86 it screams. 🏎️
+**📖 [Complete Installation Guide](https://adamamer20.github.io/lovebug/installation/)**
 
----
+### Basic Usage
 
-## 🚀 Quick‑Start
+```python
+from lovebug import UnifiedLoveModel
+
+# Create and run a basic simulation
+model = UnifiedLoveModel(population_size=5000, max_steps=200)
+model.run_model()
+
+print(f"Final population: {len(model.agents)}")
+```
+
+### Command Line
 
 ```bash
-# Run 5 000 bugs for 200 steps
-$ uv run python -m lovebug.model
-Final population: 8124
+# Run default simulation
+uv run python -m lovebug.unified_mesa_model
+
+# Explore examples
+python examples/layer2_demo.py
 ```
 
-Graphs & CSVs drop into `outputs/` (hook up your own collector or use the sample Jupyter notebooks).
+---
+
+## 🧬 Model Architecture
+
+| Component | Description |
+|-----------|-------------|
+| **Genome** | 32‑bit `uint32` with bit-packed display/preference/threshold traits |
+| **Mate Choice** | Hamming similarity: `similarity = 16 – bitcount(display ⊕ preference_partner)` |
+| **Reproduction** | Uniform crossover with independent per‑bit mutation rate `μ` |
+| **Population Dynamics** | Energy decay (`energy -= 0.2` per tick) and maximum age limits |
+| **Cultural Layer** | Optional social learning overlaid on genetic evolution |
+| **Vectorized Updates** | Fully vectorized operations using Polars for performance |
+
+### Core Parameters
+
+Key tunable parameters (see [`UnifiedLoveModel`](src/lovebug/unified_mesa_model.py)):
+
+- `population_size`: Initial population size
+- `mutation_rate`: Per-bit genetic mutation probability
+- `energy_decay`: Energy cost per time step
+- `max_age`: Maximum lifespan
+- Cultural learning parameters via [`Layer2Config`](src/lovebug/layer2/config.py)
 
 ---
 
-## 🧬 Model In‑Depth
+## 📚 Documentation
 
-| Component             | Description                                                                                                                |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| **Genome**            | 32‑bit `uint32` segmented into display / preference / threshold.                                                           |
-| **Mate choice**       | Both partners compute `similarity = 16 – bitcount(display ⊕ preference_partner)`; they accept if `similarity ≥ threshold`. |
-| **Reproduction**      | Uniform crossover (bit‑mask blend), then independent per‑bit mutation `μ`.                                                 |
-| **Energy**            | Each tick: `energy -= 0.2`; death at `energy ≤ 0` or `age ≥ 100`.                                                          |
-| **Population update** | Fully vectorised; offspring appended to the shared frame.                                                                  |
-
-### Tunable Parameters *(see top of `src/lovebug/model.py`)*
-
-* `MUTATION_RATE` — per‑bit flip probability.
-* `ENERGY_DECAY`, `MAX_AGE`.
-* Later: `GRID_SIZE`, `VISION_RADIUS`, `COURTSHIP_COST`, etc.
+* **[Full Documentation](https://adamamer20.github.io/lovebug/)** - Complete guide and API reference
+* **[Installation Guide](https://adamamer20.github.io/lovebug/installation/)** - Detailed setup instructions
+* **[Contributing Guide](https://adamamer20.github.io/lovebug/development/contributing/)** - Development workflow
+* **[Examples](examples/)** - Demonstration scripts and notebooks
+* **[Research Paper](paper/paper.qmd)** - Scientific background and methodology
 
 ---
 
-## 🛠️ Extending
+## 🔬 Research Applications
 
-1. **Spatiality** – switch random pairing to neighbour queries on a `MultiGridDF` for local mating.
-2. **Resource patches** – join a `resources` DF each tick and replenish energy when on food.
-3. **Sexual dimorphism** – split genome layout by sex;
-4. **Cultural learning** – add non‑genetic preference drift each generation.
+LoveBug is designed for studying:
 
-PRs welcome—open an issue to discuss!
+- **Sexual selection dynamics**: Fisher-Lande-Kirkpatrick mechanisms
+- **Assortative mating**: Preference-trait coevolution
+- **Cultural-genetic interactions**: Social learning effects on mate choice
+- **Population genetics**: Drift vs. selection in finite populations
+- **Speciation processes**: Reproductive isolation emergence
 
 ---
 
 ## 🤝 Contributing
 
-| Step   | Command         |
-| ------ | --------------- |
-| Format | `ruff format .` |
-| Lint   | `ruff check .`  |
-| Tests  | `pytest -q`     |
+We welcome contributions! Key development commands:
 
-We welcome contributions! Please see our [Contributing Guide](https://adamamer20.github.io/lovebug/development/contributing/) for details.
+```bash
+# Code quality
+ruff check . && ruff format .
+
+# Testing
+pytest -v
+
+# Documentation
+mkdocs serve
+```
+
+**📖 [Full Contributing Guide](https://adamamer20.github.io/lovebug/development/contributing/)**
 
 ---
 
-## 📄 License
+## 📄 License & Citation
 
-MIT © 2025 Your Name / Lab / Org. See `LICENSE`.
+**License**: MIT © 2025 Adam Amer. See [`LICENSE`](LICENSE).
 
----
+**Citation**: If you use LoveBug in academic work:
 
-## 📚 Citation
-
-If you use Love‑Bugs in academic work:
-
-```text
-@misc{lovebugs2025,
-  title   = {Love‑Bugs: an agent‑based model of sexual selection},
-  author  = {Your Name},
+```bibtex
+@misc{lovebug2025,
+  title   = {LoveBug: An agent‑based model of sexual selection and cultural-genetic coevolution},
+  author  = {Adam Amer},
   year    = {2025},
   howpublished = {GitHub repository},
-  url     = {https://github.com/your‑org/lovebugs}
+  url     = {https://github.com/adamamer20/lovebug}
 }
 ```
 
+---
+
+## 🔗 Links
+
+* **[Documentation](https://adamamer20.github.io/lovebug/)** - Complete documentation site
+* **[PyPI Package](https://pypi.org/project/lovebug/)** - Official package releases
+* **[GitHub Repository](https://github.com/adamamer20/lovebug)** - Source code
+* **[Issue Tracker](https://github.com/adamamer20/lovebug/issues)** - Bug reports and feature requests
+
 Happy bug‑breeding! 🐞🎉
-
-## Links
-
-* [Documentation](https://adamamer20.github.io/lovebug/)
-* [PyPI Package](https://pypi.org/project/lovebug/)
-* [Source Code](https://github.com/adamamer20/lovebug)
-* [Issue Tracker](https://github.com/adamamer20/lovebug/issues)

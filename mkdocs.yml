@@ -97,10 +97,13 @@ extra_javascript:
 
 nav:
   - Home: index.md
+  - Installation: installation.md
   - API Reference: api.md
+  - Visualization Architecture: visualization-architecture.md
   - Development:
     - Contributing: development/contributing.md
     - Changelog: development/changelog.md
+    - Template Sync: development/template-sync.md
 
 extra:
   social:
