@@ -32,10 +32,10 @@ src/lovebug/visualization/
 
 ```python
 from lovebug.visualization import VisualizationEngine, DataCollector
-from lovebug import UnifiedLoveModel
+from lovebug import LoveModel
 
 # Collect data during simulation
-model = UnifiedLoveModel(population_size=1000)
+model = LoveModel(population_size=1000)
 collector = DataCollector()
 
 for step in range(100):
@@ -63,6 +63,7 @@ fig = engine.create_chart(
 ### 2. Available Chart Types
 
 #### TrajectoryChart
+
 Visualizes evolutionary dynamics over time with multiple trajectory types:
 
 - **`trait_preference`**: Display trait and mate preference evolution
@@ -88,6 +89,7 @@ fig = engine.create_chart('trajectory', 'static', {
 ### 3. Backend Options
 
 #### StaticBackend (Matplotlib)
+
 - **Purpose**: Publication-quality static outputs
 - **Formats**: PNG, PDF, SVG, EPS
 - **Features**: High-DPI, academic styling, LaTeX support
@@ -130,6 +132,7 @@ collector.save_run_data('results.parquet')
 ```
 
 **Collected Metrics:**
+
 - Population statistics (size, mean age, mean energy)
 - Genetic metrics (trait/preference means and variances)
 - Sexual selection metrics (genetic covariance, mating success)
@@ -244,10 +247,10 @@ for param_value in [0.1, 0.5, 1.0]:
 ```python
 # examples/complete_workflow.py
 from lovebug.visualization import VisualizationEngine, DataCollector
-from lovebug import UnifiedLoveModel
+from lovebug import LoveModel
 
 # 1. Run simulation with data collection
-model = UnifiedLoveModel(population_size=5000)
+model = LoveModel(population_size=5000)
 collector = DataCollector()
 collector.set_metadata(experiment="baseline_run")
 
@@ -275,17 +278,20 @@ for chart_type, config in charts:
 ## Installation and Dependencies
 
 ### Core Dependencies
+
 ```bash
 pip install polars numpy mesa-frames
 ```
 
 ### Visualization Dependencies
+
 ```bash
 pip install matplotlib seaborn  # For static backend
 pip install plotly             # For interactive backend (future)
 ```
 
 ### Optional Dependencies
+
 ```bash
 pip install manim             # For animation backend (future)
 ```
@@ -305,16 +311,19 @@ python examples/visualization_demo.py
 ## Performance Considerations
 
 ### Data Storage
+
 - **Parquet format**: ~10x smaller than CSV, faster loading
 - **Columnar storage**: Efficient for time series analysis
 - **Metadata separation**: JSON sidecar files for run information
 
 ### Memory Efficiency
+
 - **Lazy loading**: Data loaded only when needed
 - **Polars backend**: Efficient DataFrame operations
 - **Streaming support**: Process large datasets in chunks
 
 ### Visualization Performance
+
 - **Pre-computation**: Statistical aggregations cached
 - **Vectorized operations**: Fast data transformations
 - **Progressive rendering**: Interactive charts load incrementally
@@ -331,11 +340,13 @@ The modular architecture supports easy extension:
 ## Future Roadmap
 
 ### Phase 2: Interactive Backend
+
 - Plotly-based interactive visualizations
 - Parameter sliders and controls
 - Marimo notebook integration
 
 ### Phase 3: Advanced Features
+
 - Manim-based mathematical animations
 - Observable Plot web components
 - Paper-to-website transformation
@@ -343,6 +354,7 @@ The modular architecture supports easy extension:
 ## Support
 
 For questions and issues:
+
 1. Check the examples in `examples/`
 2. Run the test suite: `python test_visualization.py`
 3. Review the architecture documentation in `docs/visualization-architecture.md`

@@ -12,7 +12,7 @@ import pytest
 from lovebug.lande_kirkpatrick import LandeKirkpatrickParams
 from lovebug.layer2.config import Layer2Config
 from lovebug.layer_activation import LayerActivationConfig
-from lovebug.unified_mesa_model import UnifiedLoveModel
+from lovebug.unified_mesa_model import LoveModel
 
 
 class TestPerceptualConstraints:
@@ -26,7 +26,7 @@ class TestPerceptualConstraints:
         layer_config.theta_detect = 2.0  # Low threshold
 
         genetic_params = LandeKirkpatrickParams()
-        model = UnifiedLoveModel(layer_config, genetic_params, None, n_agents=100)
+        model = LoveModel(layer_config, genetic_params, None, n_agents=100)
 
         # Run a few steps to generate mating events
         model.step()
@@ -44,7 +44,7 @@ class TestPerceptualConstraints:
         layer_config.theta_detect = 15.0  # Very high threshold (max similarity is 16)
 
         genetic_params = LandeKirkpatrickParams()
-        model = UnifiedLoveModel(layer_config, genetic_params, None, n_agents=50)
+        model = LoveModel(layer_config, genetic_params, None, n_agents=50)
 
         initial_pop = len(model.agents)
 
@@ -94,7 +94,7 @@ class TestLocalLearningRadius:
             innovation_rate=0.01,  # Low innovation
         )
 
-        model = UnifiedLoveModel(layer_config, None, cultural_params, n_agents=100)
+        model = LoveModel(layer_config, None, cultural_params, n_agents=100)
 
         # Run cultural learning steps
         for _ in range(5):
@@ -117,7 +117,7 @@ class TestLocalLearningRadius:
                 local_learning_radius=radius, horizontal_transmission_rate=0.3, innovation_rate=0.02
             )
 
-            model = UnifiedLoveModel(layer_config, None, cultural_params, n_agents=80)
+            model = LoveModel(layer_config, None, cultural_params, n_agents=80)
 
             # Run simulation
             for _ in range(10):
@@ -149,7 +149,7 @@ class TestIntegratedMechanisms:
             innovation_rate=0.05,
         )
 
-        model = UnifiedLoveModel(layer_config, genetic_params, cultural_params, n_agents=150)
+        model = LoveModel(layer_config, genetic_params, cultural_params, n_agents=150)
 
         # Run integrated simulation
         for _ in range(15):
@@ -181,7 +181,7 @@ class TestIntegratedMechanisms:
             genetic_params = LandeKirkpatrickParams()
             cultural_params = Layer2Config()
 
-            model = UnifiedLoveModel(layer_config, genetic_params, cultural_params, n_agents=100)
+            model = LoveModel(layer_config, genetic_params, cultural_params, n_agents=100)
 
             # Run a few steps to test the blending
             for _ in range(5):
@@ -240,8 +240,8 @@ class TestMechanismInteractions:
 
         genetic_params = LandeKirkpatrickParams()
 
-        low_noise_model = UnifiedLoveModel(low_noise_config, genetic_params, None, n_agents=100)
-        high_noise_model = UnifiedLoveModel(high_noise_config, genetic_params, None, n_agents=100)
+        low_noise_model = LoveModel(low_noise_config, genetic_params, None, n_agents=100)
+        high_noise_model = LoveModel(high_noise_config, genetic_params, None, n_agents=100)
 
         # Run both models
         for _ in range(10):

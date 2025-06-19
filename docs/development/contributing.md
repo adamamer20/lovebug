@@ -25,12 +25,14 @@ LoveBug is a high-performance agent-based simulation built with Mesa-Frames and 
 ### Initial Setup
 
 1. **Fork and clone the repository**:
+
    ```bash
    git clone https://github.com/YOUR_USERNAME/lovebug.git
    cd lovebug
    ```
 
 2. **Set up development environment**:
+
    ```bash
    # Create virtual environment
    python -m venv .venv
@@ -44,6 +46,7 @@ LoveBug is a high-performance agent-based simulation built with Mesa-Frames and 
    ```
 
 3. **Verify installation**:
+
    ```bash
    # Run tests
    pytest -v
@@ -95,6 +98,7 @@ uv pip compile pyproject.toml --upgrade
 ### Creating a New Feature
 
 1. **Create feature branch**:
+
    ```bash
    git checkout -b feature/new-selection-algorithm
    ```
@@ -106,6 +110,7 @@ uv pip compile pyproject.toml --upgrade
    - Add integration tests for complex workflows
 
 3. **Development cycle**:
+
    ```bash
    # Run tests continuously during development
    uv run pytest --watch
@@ -116,6 +121,7 @@ uv pip compile pyproject.toml --upgrade
    ```
 
 4. **Submit changes**:
+
    ```bash
    git add .
    git commit -m "feat: add new selection algorithm"
@@ -278,7 +284,7 @@ for agent in population:
 ```
 src/lovebug/
 ├── __init__.py              # Public API exports
-├── unified_mesa_model.py    # Main UnifiedLoveModel and UnifiedLoveBugs
+├── unified_mesa_model.py    # Main LoveModel and LoveAgents
 ├── lande_kirkpatrick.py     # Classical sexual selection model
 ├── layer_activation.py      # Layer configuration management
 ├── layer2/                  # Cultural learning layer
@@ -316,8 +322,8 @@ uv run python examples/lande_kirkpatrick_demo.py
 
 # Custom simulation
 uv run python -c "
-from lovebug import UnifiedLoveModel
-model = UnifiedLoveModel(population_size=50000, mutation_rate=0.01)
+from lovebug import LoveModel
+model = LoveModel(population_size=50000, mutation_rate=0.01)
 model.run_model()
 print(f'Final population: {len(model.agents)}')
 "

@@ -65,9 +65,9 @@ from experiments.models import (  # noqa: E402
 )
 from lovebug.lande_kirkpatrick import LandeKirkpatrickParams, simulate_lande_kirkpatrick  # noqa: E402
 from lovebug.layer2.config import Layer2Config  # noqa: E402
-from lovebug.layer2.cultural_layer import VectorizedCulturalLayer  # noqa: E402
+from lovebug.layer2.cultural_layer import CulturalLayer  # noqa: E402
 from lovebug.layer_activation import LayerActivationConfig  # noqa: E402
-from lovebug.unified_mesa_model import UnifiedLoveModel  # noqa: E402
+from lovebug.unified_mesa_model import LoveModel  # noqa: E402
 
 __all__ = ["UnifiedConfig", "CleanExperimentRunner", "run_experiments"]
 
@@ -341,9 +341,9 @@ def run_cultural_experiment(params_dict: dict[str, Any]) -> CulturalExperimentRe
 
         # Setup cultural simulation
         n_agents = params_dict.get("n_agents", 2000)
-        # Create a real UnifiedLoveBugs agent set for the vectorized layer
+        # Create a real LoveAgents agent set for the vectorized layer
         from lovebug.layer_activation import LayerActivationConfig
-        from lovebug.unified_mesa_model import UnifiedLoveBugs, UnifiedLoveModel
+        from lovebug.unified_mesa_model import LoveAgents, LoveModel
 
         layer_activation_config = LayerActivationConfig(
             genetic_enabled=False,
@@ -353,14 +353,14 @@ def run_cultural_experiment(params_dict: dict[str, Any]) -> CulturalExperimentRe
             blending_mode="weighted_average",
             normalize_weights=True,
         )
-        dummy_model = UnifiedLoveModel(
+        dummy_model = LoveModel(
             layer_config=layer_activation_config,
             genetic_params=None,
             cultural_params=layer2_config,
             n_agents=n_agents,
         )
-        agent_set = UnifiedLoveBugs(n_agents, dummy_model)
-        transmission_manager = VectorizedCulturalLayer(agent_set, layer2_config)
+        agent_set = LoveAgents(n_agents, dummy_model)
+        transmission_manager = CulturalLayer(agent_set, layer2_config)
 
         n_generations = params_dict.get("n_generations", 1000)
         diversity_samples = []
@@ -503,7 +503,7 @@ def run_combined_experiment(params_dict: dict[str, Any]) -> IntegratedExperiment
         n_agents = params_dict.get("n_agents", 2000)
         n_generations = params_dict.get("n_generations", 1000)
 
-        unified_model = UnifiedLoveModel(
+        unified_model = LoveModel(
             layer_config=layer_config,
             genetic_params=genetic_params,
             cultural_params=cultural_params,

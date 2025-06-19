@@ -9,7 +9,7 @@ complexity instead of O(n²).
 from __future__ import annotations
 
 from .config import Layer2Config
-from .cultural_layer import VectorizedCulturalLayer
+from .cultural_layer import CulturalLayer
 from .learning_algorithms import (
     CulturalInnovationEngine,
     HorizontalTransmissionEngine,
@@ -18,12 +18,12 @@ from .learning_algorithms import (
     ObliqueTransmissionEngine,
 )
 from .monitoring.simulation_monitor import SimulationMonitor
-from .network import NetworkTopology, VectorizedSocialNetwork
+from .network import NetworkTopology, SocialNetwork
 
 __all__ = [
     "NetworkTopology",
-    "VectorizedSocialNetwork",
-    "VectorizedCulturalLayer",
+    "SocialNetwork",
+    "CulturalLayer",
     "LearningEligibilityComputer",
     "ObliqueTransmissionEngine",
     "HorizontalTransmissionEngine",

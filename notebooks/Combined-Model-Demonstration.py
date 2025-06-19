@@ -35,7 +35,7 @@ with app.setup:
     from lovebug.lande_kirkpatrick import LandeKirkpatrickParams
     from lovebug.layer2.config import Layer2Config
     from lovebug.layer_activation import LayerActivationConfig
-    from lovebug.unified_mesa_model import UnifiedLoveModel
+    from lovebug.unified_mesa_model import LoveModel
 
     # Configure logging
     logging.basicConfig(level=logging.INFO)
@@ -110,7 +110,7 @@ def _():
         start_time = time.time()
 
         # Create unified model
-        model = UnifiedLoveModel(
+        model = LoveModel(
             layer_config=layer_config,
             genetic_params=genetic_params,
             cultural_params=cultural_params,

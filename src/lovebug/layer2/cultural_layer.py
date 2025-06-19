@@ -22,17 +22,17 @@ from .learning_algorithms import (
     MemoryDecayEngine,
     ObliqueTransmissionEngine,
 )
-from .network import NetworkTopology, VectorizedSocialNetwork
+from .network import NetworkTopology, SocialNetwork
 
 if TYPE_CHECKING:
-    from lovebug.unified_mesa_model import UnifiedLoveBugs
+    from lovebug.unified_mesa_model import LoveAgents
 
-__all__ = ["VectorizedCulturalLayer"]
+__all__ = ["CulturalLayer"]
 
 logger = logging.getLogger(__name__)
 
 
-class VectorizedCulturalLayer:
+class CulturalLayer:
     """
     Mesa-frames native vectorized cultural transmission system.
 
@@ -42,7 +42,7 @@ class VectorizedCulturalLayer:
 
     Parameters
     ----------
-    agent_set : UnifiedLoveBugs
+    agent_set : LoveAgents
         Mesa-frames agent set to operate on
     config : Layer2Config
         Configuration for cultural transmission parameters
@@ -51,11 +51,11 @@ class VectorizedCulturalLayer:
     --------
     >>> from lovebug.layer2.config import Layer2Config
     >>> config = Layer2Config(innovation_rate=0.1)
-    >>> cultural_layer = VectorizedCulturalLayer(agents, config)
+    >>> cultural_layer = CulturalLayer(agents, config)
     >>> cultural_layer.step()
     """
 
-    def __init__(self, agent_set: UnifiedLoveBugs, config: Layer2Config) -> None:
+    def __init__(self, agent_set: LoveAgents, config: Layer2Config) -> None:
         self.agents = agent_set
         self.config = config
         self.generation = 0
@@ -69,7 +69,7 @@ class VectorizedCulturalLayer:
         )
 
         # Initialize vectorized components
-        self.network = VectorizedSocialNetwork(len(agent_set), topology)
+        self.network = SocialNetwork(len(agent_set), topology)
         self.eligibility_computer = LearningEligibilityComputer(config)
         self.oblique_engine = ObliqueTransmissionEngine(config)
         self.horizontal_engine = HorizontalTransmissionEngine(config)

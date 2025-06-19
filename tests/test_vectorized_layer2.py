@@ -15,13 +15,13 @@ import pytest
 
 from lovebug.layer2 import (
     CulturalInnovationEngine,
+    CulturalLayer,
     HorizontalTransmissionEngine,
     LearningEligibilityComputer,
     MemoryDecayEngine,
     NetworkTopology,
     ObliqueTransmissionEngine,
-    VectorizedCulturalLayer,
-    VectorizedSocialNetwork,
+    SocialNetwork,
 )
 from lovebug.layer2.config import Layer2Config
 
@@ -47,16 +47,16 @@ class TestNetworkTopology:
             NetworkTopology(connectivity=1.5)
 
 
-class TestVectorizedSocialNetwork:
+class TestSocialNetwork:
     """Test vectorized social network implementation."""
 
     @pytest.fixture
-    def small_network(self) -> VectorizedSocialNetwork:
+    def small_network(self) -> SocialNetwork:
         """Create a small test network."""
         topology = NetworkTopology("random", connectivity=0.3)
-        return VectorizedSocialNetwork(10, topology)
+        return SocialNetwork(10, topology)
 
-    def test_network_creation(self, small_network: VectorizedSocialNetwork) -> None:
+    def test_network_creation(self, small_network: SocialNetwork) -> None:
         """Test network is created successfully."""
         assert small_network.n_agents == 10
         assert len(small_network.adjacency_df) == 10
@@ -64,7 +64,7 @@ class TestVectorizedSocialNetwork:
         assert "neighbors" in small_network.adjacency_df.columns
         assert "degree" in small_network.adjacency_df.columns
 
-    def test_neighbor_lookup(self, small_network: VectorizedSocialNetwork) -> None:
+    def test_neighbor_lookup(self, small_network: SocialNetwork) -> None:
         """Test vectorized neighbor lookup."""
         agent_ids = pl.Series([0, 1, 2])
         neighbors_df = small_network.get_neighbors_vectorized(agent_ids)
@@ -77,7 +77,7 @@ class TestVectorizedSocialNetwork:
         agent_ids_in_result = set(neighbors_df.get_column("agent_id").to_list())
         assert agent_ids_in_result.issubset({0, 1, 2})
 
-    def test_k_hop_neighbors(self, small_network: VectorizedSocialNetwork) -> None:
+    def test_k_hop_neighbors(self, small_network: SocialNetwork) -> None:
         """Test k-hop neighbor computation."""
         agent_ids = pl.Series([0])
         k_hop_df = small_network.get_k_hop_neighbors(agent_ids, k=2)
@@ -88,7 +88,7 @@ class TestVectorizedSocialNetwork:
             assert "k_hop_neighbor" in k_hop_df.columns
             assert "hop_distance" in k_hop_df.columns
 
-    def test_network_statistics(self, small_network: VectorizedSocialNetwork) -> None:
+    def test_network_statistics(self, small_network: SocialNetwork) -> None:
         """Test network statistics computation."""
         stats = small_network.get_network_statistics()
 
@@ -98,7 +98,7 @@ class TestVectorizedSocialNetwork:
         assert "mean_degree" in stats
         assert stats["num_nodes"] == 10
 
-    def test_network_size_update(self, small_network: VectorizedSocialNetwork) -> None:
+    def test_network_size_update(self, small_network: SocialNetwork) -> None:
         """Test updating network size."""
         small_network.update_network_size(15)
 
@@ -324,7 +324,7 @@ class TestMemoryDecayEngine:
         assert effective_prefs.dtype == pl.UInt8
 
 
-class TestVectorizedCulturalLayer:
+class TestCulturalLayer:
     """Test the main vectorized cultural layer."""
 
     @pytest.fixture
@@ -355,21 +355,21 @@ class TestVectorizedCulturalLayer:
         return mock_agents
 
     @pytest.fixture
-    def cultural_layer(self, mock_agent_set: Mock) -> VectorizedCulturalLayer:
+    def cultural_layer(self, mock_agent_set: Mock) -> CulturalLayer:
         """Create vectorized cultural layer."""
         config = Layer2Config(
             oblique_transmission_rate=0.2, horizontal_transmission_rate=0.3, innovation_rate=0.1, cultural_memory_size=5
         )
-        return VectorizedCulturalLayer(mock_agent_set, config)
+        return CulturalLayer(mock_agent_set, config)
 
-    def test_cultural_layer_initialization(self, cultural_layer: VectorizedCulturalLayer, mock_agent_set: Mock) -> None:
+    def test_cultural_layer_initialization(self, cultural_layer: CulturalLayer, mock_agent_set: Mock) -> None:
         """Test cultural layer initialization."""
         assert cultural_layer.agents == mock_agent_set
         assert cultural_layer.generation == 0
         assert isinstance(cultural_layer.config, Layer2Config)
-        assert isinstance(cultural_layer.network, VectorizedSocialNetwork)
+        assert isinstance(cultural_layer.network, SocialNetwork)
 
-    def test_cultural_layer_step(self, cultural_layer: VectorizedCulturalLayer) -> None:
+    def test_cultural_layer_step(self, cultural_layer: CulturalLayer) -> None:
         """Test cultural layer step execution."""
         initial_generation = cultural_layer.generation
 
@@ -385,14 +385,14 @@ class TestVectorizedCulturalLayer:
         assert "generation" in stats
         assert "total_agents" in stats
 
-    def test_cultural_diversity_computation(self, cultural_layer: VectorizedCulturalLayer) -> None:
+    def test_cultural_diversity_computation(self, cultural_layer: CulturalLayer) -> None:
         """Test cultural diversity computation."""
         diversity = cultural_layer.compute_cultural_diversity()
 
         assert isinstance(diversity, float)
         assert diversity >= 0.0
 
-    def test_reset_functionality(self, cultural_layer: VectorizedCulturalLayer) -> None:
+    def test_reset_functionality(self, cultural_layer: CulturalLayer) -> None:
         """Test reset functionality."""
         # Execute some steps
         cultural_layer.step()

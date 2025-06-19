@@ -185,7 +185,7 @@ While Layer 1 establishes the genetic foundation through Lande-Kirkpatrick dynam
 
 The model implements perceptual constraints through two key parameters that directly correspond to biological limitations in mate assessment:
 
-**Detection Threshold (θ_detect)**: Determines the minimum similarity required for courtship signal recognition. Implemented in [`UnifiedLoveBugs._apply_perceptual_constraints()`](../src/lovebug/unified_mesa_model.py:198), this parameter creates absolute detection limits:
+**Detection Threshold (θ_detect)**: Determines the minimum similarity required for courtship signal recognition. Implemented in [`LoveAgents._apply_perceptual_constraints()`](../src/lovebug/unified_mesa_model.py:198), this parameter creates absolute detection limits:
 
 $$P(\text{detect}|s) = \begin{cases}
 1 & \text{if } s \geq \theta_{\text{detect}} \\
@@ -251,7 +251,7 @@ Environmental and social factors modify mate choice decisions through several im
 
 ### Integration and Parameter Control
 
-The unified architecture in [`UnifiedLoveModel`](../src/lovebug/unified_mesa_model.py:559) enables controlled "knockout" experiments by systematically manipulating mechanism strength:
+The unified architecture in [`LoveModel`](../src/lovebug/unified_mesa_model.py:559) enables controlled "knockout" experiments by systematically manipulating mechanism strength:
 
 - Setting `LayerActivationConfig.cultural_enabled = False` reduces to pure genetic evolution
 - Setting `LayerActivationConfig.genetic_enabled = False` isolates cultural dynamics
@@ -293,7 +293,7 @@ These experiments measure cultural diversity maintenance, transmission fidelity,
 
 ### Combined Gene-Culture Experiments
 
-Integrated experiments use [`UnifiedLoveModel`](../src/lovebug/unified_mesa_model.py:559) to explore mechanism interactions through [`LayerActivationConfig`](../src/lovebug/layer_activation.py):
+Integrated experiments use [`LoveModel`](../src/lovebug/unified_mesa_model.py:559) to explore mechanism interactions through [`LayerActivationConfig`](../src/lovebug/layer_activation.py):
 
 - **Layer weights**: Systematic variation of genetic vs cultural influence (0.0-1.0)
 - **Blending modes**: Weighted average, probabilistic switching, competitive selection
@@ -373,10 +373,10 @@ To ensure reproducibility and validation, we provide complete mappings between t
 | **Perceptual Detection Threshold** | $P(\text{detect}\|s) = H(s - \theta_{\text{detect}})$ | [`LayerActivationConfig.theta_detect`](../src/lovebug/layer_activation.py:45) | Range: 2.0-14.0 |
 | **Perceptual Noise** | $s_{\text{perceived}} = s + \mathcal{N}(0, \sigma_{\text{perception}}^2)$ | [`LayerActivationConfig.sigma_perception`](../src/lovebug/layer_activation.py:46) | Range: 0.5-4.0 |
 | **Local Learning Constraint** | $L(i,j) = H(r_{\text{local}} - d(i,j))$ | [`Layer2Config.local_learning_radius`](../src/lovebug/layer2/config.py:35) | Range: 1-20 agents |
-| **Weighted Layer Blending** | $P_{\text{eff}} = w_g P_g + w_c P_c$ | [`UnifiedLoveBugs._update_effective_preferences()`](../src/lovebug/unified_mesa_model.py:158) | Weights: 0.0-1.0 |
+| **Weighted Layer Blending** | $P_{\text{eff}} = w_g P_g + w_c P_c$ | [`LoveAgents._update_effective_preferences()`](../src/lovebug/unified_mesa_model.py:158) | Weights: 0.0-1.0 |
 | **Probabilistic Layer Switching** | $P_{\text{eff}} = P_g \text{ if } U < w_g \text{ else } P_c$ | [`LayerActivationConfig.blending_mode`](../src/lovebug/layer_activation.py:180) | Mode: "probabilistic" |
 | **Competitive Layer Selection** | $P_{\text{eff}} = \arg\max(\|P_g - 128\|, \|P_c - 128\|)$ | [`LayerActivationConfig.blending_mode`](../src/lovebug/layer_activation.py:185) | Mode: "competitive" |
-| **Prestige-Biased Learning** | $P(\text{copy}\|i) \propto \text{prestige}(i)$ | [`UnifiedLoveBugs._update_prestige_scores()`](../src/lovebug/unified_mesa_model.py:410) | Mating success weighting |
+| **Prestige-Biased Learning** | $P(\text{copy}\|i) \propto \text{prestige}(i)$ | [`LoveAgents._update_prestige_scores()`](../src/lovebug/unified_mesa_model.py:410) | Mating success weighting |
 | **Cultural Innovation** | $P(\text{innovate}) = \mu_{\text{cultural}}$ | [`Layer2Config.innovation_rate`](../src/lovebug/layer2/config.py:25) | Range: 0.01-0.2 |
 | **Genetic Mutation** | Bit-flip with probability $\mu_{\text{genetic}}$ | [`LandeKirkpatrickParams.mutation_variance`](../src/lovebug/lande_kirkpatrick.py:20) | Default: 1×10⁻⁴ |
 
@@ -540,7 +540,7 @@ The interactive demonstration framework ([`Combined-Model-Demonstration.py`](../
 
 ### Computational Performance and Scale
 
-Our vectorized implementation in [`UnifiedLoveModel`](../src/lovebug/unified_mesa_model.py) achieves population scales unprecedented in sexual selection modeling:
+Our vectorized implementation in [`LoveModel`](../src/lovebug/unified_mesa_model.py) achieves population scales unprecedented in sexual selection modeling:
 
 - **10,000 agents**: 1,000 generations in ~30 seconds (Intel i7, 16GB RAM)
 - **50,000 agents**: 500 generations in ~180 seconds

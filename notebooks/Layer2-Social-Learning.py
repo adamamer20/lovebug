@@ -32,7 +32,7 @@ from beartype import beartype
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from lovebug.layer2.config import Layer2Config
-from lovebug.layer2.cultural_layer import VectorizedCulturalLayer
+from lovebug.layer2.cultural_layer import CulturalLayer
 from lovebug.layer2.monitoring.simulation_monitor import SimulationMonitor
 from lovebug.layer2.social_learning.social_networks import NetworkTopology, SocialNetwork
 
@@ -128,7 +128,7 @@ def simulate_layer2_social_learning(
 
     # Create vectorized cultural layer
     from lovebug.layer_activation import LayerActivationConfig
-    from lovebug.unified_mesa_model import UnifiedLoveBugs, UnifiedLoveModel
+    from lovebug.unified_mesa_model import LoveAgents, LoveModel
 
     layer_activation_config = LayerActivationConfig(
         genetic_enabled=False,
@@ -138,14 +138,14 @@ def simulate_layer2_social_learning(
         blending_mode="weighted_average",
         normalize_weights=True,
     )
-    dummy_model = UnifiedLoveModel(
+    dummy_model = LoveModel(
         layer_config=layer_activation_config,
         genetic_params=None,
         cultural_params=config,
         n_agents=n_agents,
     )
-    agent_set = UnifiedLoveBugs(n_agents, dummy_model)
-    transmission_manager = VectorizedCulturalLayer(agent_set, config)
+    agent_set = LoveAgents(n_agents, dummy_model)
+    transmission_manager = CulturalLayer(agent_set, config)
 
     # Create agent population
     agent_data = Layer2AgentData(n_agents)
@@ -171,7 +171,7 @@ def simulate_layer2_social_learning(
 
             #             Learning event statistics
             event_counts = {}
-            # VectorizedCulturalLayer does not use LearningType; skip or adapt as needed
+            # CulturalLayer does not use LearningType; skip or adapt as needed
 
             # Population data
             population_results.append(
@@ -217,7 +217,7 @@ def simulate_layer2_social_learning(
 
     # Convert results to DataFrames
     population_df = pl.DataFrame(population_results)
-    # VectorizedCulturalLayer does not have get_events_dataframe; use learning_events directly
+    # CulturalLayer does not have get_events_dataframe; use learning_events directly
 
     if hasattr(transmission_manager, "learning_events") and transmission_manager.learning_events:
         cultural_events_df = pl.DataFrame(transmission_manager.learning_events)

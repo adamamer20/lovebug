@@ -7,26 +7,26 @@ from importlib import metadata as _metadata
 from .lande_kirkpatrick import LandeKirkpatrickParams
 
 # Import vectorized components for advanced users
-from .layer2 import VectorizedCulturalLayer
+from .layer2 import CulturalLayer
 from .layer2.config import Layer2Config
 
 # Import core configuration classes
 from .layer_activation import LayerActivationConfig
 
-# Import the enhanced UnifiedLoveModel as the primary interface
-from .unified_mesa_model import UnifiedLoveBugs, UnifiedLoveModel
+# Import the enhanced LoveModel as the primary interface
+from .unified_mesa_model import LoveAgents, LoveModel
 
 __all__ = [
     "__version__",
     # Enhanced primary interface
-    "UnifiedLoveModel",
-    "UnifiedLoveBugs",
+    "LoveModel",
+    "LoveAgents",
     # Configuration classes
     "LayerActivationConfig",
     "LandeKirkpatrickParams",
     "Layer2Config",
     # Vectorized components
-    "VectorizedCulturalLayer",
+    "CulturalLayer",
 ]
 
 try:

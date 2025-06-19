@@ -4,17 +4,17 @@ This page provides comprehensive API documentation for the LoveBug package. The 
 
 ## Core Model Classes
 
-### UnifiedLoveModel
+### LoveModel
 
-::: lovebug.unified_mesa_model.UnifiedLoveModel
+::: lovebug.unified_mesa_model.LoveModel
     options:
       show_root_heading: true
       show_source: false
       heading_level: 4
 
-### UnifiedLoveBugs
+### LoveAgents
 
-::: lovebug.unified_mesa_model.UnifiedLoveBugs
+::: lovebug.unified_mesa_model.LoveAgents
     options:
       show_root_heading: true
       show_source: false
@@ -48,9 +48,9 @@ This page provides comprehensive API documentation for the LoveBug package. The 
 
 ## Cultural Learning Layer (Layer 2)
 
-### VectorizedCulturalLayer
+### CulturalLayer
 
-::: lovebug.layer2.cultural_layer.VectorizedCulturalLayer
+::: lovebug.layer2.cultural_layer.CulturalLayer
     options:
       show_root_heading: true
       show_source: false
@@ -141,10 +141,10 @@ This page provides comprehensive API documentation for the LoveBug package. The 
 ### Basic Simulation
 
 ```python
-from lovebug import UnifiedLoveModel
+from lovebug import LoveModel
 
 # Create a basic genetic-only simulation
-model = UnifiedLoveModel(
+model = LoveModel(
     population_size=5000,
     max_steps=200,
     mutation_rate=1e-4
@@ -160,7 +160,7 @@ print(f"Steps completed: {model.schedule.steps}")
 ### Cultural-Genetic Coevolution
 
 ```python
-from lovebug import UnifiedLoveModel, LayerActivationConfig, Layer2Config
+from lovebug import LoveModel, LayerActivationConfig, Layer2Config
 
 # Configure cultural learning layer
 cultural_config = Layer2Config(
@@ -175,7 +175,7 @@ layer_config = LayerActivationConfig(
 )
 
 # Create model with cultural learning
-model = UnifiedLoveModel(
+model = LoveModel(
     population_size=10000,
     max_steps=500,
     layer_config=layer_config
@@ -187,7 +187,7 @@ model.run_model()
 ### Parameter Exploration
 
 ```python
-from lovebug import UnifiedLoveModel, LayerActivationConfig
+from lovebug import LoveModel, LayerActivationConfig
 import numpy as np
 
 # Parameter sweep example
@@ -197,7 +197,7 @@ mutation_rates = np.logspace(-5, -3, 5)
 results = []
 for pop_size in population_sizes:
     for mut_rate in mutation_rates:
-        model = UnifiedLoveModel(
+        model = LoveModel(
             population_size=pop_size,
             mutation_rate=mut_rate,
             max_steps=200
@@ -217,10 +217,10 @@ for pop_size in population_sizes:
 
 ```python
 from lovebug.visualization import VisualizationEngine
-from lovebug import UnifiedLoveModel
+from lovebug import LoveModel
 
 # Run simulation with data collection
-model = UnifiedLoveModel(population_size=5000)
+model = LoveModel(population_size=5000)
 model.run_model()
 
 # Create visualization engine (when implemented)
@@ -273,7 +273,7 @@ The LoveBug package defines several custom exceptions for better error handling:
 
 # Example error handling
 try:
-    model = UnifiedLoveModel(population_size=-100)  # Invalid parameter
+    model = LoveModel(population_size=-100)  # Invalid parameter
 except ValueError as e:
     print(f"Configuration error: {e}")
 
@@ -326,7 +326,7 @@ except RuntimeError as e:
 
 ```python
 # Example: Extending the agent class (conceptual)
-class CustomLoveBug(UnifiedLoveBugs):
+class CustomLoveBug(LoveAgents):
     def custom_mate_choice(self, potential_mates):
         # Custom mate selection logic
         pass

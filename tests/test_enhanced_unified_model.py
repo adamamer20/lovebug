@@ -1,8 +1,8 @@
 """
-Tests for the enhanced UnifiedLoveModel with integrated cultural features.
+Tests for the enhanced LoveModel with integrated cultural features.
 
 This module tests the advanced cultural evolution capabilities integrated
-into the mesa-frames UnifiedLoveModel.
+into the mesa-frames LoveModel.
 """
 
 from __future__ import annotations
@@ -10,18 +10,18 @@ from __future__ import annotations
 from lovebug.lande_kirkpatrick import LandeKirkpatrickParams
 from lovebug.layer2.config import Layer2Config
 from lovebug.layer_activation import LayerActivationConfig
-from lovebug.unified_mesa_model import UnifiedLoveModel
+from lovebug.unified_mesa_model import LoveModel
 
 
 class TestEnhancedUnifiedModel:
-    """Test enhanced UnifiedLoveModel with integrated advanced features."""
+    """Test enhanced LoveModel with integrated advanced features."""
 
     def test_cultural_memory_integration(self):
         """Test that cultural memory system is properly integrated."""
         config = LayerActivationConfig.cultural_only()
         cultural_params = Layer2Config(cultural_memory_size=5, memory_decay_rate=0.1, innovation_rate=0.1)
 
-        model = UnifiedLoveModel(layer_config=config, cultural_params=cultural_params, n_agents=100)
+        model = LoveModel(layer_config=config, cultural_params=cultural_params, n_agents=100)
 
         # Check that cultural memory columns are initialized
         df = model.get_agent_dataframe()
@@ -34,7 +34,7 @@ class TestEnhancedUnifiedModel:
         config = LayerActivationConfig.cultural_only()
         cultural_params = Layer2Config(horizontal_transmission_rate=0.5, innovation_rate=0.1)
 
-        model = UnifiedLoveModel(layer_config=config, cultural_params=cultural_params, n_agents=50)
+        model = LoveModel(layer_config=config, cultural_params=cultural_params, n_agents=50)
 
         # Run a few steps to generate mating success differences
         for _ in range(5):
@@ -52,7 +52,7 @@ class TestEnhancedUnifiedModel:
             network_type="small_world", network_connectivity=0.1, horizontal_transmission_rate=0.3
         )
 
-        model = UnifiedLoveModel(layer_config=config, cultural_params=cultural_params, n_agents=100)
+        model = LoveModel(layer_config=config, cultural_params=cultural_params, n_agents=100)
 
         # Check that social network data is integrated
         df = model.get_agent_dataframe()
@@ -65,7 +65,7 @@ class TestEnhancedUnifiedModel:
             horizontal_transmission_rate=0.5, oblique_transmission_rate=0.3, innovation_rate=0.2
         )
 
-        model = UnifiedLoveModel(layer_config=config, cultural_params=cultural_params, n_agents=200)
+        model = LoveModel(layer_config=config, cultural_params=cultural_params, n_agents=200)
 
         # Run several steps
         for _ in range(10):
@@ -90,7 +90,7 @@ class TestEnhancedUnifiedModel:
         config = LayerActivationConfig.cultural_only()
         cultural_params = Layer2Config(horizontal_transmission_rate=0.3, innovation_rate=0.2, log_cultural_events=True)
 
-        model = UnifiedLoveModel(layer_config=config, cultural_params=cultural_params, n_agents=100)
+        model = LoveModel(layer_config=config, cultural_params=cultural_params, n_agents=100)
 
         # Run simulation
         for _ in range(5):
@@ -110,7 +110,7 @@ class TestEnhancedUnifiedModel:
         genetic_params = LandeKirkpatrickParams(h2_trait=0.5, h2_preference=0.3, mutation_variance=0.01)
         cultural_params = Layer2Config(horizontal_transmission_rate=0.3, innovation_rate=0.1, cultural_memory_size=3)
 
-        model = UnifiedLoveModel(
+        model = LoveModel(
             layer_config=config, genetic_params=genetic_params, cultural_params=cultural_params, n_agents=150
         )
 
@@ -132,7 +132,7 @@ class TestEnhancedUnifiedModel:
         config = LayerActivationConfig.balanced_combined(0.5)
         cultural_params = Layer2Config(horizontal_transmission_rate=0.2, innovation_rate=0.05)
 
-        model = UnifiedLoveModel(
+        model = LoveModel(
             layer_config=config,
             cultural_params=cultural_params,
             n_agents=1000,  # Reduced from 5000 for faster testing
@@ -161,7 +161,7 @@ class TestEnhancedUnifiedModel:
             cultural_memory_size=3, memory_decay_rate=0.1, horizontal_transmission_rate=0.5, innovation_rate=0.2
         )
 
-        model = UnifiedLoveModel(layer_config=config, cultural_params=cultural_params, n_agents=50)
+        model = LoveModel(layer_config=config, cultural_params=cultural_params, n_agents=50)
 
         # Run some steps to populate memory
         for _ in range(10):
@@ -181,7 +181,7 @@ class TestEnhancedUnifiedModel:
         config = LayerActivationConfig.cultural_only()
         cultural_params = Layer2Config(horizontal_transmission_rate=0.3, innovation_rate=0.1)
 
-        model = UnifiedLoveModel(layer_config=config, cultural_params=cultural_params, n_agents=100)
+        model = LoveModel(layer_config=config, cultural_params=cultural_params, n_agents=100)
 
         # Run several steps to generate diversity in age, energy, mating success
         for _ in range(20):

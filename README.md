@@ -52,10 +52,10 @@ cd lovebug && uv pip install -e .[dev]
 ### Basic Usage
 
 ```python
-from lovebug import UnifiedLoveModel
+from lovebug import LoveModel
 
 # Create and run a basic simulation
-model = UnifiedLoveModel(population_size=5000, max_steps=200)
+model = LoveModel(population_size=5000, max_steps=200)
 model.run_model()
 
 print(f"Final population: {len(model.agents)}")
@@ -86,13 +86,13 @@ python examples/layer2_demo.py
 
 ### Core Parameters
 
-Key tunable parameters (see [`UnifiedLoveModel`](src/lovebug/unified_mesa_model.py)):
+Key tunable parameters (see [`LoveModel`](src/lovebug/unified_mesa_model.py)):
 
-- `population_size`: Initial population size
-- `mutation_rate`: Per-bit genetic mutation probability
-- `energy_decay`: Energy cost per time step
-- `max_age`: Maximum lifespan
-- Cultural learning parameters via [`Layer2Config`](src/lovebug/layer2/config.py)
+* `population_size`: Initial population size
+* `mutation_rate`: Per-bit genetic mutation probability
+* `energy_decay`: Energy cost per time step
+* `max_age`: Maximum lifespan
+* Cultural learning parameters via [`Layer2Config`](src/lovebug/layer2/config.py)
 
 ---
 
@@ -110,11 +110,11 @@ Key tunable parameters (see [`UnifiedLoveModel`](src/lovebug/unified_mesa_model.
 
 LoveBug is designed for studying:
 
-- **Sexual selection dynamics**: Fisher-Lande-Kirkpatrick mechanisms
-- **Assortative mating**: Preference-trait coevolution
-- **Cultural-genetic interactions**: Social learning effects on mate choice
-- **Population genetics**: Drift vs. selection in finite populations
-- **Speciation processes**: Reproductive isolation emergence
+* **Sexual selection dynamics**: Fisher-Lande-Kirkpatrick mechanisms
+* **Assortative mating**: Preference-trait coevolution
+* **Cultural-genetic interactions**: Social learning effects on mate choice
+* **Population genetics**: Drift vs. selection in finite populations
+* **Speciation processes**: Reproductive isolation emergence
 
 ---
 

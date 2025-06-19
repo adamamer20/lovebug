@@ -25,15 +25,15 @@ LoveBug simulates large populations (100k+ individuals) of digital "love-bugs" w
 ### Basic Usage
 
 ```python
-from lovebug import UnifiedLoveModel, LayerActivationConfig
+from lovebug import LoveModel, LayerActivationConfig
 
 # Basic genetic-only simulation
-model = UnifiedLoveModel(population_size=5000)
+model = LoveModel(population_size=5000)
 model.run_model()
 
 # With cultural learning layer
 config = LayerActivationConfig(cultural_layer=True)
-model = UnifiedLoveModel(population_size=5000, layer_config=config)
+model = LoveModel(population_size=5000, layer_config=config)
 model.run_model()
 
 print(f"Final population: {len(model.agents)}")
@@ -48,18 +48,21 @@ print(f"Final population: {len(model.agents)}")
 ## Core Features
 
 ### High-Performance Architecture
+
 - **Vectorized operations**: All agents in single Polars DataFrame
 - **Genetic encoding**: 32-bit packed genomes for efficiency
 - **Mesa-Frames integration**: Compatible with existing ABM tools
 - **Scalability**: Designed for populations of 100k+ individuals
 
 ### Scientific Focus
+
 - **Research-oriented**: Built for sexual selection and evolutionary dynamics research
 - **Configurable mechanisms**: Toggle genetic vs. cultural vs. combined evolution
 - **Publication-ready**: Integrated with academic paper workflow
 - **Reproducible**: Comprehensive testing and version control
 
 ### Extensible Design
+
 - **Modular architecture**: Layered approach for different evolutionary mechanisms
 - **Custom backends**: Visualization system with multiple output formats
 - **Parameter exploration**: Built-in support for systematic parameter studies
@@ -68,6 +71,7 @@ print(f"Final population: {len(model.agents)}")
 ## Model Architecture
 
 ### Genetic Layer (Core)
+
 The foundational layer implements classical population genetics:
 
 - **Genome structure**: 32-bit integers encoding display traits, preferences, and thresholds
@@ -76,6 +80,7 @@ The foundational layer implements classical population genetics:
 - **Population dynamics**: Energy decay, aging, and density-dependent effects
 
 ### Cultural Layer (Optional)
+
 Layer 2 adds social learning mechanisms:
 
 - **Cultural transmission**: Non-genetic preference inheritance
@@ -84,6 +89,7 @@ Layer 2 adds social learning mechanisms:
 - **Configurable algorithms**: Multiple social learning models
 
 ### Visualization System
+
 Post-hoc analysis and visualization tools:
 
 - **Publication quality**: Static figures for academic papers
@@ -104,11 +110,13 @@ LoveBug is particularly suited for investigating:
 ## Community and Support
 
 ### Getting Help
+
 - **[GitHub Issues](https://github.com/adamamer20/lovebug/issues)**: Bug reports and feature requests
 - **[GitHub Discussions](https://github.com/adamamer20/lovebug/discussions)**: Questions and community support
 - **[Documentation](https://adamamer20.github.io/lovebug/)**: This site with comprehensive guides
 
 ### Contributing
+
 We welcome contributions from the scientific computing and evolutionary biology communities:
 
 - **Code contributions**: See our [Contributing Guide](development/contributing.md)
@@ -117,6 +125,7 @@ We welcome contributions from the scientific computing and evolutionary biology 
 - **Feature requests**: Suggest improvements for scientific workflows
 
 ### Citation
+
 If you use LoveBug in your research, please cite:
 
 ```bibtex

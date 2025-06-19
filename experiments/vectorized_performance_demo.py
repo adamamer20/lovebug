@@ -24,7 +24,7 @@ from beartype import beartype
 from lovebug.lande_kirkpatrick import LandeKirkpatrickParams
 from lovebug.layer2.config import Layer2Config
 from lovebug.layer_activation import LayerActivationConfig
-from lovebug.unified_mesa_model import UnifiedLoveModel
+from lovebug.unified_mesa_model import LoveModel
 
 __all__ = ["PerformanceBenchmark", "run_performance_demo"]
 
@@ -184,7 +184,7 @@ class PerformanceBenchmark:
         layer_config, genetic_params, cultural_params = self._create_test_configuration()
 
         # Create model with specified vectorization setting
-        model = UnifiedLoveModel(
+        model = LoveModel(
             layer_config=layer_config,
             genetic_params=genetic_params,
             cultural_params=cultural_params,
@@ -227,7 +227,7 @@ class PerformanceBenchmark:
             memory_usage_mb=0.0,  # Could add memory profiling if needed
         )
 
-    def _calculate_cultural_diversity(self, model: UnifiedLoveModel) -> float:
+    def _calculate_cultural_diversity(self, model: LoveModel) -> float:
         """Calculate Shannon diversity of cultural preferences."""
         if len(model.agents) == 0:
             return 0.0
@@ -346,7 +346,7 @@ class PerformanceBenchmark:
             )
 
         print("\nRECOMMENDATIONS:")
-        print("1. Fix type casting issues in VectorizedCulturalLayer")
+        print("1. Fix type casting issues in CulturalLayer")
         print("2. Ensure agent_id columns use consistent UInt32 types")
         print("3. Review polars DataFrame schema alignment")
         print("4. Run tests: uv run pytest tests/test_vectorized_layer2.py -v")
@@ -402,7 +402,7 @@ class PerformanceBenchmark:
                     "issue": "Vectorized implementation failing with type compatibility errors",
                     "error_pattern": "type Int64 is incompatible with expected type UInt32",
                     "sequential_working": len(sequential_results) > 0,
-                    "recommendation": "Fix type casting in VectorizedCulturalLayer",
+                    "recommendation": "Fix type casting in CulturalLayer",
                 },
             }
 

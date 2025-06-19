@@ -18,11 +18,11 @@ from mesa_frames import AgentSetPolars, ModelDF
 
 from lovebug.lande_kirkpatrick import LandeKirkpatrickParams
 from lovebug.layer2.config import Layer2Config
-from lovebug.layer2.cultural_layer import VectorizedCulturalLayer
-from lovebug.layer2.network import NetworkTopology, VectorizedSocialNetwork
+from lovebug.layer2.cultural_layer import CulturalLayer
+from lovebug.layer2.network import NetworkTopology, SocialNetwork
 from lovebug.layer_activation import LayerActivationConfig
 
-__all__ = ["UnifiedLoveBugs", "UnifiedLoveModel"]
+__all__ = ["LoveAgents", "LoveModel"]
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def hamming_similarity(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return (16 - diff).to_numpy()
 
 
-class UnifiedLoveBugs(AgentSetPolars):
+class LoveAgents(AgentSetPolars):
     """
     Enhanced unified agent set with advanced cultural features.
 
@@ -64,7 +64,7 @@ class UnifiedLoveBugs(AgentSetPolars):
     advanced cultural learning mechanisms.
     """
 
-    def __init__(self, n: int, model: UnifiedLoveModel):
+    def __init__(self, n: int, model: LoveModel):
         super().__init__(model)
         self.layer_config = model.layer_config
 
@@ -113,7 +113,7 @@ class UnifiedLoveBugs(AgentSetPolars):
             and getattr(model, "use_vectorized_cultural_layer", True)
         ):
             try:
-                self.vectorized_cultural_layer = VectorizedCulturalLayer(self, model.cultural_params)
+                self.vectorized_cultural_layer = CulturalLayer(self, model.cultural_params)
                 logger.info("Initialized vectorized cultural layer")
             except Exception as e:
                 logger.warning(f"Failed to initialize vectorized cultural layer: {e}")
@@ -130,7 +130,7 @@ class UnifiedLoveBugs(AgentSetPolars):
             network_type=self.model.cultural_params.network_type,
             connectivity=self.model.cultural_params.network_connectivity,
         )
-        self.social_network = VectorizedSocialNetwork(len(self), topology)
+        self.social_network = SocialNetwork(len(self), topology)
 
         # Populate neighbor data in DataFrame using vectorized operations
         neighbors_data = []
@@ -574,7 +574,7 @@ class UnifiedLoveBugs(AgentSetPolars):
         self.select(self.age < max_age)
 
 
-class UnifiedLoveModel(ModelDF):
+class LoveModel(ModelDF):
     """
     Enhanced Unified Mesa-Frames model supporting advanced layer activation.
 
@@ -600,13 +600,13 @@ class UnifiedLoveModel(ModelDF):
     >>> # Pure genetic evolution
     >>> genetic_config = LayerActivationConfig.genetic_only()
     >>> genetic_params = LandeKirkpatrickParams()
-    >>> model = UnifiedLoveModel(genetic_config, genetic_params, None)
+    >>> model = LoveModel(genetic_config, genetic_params, None)
     >>> model.run(100)
 
     >>> # Combined evolution
     >>> combined_config = LayerActivationConfig.balanced_combined(0.6)
     >>> cultural_params = Layer2Config()
-    >>> model = UnifiedLoveModel(combined_config, genetic_params, cultural_params)
+    >>> model = LoveModel(combined_config, genetic_params, cultural_params)
     >>> model.run(100)
     """
 
@@ -637,14 +637,14 @@ class UnifiedLoveModel(ModelDF):
             logger.warning("cultural_params not provided for cultural layer - using defaults")
 
         # Initialize agents
-        self.agents += UnifiedLoveBugs(n_agents, self)
+        self.agents += LoveAgents(n_agents, self)
 
         # Track metrics
         self.history: list[dict[str, Any]] = []
         self.step_count = 0
 
         logger.info(
-            f"Enhanced UnifiedLoveModel initialized: genetic={layer_config.genetic_enabled}, "
+            f"Enhanced LoveModel initialized: genetic={layer_config.genetic_enabled}, "
             f"cultural={layer_config.cultural_enabled}, n_agents={n_agents}"
         )
 

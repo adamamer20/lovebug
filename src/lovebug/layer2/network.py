@@ -16,7 +16,7 @@ import numpy as np
 import polars as pl
 from beartype import beartype
 
-__all__ = ["NetworkTopology", "VectorizedSocialNetwork"]
+__all__ = ["NetworkTopology", "SocialNetwork"]
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class NetworkTopology:
             raise ValueError("connectivity must be between 0 and 1")
 
 
-class VectorizedSocialNetwork:
+class SocialNetwork:
     """
     Fully vectorized social network operations for cultural transmission.
 
@@ -78,12 +78,12 @@ class VectorizedSocialNetwork:
     Examples
     --------
     >>> topology = NetworkTopology("scale_free", connectivity=0.1)
-    >>> network = VectorizedSocialNetwork(1000, topology)
+    >>> network = SocialNetwork(1000, topology)
     >>> neighbors = network.get_neighbors_vectorized(pl.Series([0, 1, 2]))
     """
 
     def __init__(self, n_agents: int, topology: NetworkTopology) -> None:
-        print("[LOG] VectorizedSocialNetwork instantiated")
+        print("[LOG] SocialNetwork instantiated")
         self.n_agents = n_agents
         self.topology = topology
 
@@ -519,7 +519,7 @@ class VectorizedSocialNetwork:
         Examples
         --------
         >>> topology = NetworkTopology("random", connectivity=0.3)
-        >>> network = VectorizedSocialNetwork(5, topology)
+        >>> network = SocialNetwork(5, topology)
         >>> agent_ids = pl.Series([0, 1, 2])
         >>> neighbors_df = network.get_neighbors_vectorized(agent_ids)
         >>> list(neighbors_df.columns)
@@ -561,7 +561,7 @@ class VectorizedSocialNetwork:
         Examples
         --------
         >>> topology = NetworkTopology("random", connectivity=0.3)
-        >>> network = VectorizedSocialNetwork(5, topology)
+        >>> network = SocialNetwork(5, topology)
         >>> agent_ids = pl.Series([0])
         >>> k_hop_df = network.get_k_hop_neighbors(agent_ids, k=2)
         >>> list(k_hop_df.columns)
@@ -648,7 +648,7 @@ class VectorizedSocialNetwork:
         Examples
         --------
         >>> topology = NetworkTopology("random", connectivity=0.3)
-        >>> network = VectorizedSocialNetwork(5, topology)
+        >>> network = SocialNetwork(5, topology)
         >>> neighbors = network.get_neighbors(0, max_neighbors=3)
         >>> isinstance(neighbors, list)
         True

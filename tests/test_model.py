@@ -1,7 +1,7 @@
 import numpy as np
 
 from lovebug.layer_activation import LayerActivationConfig
-from lovebug.unified_mesa_model import UnifiedLoveModel
+from lovebug.unified_mesa_model import LoveModel
 
 
 def test_hamming_similarity_all_bits_different():
@@ -20,7 +20,7 @@ def test_hamming_similarity_all_bits_different():
 def test_model_run_increases_population():
     """Test that running the model for a few steps increases population through reproduction."""
     config = LayerActivationConfig.genetic_only()
-    model = UnifiedLoveModel(layer_config=config, n_agents=50)
+    model = LoveModel(layer_config=config, n_agents=50)
 
     initial = len(model.agents)
 
@@ -32,9 +32,9 @@ def test_model_run_increases_population():
 
 
 def test_unified_model_basic_functionality():
-    """Test basic functionality of the UnifiedLoveModel."""
+    """Test basic functionality of the LoveModel."""
     config = LayerActivationConfig.genetic_only()
-    model = UnifiedLoveModel(layer_config=config, n_agents=100)
+    model = LoveModel(layer_config=config, n_agents=100)
 
     # Test initial state
     assert len(model.agents) == 100
