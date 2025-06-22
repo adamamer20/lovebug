@@ -38,6 +38,8 @@ class LandeKirkpatrickParams:
         Rate at which agent energy decays per timestep
     max_age : int
         Maximum age before agents die naturally
+    carrying_capacity : int
+        Maximum population size before culling occurs
     """
 
     n_generations: int = 500
@@ -50,3 +52,4 @@ class LandeKirkpatrickParams:
     preference_cost: float = 0.05
     energy_decay: float = 0.2
     max_age: int = 100
+    carrying_capacity: int = 2000

@@ -223,6 +223,7 @@ class PaperExperimentRunner:
         self.logger.info("🧬 Validating against Lande-Kirkpatrick theory")
 
         base_population = 2000 if not self.config.quick_test else 100
+        carrying_capacity = 2000 if not self.config.quick_test else 100
         generations = self.config.n_generations
 
         # Define validation scenarios with expected outcomes
@@ -230,6 +231,7 @@ class PaperExperimentRunner:
             "stasis": {
                 "n_generations": generations,
                 "pop_size": base_population,
+                "carrying_capacity": carrying_capacity,
                 "h2_trait": 0.3,
                 "h2_preference": 0.2,
                 "genetic_correlation": 0.0,
@@ -240,6 +242,7 @@ class PaperExperimentRunner:
             "runaway": {
                 "n_generations": generations,
                 "pop_size": base_population,
+                "carrying_capacity": carrying_capacity,
                 "h2_trait": 0.6,
                 "h2_preference": 0.7,
                 "genetic_correlation": 0.3,
@@ -250,6 +253,7 @@ class PaperExperimentRunner:
             "costly_choice": {
                 "n_generations": generations,
                 "pop_size": base_population,
+                "carrying_capacity": carrying_capacity,
                 "h2_trait": 0.6,
                 "h2_preference": 0.7,
                 "genetic_correlation": 0.3,

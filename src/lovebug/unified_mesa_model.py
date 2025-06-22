@@ -257,6 +257,34 @@ class LoveAgents(AgentSetPolars):
                 offspring_df = offspring_df.drop("unique_id")
             self += offspring_df
 
+        # FINAL STEP: Apply stochastic fitness-based population regulation using native Polars
+        n_current = len(self)
+        carrying_capacity = self.model.genetic_params.carrying_capacity if self.model.genetic_params else n_current
+
+        if n_current > carrying_capacity:
+            # This expression-based approach is highly efficient and idiomatic Polars.
+            # It avoids intermediate NumPy arrays and uses Polars' query optimizer.
+
+            # We create a stochastic "survival score" to rank agents.
+            # Score = energy * random_value. Higher score = higher chance of survival.
+            # Using a random exponential variate is a common and robust technique (Gumbel-Max trick).
+            survival_score_expr = (
+                (pl.col("energy") + 1e-6)  # Add epsilon to avoid issues with zero energy
+                * pl.lit(np.random.exponential(scale=1.0, size=n_current))
+            ).alias("survival_score")
+
+            # Get the indices of the top K survivors based on this stochastic score.
+            # This is faster than sorting the whole DataFrame if K is much smaller than N.
+            survivor_indices = (
+                self.agents.with_columns(survival_score_expr)
+                .select(pl.col("survival_score").arg_sort(descending=True).slice(0, carrying_capacity))
+                .to_series()
+            )
+
+            # Use the AgentSet's built-in select method with the selected indices.
+            # This correctly updates all internal state, including the mask.
+            self.select(survivor_indices)
+
     def _update_effective_preferences(self) -> None:
         """Update effective preferences by blending genetic and cultural layers."""
         if not self.layer_config.is_combined():
