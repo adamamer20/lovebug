@@ -19,9 +19,9 @@ import numpy as np
 import polars as pl
 import pytest
 
-from lovebug.lande_kirkpatrick import LandeKirkpatrickParams
 from lovebug.layer2.config import Layer2Config
 from lovebug.layer_activation import LayerActivationConfig
+from lovebug.parameters import LandeKirkpatrickParams
 from lovebug.unified_mesa_model import LoveModel
 
 # ============================================================================

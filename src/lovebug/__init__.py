@@ -4,14 +4,13 @@ LoveBug: An agent‑based model (ABM) of sexual selection and mating‑preferenc
 
 from importlib import metadata as _metadata
 
-from .lande_kirkpatrick import LandeKirkpatrickParams
-
 # Import vectorized components for advanced users
 from .layer2 import CulturalLayer
 from .layer2.config import Layer2Config
 
 # Import core configuration classes
 from .layer_activation import LayerActivationConfig
+from .parameters import LandeKirkpatrickParams
 
 # Import the enhanced LoveModel as the primary interface
 from .unified_mesa_model import LoveAgents, LoveModel

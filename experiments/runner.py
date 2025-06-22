@@ -31,7 +31,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import polars as pl
 import psutil
 from beartype import beartype
 from rich.console import Console
@@ -63,10 +62,10 @@ from experiments.models import (  # noqa: E402
     GeneticExperimentResult,
     IntegratedExperimentResult,
 )
-from lovebug.lande_kirkpatrick import LandeKirkpatrickParams, simulate_lande_kirkpatrick  # noqa: E402
 from lovebug.layer2.config import Layer2Config  # noqa: E402
 from lovebug.layer2.cultural_layer import CulturalLayer  # noqa: E402
 from lovebug.layer_activation import LayerActivationConfig  # noqa: E402
+from lovebug.parameters import LandeKirkpatrickParams  # noqa: E402
 from lovebug.unified_mesa_model import LoveModel  # noqa: E402
 
 __all__ = ["UnifiedConfig", "CleanExperimentRunner", "run_experiments"]
@@ -249,13 +248,37 @@ def run_genetic_experiment(params_dict: dict[str, Any]) -> GeneticExperimentResu
             lk_params["pop_size"] = lk_params.pop("pop_size", 2000)
 
         # Run genetic simulation
-        lk_model_params = LandeKirkpatrickParams(**lk_params)
-        results = simulate_lande_kirkpatrick(lk_model_params)
+        # Use the unified model in genetic-only mode for Layer1 experiments
+        from lovebug.layer_activation import LayerActivationConfig
 
-        # Extract final values
-        final_trait = float(results.select(pl.col("mean_trait").last()).item())
-        final_preference = float(results.select(pl.col("mean_preference").last()).item())
-        final_covariance = float(results.select(pl.col("genetic_covariance").last()).item())
+        layer_config = LayerActivationConfig(genetic_enabled=True, cultural_enabled=False)
+
+        # Create genetic parameters
+        genetic_params = LandeKirkpatrickParams(**lk_params)
+
+        model = LoveModel(
+            layer_config=layer_config,
+            genetic_params=genetic_params,
+            cultural_params=None,
+            n_agents=lk_params.get("pop_size", 1000),
+        )
+
+        # Run the model
+        model_results = model.run(n_steps=lk_params.get("n_generations", 500))
+
+        # Extract results in the format expected by the experiment framework
+        results = model_results["trajectory"]
+
+        # Extract final values from trajectory
+        if results:
+            final_metrics = results[-1]
+            final_trait = final_metrics.get("mean_genetic_preference", 0.0)
+            final_preference = final_metrics.get("mean_genetic_preference", 0.0)
+            final_covariance = genetic_params.genetic_correlation
+        else:
+            final_trait = 0.0
+            final_preference = 0.0
+            final_covariance = 0.0
 
         # Classify outcome
         if abs(final_covariance) > 0.3:
@@ -279,8 +302,8 @@ def run_genetic_experiment(params_dict: dict[str, Any]) -> GeneticExperimentResu
         )
 
         common_params = CommonParameters(
-            n_generations=lk_model_params.n_generations,
-            population_size=lk_model_params.pop_size,
+            n_generations=genetic_params.n_generations,
+            population_size=genetic_params.pop_size,
             random_seed=params_dict.get("random_seed"),
         )
 
@@ -291,13 +314,13 @@ def run_genetic_experiment(params_dict: dict[str, Any]) -> GeneticExperimentResu
             final_preference=final_preference,
             final_covariance=final_covariance,
             outcome=outcome,
-            generations_completed=len(results),
-            h2_trait=lk_model_params.h2_trait,
-            h2_preference=lk_model_params.h2_preference,
-            genetic_correlation=lk_model_params.genetic_correlation,
-            selection_strength=lk_model_params.selection_strength,
-            preference_cost=lk_model_params.preference_cost,
-            mutation_variance=lk_model_params.mutation_variance,
+            generations_completed=len(results) if results else 0,
+            h2_trait=genetic_params.h2_trait,
+            h2_preference=genetic_params.h2_preference,
+            genetic_correlation=genetic_params.genetic_correlation,
+            selection_strength=genetic_params.selection_strength,
+            preference_cost=genetic_params.preference_cost,
+            mutation_variance=genetic_params.mutation_variance,
         )
 
     except Exception as e:
@@ -490,7 +513,12 @@ def run_combined_experiment(params_dict: dict[str, Any]) -> IntegratedExperiment
             }
             if "pop_size" in lk_params:
                 lk_params["pop_size"] = lk_params.get("pop_size", 2000)
+
+            # Create genetic parameters for unified model - using defaults for genetic_only mode
             genetic_params = LandeKirkpatrickParams(**lk_params)
+        else:
+            lk_params = {}
+            genetic_params = None
 
         # Extract cultural parameters
         cultural_params = None

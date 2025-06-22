@@ -32,9 +32,9 @@ with app.setup:
         base_path = os.path.abspath(".")
     sys.path.insert(0, os.path.join(base_path, "..", "src"))
 
-    from lovebug.lande_kirkpatrick import LandeKirkpatrickParams
     from lovebug.layer2.config import Layer2Config
     from lovebug.layer_activation import LayerActivationConfig
+    from lovebug.parameters import LandeKirkpatrickParams
     from lovebug.unified_mesa_model import LoveModel
 
     # Configure logging

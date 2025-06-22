@@ -16,11 +16,11 @@ import polars as pl
 from beartype import beartype
 from mesa_frames import AgentSetPolars, ModelDF
 
-from lovebug.lande_kirkpatrick import LandeKirkpatrickParams
 from lovebug.layer2.config import Layer2Config
 from lovebug.layer2.cultural_layer import CulturalLayer
 from lovebug.layer2.network import NetworkTopology, SocialNetwork
 from lovebug.layer_activation import LayerActivationConfig
+from lovebug.parameters import LandeKirkpatrickParams
 
 __all__ = ["LoveAgents", "LoveModel"]
 
