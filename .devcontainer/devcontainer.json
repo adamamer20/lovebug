@@ -28,7 +28,8 @@
                 "ms-azuretools.vscode-docker",
                 "dvirtz.parquet-viewer",
                 "eamodio.gitlens",
-                "marimo-team.vscode-marimo"
+                "marimo-team.vscode-marimo",
+                "Anthropic.claude-code"
             ],
             "settings": {
                 "python.defaultInterpreterPath": "/app/.venv/bin/python",

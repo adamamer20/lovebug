@@ -1,6 +1,6 @@
 # Adam’s Copilot Instruction File 🌟
 
-**North Star** → *Generate crystal‑clear, Pythonic, fully‑typed, test‑first code that is easy to swap, automate, and scale — never monolithic, always DRY.*
+*Generate crystal‑clear, Pythonic, fully‑typed, test‑first code that is easy to swap, automate, and scale — never monolithic, always DRY.*
 
 ## 1 · Philosophy & General Principles
 
@@ -14,24 +14,18 @@
 ## 2 · Environment & Tooling
 
 * 📦 Manage dependencies with **astral‑sh/uv** (`uv pip install …`). Let **uv** handle pinning & lockfile; do **not** craft `requirements.txt`.
-* ⚙️ Target **Pop OS 24.04**, CUDA 12, RTX 3090 — assume GPU. *Do not* silently fall back to CPU; raise a clear error if CUDA is unavailable.
 * 🗄️ Config & secrets: load from `.env` via **python‑dotenv** when convenient, or use keyed sections in `pyproject.toml` for longer‑term settings.
 * 🧹 Enforce style with **ruff**. Ship a ready‑to‑use **pre‑commit** config that runs `ruff check`, `ruff format`, `pytest`, and type‑checks.
 
 ## 3 · Testing & Continuous Integration
 
 * 🧪 **TDD:** start with failing **pytest** cases, then implement until they pass.
-* 🔁 Supply a **GitHub Actions** workflow (`.github/workflows/ci.yml`) that, on `push` and `pull_request`, runs:
-
-  1. `uv pip install -e .[dev]`
-  2. `pre‑commit run --all-files`
-  3. `pytest -q`
 * ⏫ Use **pre‑commit.ci** for automatic PR lint fixes.
 
 ## 4 · Data, Performance & Visuals
 
 * 📈 Prefer **polars** over pandas; exploit lazy queries, expression API, and `collect()` only when needed.
-* 🧮 Vectorise heavy maths with **numpy**; benchmark loops before accepting them.
+* 🧮 Vectorise heavy maths with **polars** or **numpy**; benchmark loops before accepting them.
 * 📊 Include simple **matplotlib** plots when visuals clarify behaviour; wrap them in a reusable `plot_*` helper.
 
 ## 5 · Documentation & Structure
