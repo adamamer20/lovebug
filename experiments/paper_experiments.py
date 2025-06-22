@@ -7,9 +7,9 @@ publication-ready datasets. Uses empirical scaling insights to optimize experime
 design for maximum scientific value within computational constraints.
 
 Key Design Principles:
-- Layer1 (genetic): Use larger populations (1000-5000) due to O(n) scaling
-- Layer2 (cultural): Use moderate populations (200-500) due to O(n²) scaling
-- Combined: Use moderate populations (200-500) due to cultural component overhead
+- Layer1 (genetic)
+- Layer2 (cultural)
+- Combined
 - Focus on scientifically meaningful parameter ranges from literature
 - Generate sufficient replications for statistical robustness
 - Create structured outputs suitable for paper inclusion
