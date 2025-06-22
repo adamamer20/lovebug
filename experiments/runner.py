@@ -240,6 +240,9 @@ def run_genetic_experiment(params_dict: dict[str, Any]) -> GeneticExperimentResu
                 "genetic_correlation",
                 "mutation_variance",
                 "preference_cost",
+                "carrying_capacity",
+                "energy_decay",
+                "max_age",
             }
         }
 
@@ -509,6 +512,9 @@ def run_combined_experiment(params_dict: dict[str, Any]) -> IntegratedExperiment
                     "genetic_correlation",
                     "mutation_variance",
                     "preference_cost",
+                    "carrying_capacity",
+                    "energy_decay",
+                    "max_age",
                 }
             }
             if "pop_size" in lk_params:

@@ -23,8 +23,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import cProfile
+import io
 import json
 import logging
+import pstats
 import sys
 import time
 from dataclasses import asdict, dataclass
@@ -128,10 +131,10 @@ class PaperExperimentConfig:
     def __post_init__(self) -> None:
         if self.quick_test:
             # Reduced scope for testing
-            self.replications_per_condition = 3
-            self.lhs_samples = 20
-            self.n_generations = 100
-            self.max_duration_hours = 2.0
+            self.replications_per_condition = 1  # Reduced from 3 to 1 for faster debugging
+            self.lhs_samples = 5  # Reduced from 20 to 5 for faster debugging
+            self.n_generations = 50  # Reduced from 100 to 50 for faster debugging
+            self.max_duration_hours = 1.0
 
 
 @dataclass(slots=True, frozen=False)
@@ -156,6 +159,8 @@ class PaperExperimentRunner:
         self.completed_experiments = 0
         self.total_experiments = 0
         self.sweep_results: list[ParameterSweepResult] = []
+        self.debug_timings: dict[str, list[float]] = {}  # Track timing for debugging
+        self.profiler = None  # Optional profiler
 
         # Setup directories and logging
         self.output_dir = Path(config.output_dir)
@@ -168,6 +173,12 @@ class PaperExperimentRunner:
         self.logger.info(f"Quick test mode: {self.config.quick_test}")
         self.logger.info(f"Phase 1 validation: {self.config.run_validation}")
         self.logger.info(f"Phase 2 LHS sweeps: {self.config.run_lhs}")
+
+        # Log quick test parameters for debugging
+        if self.config.quick_test:
+            self.logger.info(
+                f"DEBUG: Quick test parameters - replications: {self.config.replications_per_condition}, generations: {self.config.n_generations}, lhs_samples: {self.config.lhs_samples}"
+            )
 
     def _setup_logging(self) -> None:
         """Setup comprehensive logging for paper experiments."""
@@ -182,6 +193,49 @@ class PaperExperimentRunner:
         self.logger = logging.getLogger(__name__)
         self.logger.info(f"Logging initialized - log file: {log_file}")
 
+    def _start_timing(self, operation: str) -> float:
+        """Start timing an operation for debugging."""
+        start_time = time.time()
+        self.logger.info(f"DEBUG: Starting {operation}")
+        return start_time
+
+    def _end_timing(self, operation: str, start_time: float) -> float:
+        """End timing an operation and log the duration."""
+        duration = time.time() - start_time
+        if operation not in self.debug_timings:
+            self.debug_timings[operation] = []
+        self.debug_timings[operation].append(duration)
+        self.logger.info(f"DEBUG: {operation} completed in {duration:.2f}s")
+        return duration
+
+    def _enable_profiling(self) -> None:
+        """Enable profiling for detailed performance analysis."""
+        self.profiler = cProfile.Profile()
+        self.profiler.enable()
+        self.logger.info("DEBUG: Profiling enabled")
+
+    def _save_profiling_results(self) -> None:
+        """Save profiling results to file."""
+        if self.profiler:
+            self.profiler.disable()
+
+            # Save profiling stats
+            profile_file = self.output_dir / "profiling_stats.prof"
+            self.profiler.dump_stats(str(profile_file))
+
+            # Create readable report
+            s = io.StringIO()
+            ps = pstats.Stats(self.profiler, stream=s)
+            ps.strip_dirs()
+            ps.sort_stats("cumulative")
+            ps.print_stats(20)  # Top 20 functions
+
+            profile_report = self.output_dir / "profiling_report.txt"
+            with open(profile_report, "w") as f:
+                f.write(s.getvalue())
+
+            self.logger.info(f"DEBUG: Profiling results saved to {profile_file} and {profile_report}")
+
     @beartype
     def run_validation_scenarios(self) -> list[ParameterSweepResult]:
         """Run Phase 1 validation scenarios to ground the model against theory.
@@ -194,14 +248,18 @@ class PaperExperimentRunner:
         if not self.config.run_validation:
             return []
 
-        self.logger.info("🔬 Starting Phase 1: Validation Scenarios")
+        start_time = self._start_timing("validation_scenarios")
         validation_results = []
 
         # Run LK validation scenarios
+        lk_start = self._start_timing("lk_validation")
         lk_result = self._run_lk_validation()
+        self._end_timing("lk_validation", lk_start)
+
         validation_results.append(lk_result)
         self.sweep_results.append(lk_result)
 
+        self._end_timing("validation_scenarios", start_time)
         self.logger.info(f"✅ Validation scenarios completed: {len(validation_results)} scenarios")
         return validation_results
 
@@ -222,9 +280,14 @@ class PaperExperimentRunner:
         """
         self.logger.info("🧬 Validating against Lande-Kirkpatrick theory")
 
-        base_population = 2000 if not self.config.quick_test else 100
-        carrying_capacity = 2000 if not self.config.quick_test else 100
+        base_population = 2000 if not self.config.quick_test else 50  # Reduced even further for debugging
+        carrying_capacity = 2000 if not self.config.quick_test else 50
         generations = self.config.n_generations
+
+        # Debug logging for population parameters
+        self.logger.info(
+            f"DEBUG: LK validation - population: {base_population}, generations: {generations}, replications: {self.config.replications_per_condition}"
+        )
 
         # Define validation scenarios with expected outcomes
         scenarios = {
@@ -635,7 +698,15 @@ class PaperExperimentRunner:
                         raise ValueError(f"Unknown experiment type: {experiment_type}")
 
                     try:
+                        # Time individual experiment for debugging
+                        exp_start = time.time()
+                        exp_name = f"{experiment_type}_{parameter_name}_{param_value}_{rep}"
+                        self.logger.info(f"DEBUG: Starting experiment {exp_name}")
+
                         result = run_single_experiment(experiment_params)
+
+                        exp_duration = time.time() - exp_start
+                        self.logger.info(f"DEBUG: Experiment {exp_name} completed in {exp_duration:.2f}s")
 
                         # Extract key metrics based on experiment type
                         result_data = self._extract_result_metrics(result, experiment_type)
@@ -645,6 +716,7 @@ class PaperExperimentRunner:
                                 "parameter_value": param_value,
                                 "replication": rep,
                                 "success": True,
+                                "experiment_duration": exp_duration,
                             }
                         )
 
@@ -654,8 +726,9 @@ class PaperExperimentRunner:
                         self.completed_experiments += 1
 
                     except Exception as e:
+                        exp_duration = time.time() - exp_start if "exp_start" in locals() else 0
                         self.logger.error(
-                            f"Experiment failed: {experiment_type}, {parameter_name}={param_value}, rep={rep}: {e}"
+                            f"Experiment failed: {experiment_type}, {parameter_name}={param_value}, rep={rep}: {e} (duration: {exp_duration:.2f}s)"
                         )
                         condition_results.append(
                             {
@@ -664,6 +737,7 @@ class PaperExperimentRunner:
                                 "replication": rep,
                                 "success": False,
                                 "error": str(e),
+                                "experiment_duration": exp_duration,
                             }
                         )
 
@@ -876,15 +950,25 @@ class PaperExperimentRunner:
         }
 
     @beartype
-    def run_comprehensive_experiments(self) -> dict[str, Any]:
+    def run_comprehensive_experiments(self, enable_profiling: bool = False) -> dict[str, Any]:
         """
         Run comprehensive parameter sweeps for all enabled experiment types.
+
+        Parameters
+        ----------
+        enable_profiling : bool
+            Enable detailed profiling for performance debugging
 
         Returns
         -------
         dict[str, Any]
             Complete experimental results summary suitable for paper inclusion
         """
+        if enable_profiling:
+            self._enable_profiling()
+
+        start_time = self._start_timing("comprehensive_experiments")
+
         self.logger.info("🚀 Starting Comprehensive Paper Experiments")
         self.logger.info(f"Phase 1 validation: {self.config.run_validation}")
         self.logger.info(f"Phase 2 LHS exploration: {self.config.run_lhs}")
@@ -899,16 +983,52 @@ class PaperExperimentRunner:
 
         # Run Phase 2: LHS exploration
         if self.config.run_lhs:
+            lhs_start = self._start_timing("lhs_sweeps")
             lhs_results = self.run_lhs_sweeps()
+            self._end_timing("lhs_sweeps", lhs_start)
             all_results.extend(lhs_results)
 
         # Generate comprehensive summary
+        summary_start = self._start_timing("generate_summary")
         summary = self._generate_comprehensive_summary(all_results)
+        self._end_timing("generate_summary", summary_start)
 
         # Save all results
+        save_start = self._start_timing("save_results")
         self._save_comprehensive_results(summary)
+        self._end_timing("save_results", save_start)
+
+        self._end_timing("comprehensive_experiments", start_time)
+
+        # Save timing debug information
+        self._save_timing_debug()
+
+        if enable_profiling:
+            self._save_profiling_results()
 
         return summary
+
+    def _save_timing_debug(self) -> None:
+        """Save timing debug information to file."""
+        timing_file = self.output_dir / "debug_timings.json"
+        with open(timing_file, "w") as f:
+            json.dump(self.debug_timings, f, indent=2)
+
+        # Create readable timing summary
+        timing_summary = self.output_dir / "timing_summary.txt"
+        with open(timing_summary, "w") as f:
+            f.write("Experiment Timing Summary\n")
+            f.write("=" * 50 + "\n\n")
+
+            for operation, times in self.debug_timings.items():
+                f.write(f"{operation}:\n")
+                f.write(f"  Total calls: {len(times)}\n")
+                f.write(f"  Total time: {sum(times):.2f}s\n")
+                f.write(f"  Average time: {sum(times) / len(times):.2f}s\n")
+                f.write(f"  Min time: {min(times):.2f}s\n")
+                f.write(f"  Max time: {max(times):.2f}s\n\n")
+
+        self.logger.info(f"DEBUG: Timing information saved to {timing_file} and {timing_summary}")
 
     def _generate_comprehensive_summary(self, all_results: list[ParameterSweepResult]) -> dict[str, Any]:
         """Generate comprehensive summary of all experimental results."""
@@ -1400,6 +1520,8 @@ Examples:
     parser.add_argument(
         "--generations", type=int, default=5000, help="Number of generations per simulation (default: 5000)"
     )
+    parser.add_argument("--profile", action="store_true", help="Enable detailed profiling for performance debugging")
+    parser.add_argument("--debug", action="store_true", help="Enable extra debug logging and timing information")
 
     args = parser.parse_args()
 
@@ -1419,7 +1541,13 @@ Examples:
         )
 
         runner = PaperExperimentRunner(config)
-        results = runner.run_comprehensive_experiments()
+
+        # Set debug logging level if requested
+        if args.debug:
+            logging.getLogger().setLevel(logging.DEBUG)
+            runner.logger.setLevel(logging.DEBUG)
+
+        results = runner.run_comprehensive_experiments(enable_profiling=args.profile)
 
         # Display final summary
         metadata = results.get("experiment_metadata", {})
