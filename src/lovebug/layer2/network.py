@@ -51,7 +51,7 @@ class NetworkTopology:
 
     def __post_init__(self) -> None:
         """Validate topology parameters."""
-        print("[LOG] NetworkTopology instantiated")
+        logger.debug(f"Initializing NetworkTopology: {self}")
         valid_types = {"random", "small_world", "scale_free", "grid"}
         if self.network_type not in valid_types:
             raise ValueError(f"network_type must be one of {valid_types}")
@@ -83,7 +83,7 @@ class SocialNetwork:
     """
 
     def __init__(self, n_agents: int, topology: NetworkTopology) -> None:
-        print("[LOG] SocialNetwork instantiated")
+        logger.debug(f"Initializing SocialNetwork with {n_agents} agents and topology {topology}")
         self.n_agents = n_agents
         self.topology = topology
 
