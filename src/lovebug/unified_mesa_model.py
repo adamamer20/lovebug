@@ -245,7 +245,8 @@ class LoveAgents(AgentSetPolars):
             ]
         )
 
-        # Apply all updates and filter in single operation
+        # Apply all updates and filter in single operation (fast path)
+        # Note: Direct DataFrame assignment - mask will be updated on next access if needed
         self.agents = self.agents.with_columns(updates).filter((pl.col("age") < max_age) & (pl.col("energy") > 0))
 
         # Add offspring if any were created
@@ -532,13 +533,18 @@ class LoveAgents(AgentSetPolars):
             if rows.size:
                 offspring_genomes[rows] ^= np.left_shift(np.uint32(1), bits.astype(np.uint32))
 
-        # Prepare offspring data
+        # Prepare offspring data - ensure all columns from parent DataFrame are included
+        # to avoid shape mismatch when adding to agent set
         offspring_data = {
             "genome": offspring_genomes,
             "energy": pl.Series([10.0] * len(idx), dtype=pl.Float32),
             "age": pl.Series([0] * len(idx), dtype=pl.UInt16),
             "mating_success": pl.Series([0] * len(idx), dtype=pl.UInt16),
         }
+
+        # Get all columns from current agent DataFrame to ensure offspring have same structure
+        current_columns = self.agents.columns
+        n_offspring = len(idx)
 
         # Add cultural traits for offspring if cultural layer enabled
         if self.layer_config.cultural_enabled:
@@ -562,21 +568,74 @@ class LoveAgents(AgentSetPolars):
                 offspring_culture[innovate] = np.random.randint(0, 256, n_innovate, dtype=np.uint8)
 
             offspring_data["pref_culture"] = offspring_culture.astype(np.uint8)
-            offspring_data["cultural_innovation_count"] = pl.Series([0] * len(idx), dtype=pl.UInt16)
-            offspring_data["prestige_score"] = pl.Series([0.0] * len(idx), dtype=pl.Float32)
+            offspring_data["cultural_innovation_count"] = pl.Series([0] * n_offspring, dtype=pl.UInt16)
+            offspring_data["prestige_score"] = pl.Series([0.0] * n_offspring, dtype=pl.Float32)
             offspring_data["social_network_neighbors"] = pl.Series(
-                [[] for _ in range(len(idx))], dtype=pl.List(pl.Int32)
+                [[] for _ in range(n_offspring)], dtype=pl.List(pl.Int32)
             )
 
             # Add cultural memory columns for offspring
             if self.model.cultural_params and self.model.cultural_params.cultural_memory_size > 0:
                 memory_size = self.model.cultural_params.cultural_memory_size
                 for i in range(memory_size):
-                    offspring_data[f"cultural_memory_{i}"] = pl.Series([0.0] * len(idx), dtype=pl.Float32)
+                    offspring_data[f"cultural_memory_{i}"] = pl.Series([0.0] * n_offspring, dtype=pl.Float32)
 
         # Add fields for tracking layer effects in offspring
         if self.layer_config.is_combined():
             offspring_data["effective_preference"] = ((offspring_genomes & PREF_MASK) >> PREF_SHIFT).astype(np.uint8)
+
+        # Ensure offspring have all columns present in the current agent DataFrame
+        # This prevents shape mismatch errors when adding to agent set
+        agent_df = self.agents  # self.agents is already the Polars DataFrame
+        for col in current_columns:
+            if col not in offspring_data and col not in ["agent_id", "unique_id"]:
+                # Get column type from the actual DataFrame
+                col_dtype = agent_df.schema[col]
+
+                # Determine appropriate default value based on column type
+                try:
+                    if str(col_dtype).startswith("List"):
+                        # Handle all list types
+                        offspring_data[col] = pl.Series([[] for _ in range(n_offspring)], dtype=col_dtype)
+                        continue  # Skip the default series creation below
+                    elif col_dtype == pl.UInt8:
+                        default_val = 0
+                    elif col_dtype == pl.UInt16:
+                        default_val = 0
+                    elif col_dtype == pl.UInt32:
+                        default_val = 0
+                    elif col_dtype == pl.UInt64:
+                        default_val = 0
+                    elif col_dtype == pl.Float32:
+                        default_val = 0.0
+                    elif col_dtype == pl.Float64:
+                        default_val = 0.0
+                    elif col_dtype == pl.Boolean:
+                        default_val = True
+                    elif col_dtype == pl.Utf8:
+                        default_val = ""
+                    else:
+                        # Fallback: try to infer from existing data
+                        sample_data = agent_df.select(col).limit(1).to_numpy().flatten()
+                        if len(sample_data) > 0:
+                            sample_val = sample_data[0]
+                            if isinstance(sample_val, (int, np.integer)):
+                                default_val = 0
+                            elif isinstance(sample_val, (float, np.floating)):
+                                default_val = 0.0
+                            elif isinstance(sample_val, bool):
+                                default_val = True
+                            else:
+                                default_val = 0
+                        else:
+                            default_val = 0
+
+                    offspring_data[col] = pl.Series([default_val] * n_offspring, dtype=col_dtype)
+
+                except Exception as e:
+                    # If all else fails, skip this column with a warning
+                    logger.warning(f"Failed to create default value for column '{col}' with dtype {col_dtype}: {e}")
+                    continue
 
         offspring_df = pl.DataFrame(offspring_data)
         return offspring_df, mating_success_update

@@ -34,6 +34,10 @@ class LandeKirkpatrickParams:
         Variance of mutational effects per generation
     preference_cost : float
         Cost of having strong preferences (0-1)
+    energy_decay : float
+        Rate at which agent energy decays per timestep
+    max_age : int
+        Maximum age before agents die naturally
     """
 
     n_generations: int = 500
@@ -44,3 +48,5 @@ class LandeKirkpatrickParams:
     genetic_correlation: float = 0.1
     mutation_variance: float = 0.01
     preference_cost: float = 0.05
+    energy_decay: float = 0.2
+    max_age: int = 100
