@@ -103,8 +103,8 @@ class ValidatedPaperConfig:
     output_dir: str = "experiments/results/paper_data"
     quick_test: bool = False
     run_validation: bool = True
-    run_empirical: bool = False
-    run_lhs: bool = False
+    run_empirical: bool = True
+    run_lhs: bool = True
     lhs_samples: int = 200
     replications_per_condition: int = 10
     n_generations: int = 5000
@@ -208,7 +208,7 @@ class ValidatedPaperRunner:
 
             # Run Rodd sensory bias replication
             logger.info("🐠 Running Rodd sensory bias replication")
-            pop_size = 1000 if not self.config.quick_test else 200
+            pop_size = 2000 if not self.config.quick_test else 200
             generations = 500 if not self.config.quick_test else 100
             rodd = RoddReplication(population_size=pop_size, n_generations=generations, seed=42)
             rodd_result = rodd.run_experiment()
@@ -316,7 +316,7 @@ class ValidatedPaperRunner:
                     simulation=SimulationParams(
                         population_size=base_population,
                         steps=self.config.n_generations,
-                        seed=rep + 1000,
+                        seed=rep + 2000,
                     ),
                 )
             )
@@ -422,7 +422,7 @@ class ValidatedPaperRunner:
                 blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
                 perceptual=PerceptualParams(),
                 simulation=SimulationParams(
-                    population_size=1000,
+                    population_size=2000,
                     steps=self.config.n_generations,
                     seed=i,
                 ),
@@ -444,7 +444,7 @@ class ValidatedPaperRunner:
         """
         logger.info("🎭 Generating cultural evolution experiments")
 
-        base_population = 1000 if not self.config.quick_test else 200
+        base_population = 2000 if not self.config.quick_test else 200
 
         configurations = []
 
@@ -505,7 +505,7 @@ class ValidatedPaperRunner:
         """
         logger.info("🧬🎭 Generating combined evolution experiments")
 
-        base_population = 1000 if not self.config.quick_test else 200
+        base_population = 2000 if not self.config.quick_test else 200
 
         configurations = []
 
@@ -600,12 +600,12 @@ class ValidatedPaperRunner:
                     h2_preference=0.5,
                     mutation_rate=0.01,
                     crossover_rate=0.7,
-                    population_size=1000,
+                    population_size=2000,
                     elitism=1,
                     energy_decay=0.01,
                     mutation_variance=0.01,
                     max_age=100,
-                    carrying_capacity=1000,
+                    carrying_capacity=2000,
                 ),
                 cultural=CulturalParams(
                     learning_rate=float(param_dict["learning_rate"]),
@@ -672,12 +672,12 @@ class ValidatedPaperRunner:
                     h2_preference=0.5,
                     mutation_rate=float(param_dict["mutation_rate"]),
                     crossover_rate=float(param_dict["crossover_rate"]),
-                    population_size=1000,
+                    population_size=2000,
                     elitism=1,
                     energy_decay=0.01,
                     mutation_variance=0.01,
                     max_age=100,
-                    carrying_capacity=1000,
+                    carrying_capacity=2000,
                 ),
                 cultural=CulturalParams(
                     learning_rate=float(param_dict["learning_rate"]),
@@ -741,7 +741,7 @@ class ValidatedPaperRunner:
                     logger.info(f"🔬 Executing: {config.name}")
 
                     # Run experiment using validated runner
-                    result = self.runner.run_from_config(config)
+                    result = self.runner.run_experiment(config)
                     results.append(result)
                     self.completed_experiments += 1
 

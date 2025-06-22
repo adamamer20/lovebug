@@ -243,6 +243,20 @@ class ValidatedExperimentRunner:
 
         return results
 
+    def get_stats(self) -> dict[str, Any]:
+        """
+        Get runner statistics.
+
+        Returns
+        -------
+        dict[str, Any]
+            Runner statistics
+        """
+        return {
+            "output_directory": str(self.base_output_dir),
+            "runner_type": "ValidatedExperimentRunner",
+        }
+
     def _save_results(self, results: dict[str, Any]) -> None:
         """Save experiment results to disk."""
         try:
