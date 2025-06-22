@@ -27,7 +27,7 @@ import json
 import logging
 import sys
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -38,6 +38,7 @@ from beartype import beartype
 from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeRemainingColumn
 from rich.table import Table
+from scipy.stats import qmc
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -54,7 +55,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True, frozen=False)
 class PaperExperimentConfig:
-    """Configuration for comprehensive paper experiments.
+    """Configuration for multi-phase paper experiments.
 
     Parameters
     ----------
@@ -62,36 +63,38 @@ class PaperExperimentConfig:
         Directory to save all experimental results and summaries
     quick_test : bool
         Run reduced scope experiments for testing (default: False)
-    experiment_types : list[str]
-        List of experiment types to run ["layer1", "layer2", "combined"]
+    run_validation : bool
+        Run Phase 1 validation scenarios (default: True)
+    run_lhs : bool
+        Run Phase 2 Latin Hypercube Sampling sweeps (default: False)
+    lhs_samples : int
+        Number of parameter combinations for LHS exploration (default: 200)
     replications_per_condition : int
         Number of replications per parameter combination for statistical robustness
+    n_generations : int
+        Number of generations for simulations (reduced for quick_test)
     max_duration_hours : float
         Maximum total runtime in hours (safety limit)
-    layer1_enabled : bool
-        Enable Layer1 (genetic) parameter sweeps
-    layer2_enabled : bool
-        Enable Layer2 (cultural) parameter sweeps
-    combined_enabled : bool
-        Enable Combined (unified) parameter sweeps
     save_individual_results : bool
         Save individual experiment results in addition to summaries
     """
 
     output_dir: str = "experiments/results/paper_data"
     quick_test: bool = False
-    experiment_types: list[str] = field(default_factory=lambda: ["layer1", "layer2", "combined"])
+    run_validation: bool = True
+    run_lhs: bool = False
+    lhs_samples: int = 200
     replications_per_condition: int = 10
+    n_generations: int = 5000
     max_duration_hours: float = 24.0
-    layer1_enabled: bool = True
-    layer2_enabled: bool = True
-    combined_enabled: bool = True
     save_individual_results: bool = True
 
     def __post_init__(self) -> None:
         if self.quick_test:
             # Reduced scope for testing
             self.replications_per_condition = 3
+            self.lhs_samples = 20
+            self.n_generations = 100
             self.max_duration_hours = 2.0
 
 
@@ -127,7 +130,8 @@ class PaperExperimentRunner:
         self.logger.info("Paper experiment runner initialized")
         self.logger.info(f"Output directory: {self.output_dir}")
         self.logger.info(f"Quick test mode: {self.config.quick_test}")
-        self.logger.info(f"Enabled experiments: {self.config.experiment_types}")
+        self.logger.info(f"Phase 1 validation: {self.config.run_validation}")
+        self.logger.info(f"Phase 2 LHS sweeps: {self.config.run_lhs}")
 
     def _setup_logging(self) -> None:
         """Setup comprehensive logging for paper experiments."""
@@ -143,276 +147,360 @@ class PaperExperimentRunner:
         self.logger.info(f"Logging initialized - log file: {log_file}")
 
     @beartype
-    def run_layer1_parameter_sweeps(self) -> list[ParameterSweepResult]:
-        """
-        Run Layer1 (genetic) parameter sweeps with scientifically meaningful ranges.
-
-        Uses larger populations (1000-5000) since Layer1 scales as O(n) and is extremely fast.
-        Focuses on key genetic parameters that affect evolutionary dynamics.
+    def run_validation_scenarios(self) -> list[ParameterSweepResult]:
+        """Run Phase 1 validation scenarios to ground the model against theory.
 
         Returns
         -------
         list[ParameterSweepResult]
-            Results from all Layer1 parameter sweeps
+            Results from all validation scenarios
         """
-        if not self.config.layer1_enabled or "layer1" not in self.config.experiment_types:
+        if not self.config.run_validation:
             return []
 
-        self.logger.info("🧬 Starting Layer1 (Genetic) Parameter Sweeps")
+        self.logger.info("🔬 Starting Phase 1: Validation Scenarios")
+        validation_results = []
 
-        # Use larger populations due to efficient O(n) scaling
-        base_population = 10000 if not self.config.quick_test else 500
-        generations = 10000 if not self.config.quick_test else 100
+        # Run LK validation scenarios
+        lk_result = self._run_lk_validation()
+        validation_results.append(lk_result)
+        self.sweep_results.append(lk_result)
 
-        # Base parameters for Layer1 experiments
-        base_params = {
-            "n_generations": generations,
-            "pop_size": base_population,
-            "h2_trait": 0.5,
-            "h2_preference": 0.5,
-            "genetic_correlation": 0.2,
-            "selection_strength": 0.1,
-            "preference_cost": 0.05,
-            "mutation_variance": 0.01,
-        }
-
-        # Define parameter sweeps with scientifically meaningful ranges
-        parameter_sweeps = [
-            # Heritability of display trait (fundamental evolutionary parameter)
-            ("h2_trait", [0.1, 0.3, 0.5, 0.7, 0.9]),
-            # Heritability of female preference (drives sexual selection strength)
-            ("h2_preference", [0.1, 0.3, 0.5, 0.7, 0.9]),
-            # Genetic correlation (key for runaway evolution)
-            ("genetic_correlation", [-0.3, -0.1, 0.0, 0.1, 0.2, 0.3, 0.5]),
-            # Selection strength (natural selection pressure)
-            ("selection_strength", [0.01, 0.05, 0.1, 0.2, 0.5]),
-            # Preference cost (cost of choosiness)
-            ("preference_cost", [0.0, 0.01, 0.05, 0.1, 0.2]),
-            # Mutation variance (evolutionary constraint)
-            ("mutation_variance", [0.001, 0.005, 0.01, 0.02, 0.05]),
-        ]
-
-        if self.config.quick_test:
-            # Reduced parameter ranges for testing
-            parameter_sweeps = [
-                ("h2_trait", [0.3, 0.5, 0.7]),
-                ("genetic_correlation", [-0.1, 0.1, 0.3]),
-                ("selection_strength", [0.05, 0.1, 0.2]),
-            ]
-
-        layer1_results = []
-
-        for param_name, param_values in parameter_sweeps:
-            self.logger.info(f"Sweeping {param_name}: {param_values}")
-
-            sweep_result = self._run_parameter_sweep(
-                experiment_type="layer1",
-                parameter_name=param_name,
-                parameter_values=param_values,
-                base_params=base_params,
-                population_key="pop_size",
-            )
-
-            layer1_results.append(sweep_result)
-            self.sweep_results.append(sweep_result)
-
-        self.logger.info(f"✅ Layer1 parameter sweeps completed: {len(layer1_results)} sweeps")
-        return layer1_results
+        self.logger.info(f"✅ Validation scenarios completed: {len(validation_results)} scenarios")
+        return validation_results
 
     @beartype
-    def run_layer2_parameter_sweeps(self) -> list[ParameterSweepResult]:
+    def _run_lk_validation(self) -> ParameterSweepResult:
         """
-        Run Layer2 (cultural) parameter sweeps with focus on cultural dynamics.
+        Validate the genetic-only model against Lande-Kirkpatrick theory.
 
-        Uses moderate populations (200-500) due to O(n²) scaling constraints.
-        Focuses on cultural transmission parameters and network effects.
+        Tests specific parameter combinations that should produce known outcomes:
+        - Stasis: Trait and preference remain near zero
+        - Runaway: Trait and preference co-evolve to extreme values
+        - Costly Choice: Preference evolution is suppressed
 
         Returns
         -------
-        list[ParameterSweepResult]
-            Results from all Layer2 parameter sweeps
+        ParameterSweepResult
+            Results from LK validation scenarios
         """
-        if not self.config.layer2_enabled or "layer2" not in self.config.experiment_types:
-            return []
+        self.logger.info("🧬 Validating against Lande-Kirkpatrick theory")
 
-        self.logger.info("🎭 Starting Layer2 (Cultural) Parameter Sweeps")
+        base_population = 2000 if not self.config.quick_test else 300
+        generations = self.config.n_generations
 
-        # Use moderate populations due to O(n²) scaling
-        base_population = 10000 if not self.config.quick_test else 200
-        generations = 10000 if not self.config.quick_test else 50
-
-        # Base parameters for Layer2 experiments
-        base_params = {
-            "innovation_rate": 0.1,
-            "horizontal_transmission_rate": 0.3,
-            "oblique_transmission_rate": 0.2,
-            "network_type": "scale_free",
-            "network_connectivity": 0.1,
-            "cultural_memory_size": 10,
+        # Define validation scenarios with expected outcomes
+        scenarios = {
+            "stasis": {
+                "n_generations": generations,
+                "pop_size": base_population,
+                "h2_trait": 0.3,
+                "h2_preference": 0.2,
+                "genetic_correlation": 0.0,
+                "selection_strength": 0.3,
+                "preference_cost": 0.0,
+                "mutation_variance": 0.01,
+            },
+            "runaway": {
+                "n_generations": generations,
+                "pop_size": base_population,
+                "h2_trait": 0.6,
+                "h2_preference": 0.7,
+                "genetic_correlation": 0.3,
+                "selection_strength": 0.05,
+                "preference_cost": 0.0,
+                "mutation_variance": 0.01,
+            },
+            "costly_choice": {
+                "n_generations": generations,
+                "pop_size": base_population,
+                "h2_trait": 0.6,
+                "h2_preference": 0.7,
+                "genetic_correlation": 0.3,
+                "selection_strength": 0.05,
+                "preference_cost": 0.15,
+                "mutation_variance": 0.01,
+            },
         }
 
-        # Define cultural parameter sweeps
-        parameter_sweeps = [
-            # Innovation rate (cultural mutation rate)
-            ("innovation_rate", [0.01, 0.05, 0.1, 0.2, 0.4]),
-            # Horizontal transmission (peer learning rate)
-            ("horizontal_transmission_rate", [0.1, 0.2, 0.3, 0.5, 0.7]),
-            # Oblique transmission (parent-to-child cultural inheritance)
-            ("oblique_transmission_rate", [0.05, 0.1, 0.2, 0.3, 0.5]),
-            # Network connectivity (social structure effect)
-            ("network_connectivity", [0.05, 0.1, 0.2, 0.3, 0.5]),
-            # Cultural memory size (cognitive constraint)
-            ("cultural_memory_size", [5, 10, 20, 50, 100]),
-        ]
-
-        # Network topology comparison
-        network_types = ["random", "scale_free", "small_world"]
-        if not self.config.quick_test:
-            parameter_sweeps.append(("network_type", network_types))
-
-        if self.config.quick_test:
-            # Reduced parameter ranges for testing
-            parameter_sweeps = [
-                ("innovation_rate", [0.05, 0.1, 0.2]),
-                ("horizontal_transmission_rate", [0.2, 0.3, 0.5]),
-                ("network_connectivity", [0.1, 0.2, 0.3]),
-            ]
-
-        layer2_results = []
-
-        for param_name, param_values in parameter_sweeps:
-            self.logger.info(f"Sweeping {param_name}: {param_values}")
-
-            sweep_result = self._run_parameter_sweep(
-                experiment_type="layer2",
-                parameter_name=param_name,
-                parameter_values=param_values,
-                base_params=base_params,
-                population_key="n_agents",
-                base_population=base_population,
-                n_generations=generations,
-            )
-
-            layer2_results.append(sweep_result)
-            self.sweep_results.append(sweep_result)
-
-        self.logger.info(f"✅ Layer2 parameter sweeps completed: {len(layer2_results)} sweeps")
-        return layer2_results
+        return self._run_parameter_sweep(
+            experiment_type="layer1",
+            parameter_name="lk_scenario",
+            parameter_values=list(scenarios.keys()),
+            base_params={},
+            scenario_configs=scenarios,
+        )
 
     @beartype
-    def run_combined_parameter_sweeps(self) -> list[ParameterSweepResult]:
-        """
-        Run Combined (unified gene-culture) parameter sweeps.
-
-        Uses moderate populations due to cultural component overhead.
-        Focuses on layer activation parameters and gene-culture interaction mechanisms.
+    def run_lhs_sweeps(self) -> list[ParameterSweepResult]:
+        """Run Phase 2 Latin Hypercube Sampling parameter exploration.
 
         Returns
         -------
         list[ParameterSweepResult]
-            Results from all Combined parameter sweeps
+            Results from all LHS sweeps
         """
-        if not self.config.combined_enabled or "combined" not in self.config.experiment_types:
+        if not self.config.run_lhs:
             return []
 
-        self.logger.info("🔬 Starting Combined (Gene-Culture) Parameter Sweeps")
+        self.logger.info("📊 Starting Phase 2: Latin Hypercube Sampling Exploration")
+        lhs_results = []
 
-        # Use moderate populations due to cultural component
-        base_population = 10000 if not self.config.quick_test else 150
-        generations = 10000 if not self.config.quick_test else 50
+        # Run LHS sweeps for each model type
+        layer2_result = self._run_single_lhs_sweep(
+            experiment_type="layer2",
+            parameter_space=self._get_layer2_parameter_space(),
+            n_samples=self.config.lhs_samples,
+        )
+        lhs_results.append(layer2_result)
+        self.sweep_results.append(layer2_result)
 
-        # Base parameters combining genetic and cultural components
-        base_params = {
-            # Layer activation parameters
-            "genetic_enabled": True,
-            "cultural_enabled": True,
-            "genetic_weight": 0.5,
-            "cultural_weight": 0.5,
-            "blending_mode": "weighted_average",
-            "normalize_weights": True,
-            "theta_detect": 8.0,
-            "sigma_perception": 2.0,
-            # Genetic parameters
-            "n_generations": generations,
-            "pop_size": base_population,
-            "h2_trait": 0.5,
-            "h2_preference": 0.5,
-            "genetic_correlation": 0.2,
-            "selection_strength": 0.1,
-            "preference_cost": 0.05,
-            "mutation_variance": 0.01,
-            # Cultural parameters
-            "innovation_rate": 0.1,
-            "horizontal_transmission_rate": 0.3,
-            "oblique_transmission_rate": 0.2,
-            "network_type": "scale_free",
-            "network_connectivity": 0.1,
-            "cultural_memory_size": 10,
-            "local_learning_radius": 5,
+        combined_result = self._run_single_lhs_sweep(
+            experiment_type="combined",
+            parameter_space=self._get_combined_parameter_space(),
+            n_samples=self.config.lhs_samples,
+        )
+        lhs_results.append(combined_result)
+        self.sweep_results.append(combined_result)
+
+        self.logger.info(f"✅ LHS sweeps completed: {len(lhs_results)} sweeps")
+        return lhs_results
+
+    def _get_layer2_parameter_space(self) -> dict[str, tuple[float, float] | list[str]]:
+        """Define parameter space for Layer2 LHS exploration."""
+        return {
+            "innovation_rate": (0.01, 0.4),
+            "horizontal_transmission_rate": (0.1, 0.8),
+            "oblique_transmission_rate": (0.05, 0.5),
+            "network_connectivity": (0.05, 0.5),
+            "cultural_memory_size": (5, 100),  # Will be integer-scaled
+            "network_type": ["random", "small_world", "scale_free"],
         }
 
-        # Define gene-culture interaction parameter sweeps
-        parameter_sweeps = [
-            # Genetic vs cultural weighting (fundamental interaction parameter)
-            ("genetic_weight", [0.0, 0.2, 0.5, 0.8, 1.0]),
-            # Detection threshold (perceptual constraint mechanism)
-            ("theta_detect", [4.0, 6.0, 8.0, 10.0, 12.0]),
-            # Perceptual noise (environmental uncertainty)
-            ("sigma_perception", [0.5, 1.0, 2.0, 3.0, 4.0]),
-            # Local learning radius (social influence range)
-            ("local_learning_radius", [3, 5, 10, 15, 25]),
-            # Combined genetic correlation effect
-            ("genetic_correlation", [-0.2, 0.0, 0.1, 0.2, 0.4]),
-            # Cultural innovation in gene-culture context
-            ("innovation_rate", [0.05, 0.1, 0.2, 0.3]),
-        ]
+    def _get_combined_parameter_space(self) -> dict[str, tuple[float, float] | list[str]]:
+        """Define parameter space for Combined model LHS exploration."""
+        return {
+            "genetic_weight": (0.0, 1.0),
+            "h2_preference": (0.1, 0.9),
+            "genetic_correlation": (-0.3, 0.5),
+            "selection_strength": (0.01, 0.5),
+            "innovation_rate": (0.01, 0.3),
+            "horizontal_transmission_rate": (0.1, 0.7),
+            "theta_detect": (4.0, 12.0),
+            "sigma_perception": (0.5, 4.0),
+            "local_learning_radius": (3, 25),  # Will be integer-scaled
+            "blending_mode": ["weighted_average", "probabilistic", "competitive"],
+        }
 
+    @beartype
+    def _run_single_lhs_sweep(
+        self,
+        experiment_type: str,
+        parameter_space: dict[str, tuple[float, float] | list[str]],
+        n_samples: int,
+    ) -> ParameterSweepResult:
+        """
+        Run Latin Hypercube Sampling sweep for a single experiment type.
+
+        Uses LHS to efficiently explore high-dimensional parameter spaces
+        with systematic coverage of all parameter interactions.
+
+        Parameters
+        ----------
+        experiment_type : str
+            Type of experiment ("layer2" or "combined")
+        parameter_space : dict
+            Dictionary mapping parameter names to (min, max) ranges or categorical lists
+        n_samples : int
+            Number of parameter combinations to sample
+
+        Returns
+        -------
+        ParameterSweepResult
+            Results from the LHS sweep
+        """
+        self.logger.info(f"Running LHS sweep for {experiment_type} with {n_samples} samples")
+
+        # Separate continuous and categorical parameters
+        continuous_params = {k: v for k, v in parameter_space.items() if isinstance(v, tuple)}
+        categorical_params = {k: v for k, v in parameter_space.items() if isinstance(v, list)}
+
+        # Generate LHS samples for continuous parameters
+        if continuous_params:
+            sampler = qmc.LatinHypercube(d=len(continuous_params))
+            lhs_samples = sampler.random(n_samples)
+
+            # Scale samples to parameter ranges
+            param_names = list(continuous_params.keys())
+            scaled_samples = []
+
+            for sample in lhs_samples:
+                scaled_sample = {}
+                for i, param_name in enumerate(param_names):
+                    min_val, max_val = continuous_params[param_name]
+                    scaled_val = min_val + sample[i] * (max_val - min_val)
+
+                    # Handle integer parameters
+                    if param_name in ["cultural_memory_size", "local_learning_radius"]:
+                        scaled_val = int(round(scaled_val))
+
+                    scaled_sample[param_name] = scaled_val
+
+                scaled_samples.append(scaled_sample)
+        else:
+            scaled_samples = [{} for _ in range(n_samples)]
+
+        # Add categorical parameters (randomly assigned)
+        np.random.seed(42)
+        for _, sample in enumerate(scaled_samples):
+            for param_name, choices in categorical_params.items():
+                sample[param_name] = np.random.choice(choices)
+
+        # Set base parameters
+        base_population = 500 if experiment_type == "layer2" else 300
         if self.config.quick_test:
-            # Reduced parameter ranges for testing
-            parameter_sweeps = [
-                ("genetic_weight", [0.2, 0.5, 0.8]),
-                ("theta_detect", [6.0, 8.0, 10.0]),
-                ("sigma_perception", [1.0, 2.0, 3.0]),
-            ]
+            base_population = base_population // 2
 
-        combined_results = []
+        base_params = {
+            "n_generations": self.config.n_generations,
+        }
 
-        for param_name, param_values in parameter_sweeps:
-            self.logger.info(f"Sweeping {param_name}: {param_values}")
+        # Add experiment-specific base parameters
+        if experiment_type == "combined":
+            combined_params = {
+                "genetic_enabled": True,
+                "cultural_enabled": True,
+                "normalize_weights": True,
+                "h2_trait": 0.5,
+                "preference_cost": 0.05,
+                "mutation_variance": 0.01,
+                "network_type": "scale_free",
+                "network_connectivity": 0.1,
+                "cultural_memory_size": 10,
+            }
+            base_params.update(combined_params)
 
-            # Handle cultural_weight adjustment for genetic_weight sweeps
-            if param_name == "genetic_weight":
-                modified_params = []
-                for gw in param_values:
-                    params = base_params.copy()
-                    params["genetic_weight"] = gw
-                    params["cultural_weight"] = 1.0 - gw  # Complementary weighting
-                    modified_params.append(params)
+        # Create parameter configurations
+        parameter_configs = []
+        for sample in scaled_samples:
+            config = base_params.copy()
+            config.update(sample)
 
-                sweep_result = self._run_custom_parameter_sweep(
-                    experiment_type="combined",
-                    parameter_name=param_name,
-                    parameter_values=param_values,
-                    parameter_configs=modified_params,
-                    base_population=base_population,
-                    n_generations=generations,
-                )
-            else:
-                sweep_result = self._run_parameter_sweep(
-                    experiment_type="combined",
-                    parameter_name=param_name,
-                    parameter_values=param_values,
-                    base_params=base_params,
-                    population_key="n_agents",
-                    base_population=base_population,
-                    n_generations=generations,
-                )
+            # Handle genetic_weight -> cultural_weight conversion for combined
+            if experiment_type == "combined" and "genetic_weight" in sample:
+                config["cultural_weight"] = 1.0 - sample["genetic_weight"]
 
-            combined_results.append(sweep_result)
-            self.sweep_results.append(sweep_result)
+            parameter_configs.append(config)
 
-        self.logger.info(f"✅ Combined parameter sweeps completed: {len(combined_results)} sweeps")
-        return combined_results
+        return self._run_lhs_parameter_sweep(
+            experiment_type=experiment_type,
+            parameter_configs=parameter_configs,
+            base_population=base_population,
+        )
+
+    @beartype
+    def _run_lhs_parameter_sweep(
+        self,
+        experiment_type: str,
+        parameter_configs: list[dict[str, Any]],
+        base_population: int,
+    ) -> ParameterSweepResult:
+        """
+        Run LHS parameter sweep with pre-generated parameter configurations.
+
+        Parameters
+        ----------
+        experiment_type : str
+            Type of experiment ("layer2" or "combined")
+        parameter_configs : list[dict[str, Any]]
+            List of parameter configurations from LHS sampling
+        base_population : int
+            Base population size for experiments
+
+        Returns
+        -------
+        ParameterSweepResult
+            Results from the LHS parameter sweep
+        """
+        individual_results = []
+        n_samples = len(parameter_configs)
+
+        total_experiments = n_samples * self.config.replications_per_condition
+
+        with Progress(
+            TextColumn(f"[bold blue]LHS Sweep ({experiment_type})"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TextColumn("•"),
+            TimeRemainingColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("LHS parameter sweep", total=total_experiments)
+
+            for i, params in enumerate(parameter_configs):
+                for rep in range(self.config.replications_per_condition):
+                    experiment_params = {
+                        "type": experiment_type,
+                        "config": {"name": f"lhs_{experiment_type}_{i}_{rep}"},
+                        "params": params,
+                        "n_agents": base_population,
+                        "n_generations": params.get("n_generations", self.config.n_generations),
+                        "random_seed": hash(f"lhs_{experiment_type}_{i}_{rep}") % (2**32),
+                    }
+
+                    try:
+                        result = run_single_experiment(experiment_params)
+
+                        result_data = self._extract_result_metrics(result, experiment_type)
+                        result_data.update(
+                            {
+                                "lhs_sample": i,
+                                "replication": rep,
+                                "success": True,
+                            }
+                        )
+
+                        # Add all input parameters to result
+                        for param_name, param_value in params.items():
+                            result_data[f"input_{param_name}"] = param_value
+
+                        individual_results.append(result_data)
+                        self.completed_experiments += 1
+
+                    except Exception as e:
+                        self.logger.error(f"LHS experiment failed: {experiment_type}, sample={i}, rep={rep}: {e}")
+                        error_data = {
+                            "lhs_sample": i,
+                            "replication": rep,
+                            "success": False,
+                            "error": str(e),
+                        }
+                        # Add input parameters even for failed experiments
+                        for param_name, param_value in params.items():
+                            error_data[f"input_{param_name}"] = param_value
+                        individual_results.append(error_data)
+
+                    progress.advance(task)
+
+        # Calculate statistical summary
+        successful_results = [r for r in individual_results if r.get("success", False)]
+        statistical_summary = {
+            "total_experiments": len(individual_results),
+            "successful_experiments": len(successful_results),
+            "success_rate": len(successful_results) / len(individual_results) if individual_results else 0.0,
+            "n_samples": n_samples,
+            "replications_per_sample": self.config.replications_per_condition,
+        }
+
+        return ParameterSweepResult(
+            experiment_type=experiment_type,
+            parameter_name="lhs_sweep",
+            parameter_values=[f"sample_{i}" for i in range(n_samples)],
+            results_summary={"lhs_exploration": "wide_format_data"},
+            individual_results=individual_results,
+            statistical_summary=statistical_summary,
+            timestamp=datetime.now().isoformat(),
+        )
 
     @beartype
     def _run_parameter_sweep(
@@ -424,6 +512,7 @@ class PaperExperimentRunner:
         population_key: str = "pop_size",
         base_population: int | None = None,
         n_generations: int | None = None,
+        scenario_configs: dict[str, dict[str, Any]] | None = None,
     ) -> ParameterSweepResult:
         """
         Run a parameter sweep for a single parameter.
@@ -470,8 +559,12 @@ class PaperExperimentRunner:
 
                 for rep in range(self.config.replications_per_condition):
                     # Create experiment parameters
-                    params = base_params.copy()
-                    params[parameter_name] = param_value
+                    if scenario_configs and param_value in scenario_configs:
+                        # Use predefined scenario configuration
+                        params = scenario_configs[param_value].copy()
+                    else:
+                        params = base_params.copy()
+                        params[parameter_name] = param_value
 
                     if experiment_type == "layer1":
                         experiment_params = {
@@ -753,23 +846,21 @@ class PaperExperimentRunner:
             Complete experimental results summary suitable for paper inclusion
         """
         self.logger.info("🚀 Starting Comprehensive Paper Experiments")
-        self.logger.info(f"Target experiment types: {self.config.experiment_types}")
+        self.logger.info(f"Phase 1 validation: {self.config.run_validation}")
+        self.logger.info(f"Phase 2 LHS exploration: {self.config.run_lhs}")
         self.logger.info(f"Replications per condition: {self.config.replications_per_condition}")
 
-        # Run all parameter sweeps
+        # Run Phase 1: Validation scenarios
         all_results = []
 
-        if self.config.layer1_enabled:
-            layer1_results = self.run_layer1_parameter_sweeps()
-            all_results.extend(layer1_results)
+        if self.config.run_validation:
+            validation_results = self.run_validation_scenarios()
+            all_results.extend(validation_results)
 
-        if self.config.layer2_enabled:
-            layer2_results = self.run_layer2_parameter_sweeps()
-            all_results.extend(layer2_results)
-
-        if self.config.combined_enabled:
-            combined_results = self.run_combined_parameter_sweeps()
-            all_results.extend(combined_results)
+        # Run Phase 2: LHS exploration
+        if self.config.run_lhs:
+            lhs_results = self.run_lhs_sweeps()
+            all_results.extend(lhs_results)
 
         # Generate comprehensive summary
         summary = self._generate_comprehensive_summary(all_results)
@@ -850,43 +941,101 @@ class PaperExperimentRunner:
 
         for exp_type, type_results in results_by_type.items():
             type_findings = {
+                "validation_outcomes": {},
+                "lhs_exploration_summary": {},
                 "significant_parameter_effects": [],
-                "optimal_parameter_ranges": {},
-                "evolutionary_outcomes": {},
             }
 
             # Analyze each parameter sweep for significant effects
             for result in type_results:
                 param_name = result.parameter_name
-                param_effects = result.results_summary.get("parameter_effects", {})
 
-                if len(param_effects) >= 2:  # Need at least 2 conditions to compare
-                    # Simple effect size calculation
-                    if exp_type == "layer1":
-                        key_metric = "final_covariance_mean"
-                    elif exp_type == "layer2":
-                        key_metric = "final_diversity_mean"
-                    elif exp_type == "combined":
-                        key_metric = "gene_culture_correlation_mean"
-                    else:
-                        continue
+                if param_name == "lk_scenario":
+                    # Validation scenario analysis
+                    param_effects = result.results_summary.get("parameter_effects", {})
+                    validation_outcomes = {}
 
-                    metric_values = []
-                    for _param_val, stats in param_effects.items():
-                        if key_metric in stats:
-                            metric_values.append(stats[key_metric])
+                    for scenario, stats in param_effects.items():
+                        final_trait = stats.get("final_trait_mean", 0)
+                        final_covariance = stats.get("final_covariance_mean", 0)
 
-                    if len(metric_values) >= 2:
-                        effect_size = (max(metric_values) - min(metric_values)) / (np.std(metric_values) + 1e-8)
-                        if effect_size > 0.5:  # Threshold for "significant" effect
-                            type_findings["significant_parameter_effects"].append(
-                                {
-                                    "parameter": param_name,
-                                    "effect_size": float(effect_size),
-                                    "metric": key_metric,
-                                    "range": [float(min(metric_values)), float(max(metric_values))],
-                                }
+                        # Classify outcome based on theoretical expectations
+                        if scenario == "stasis":
+                            expected = "Near-zero trait and covariance"
+                            outcome = (
+                                "Expected" if abs(final_trait) < 2 and abs(final_covariance) < 0.5 else "Unexpected"
                             )
+                        elif scenario == "runaway":
+                            expected = "High trait and positive covariance"
+                            outcome = "Expected" if abs(final_trait) > 5 and final_covariance > 1 else "Unexpected"
+                        elif scenario == "costly_choice":
+                            expected = "Suppressed trait evolution"
+                            outcome = "Expected" if abs(final_trait) < 5 else "Unexpected"
+                        else:
+                            expected = "Unknown"
+                            outcome = "Unknown"
+
+                        validation_outcomes[scenario] = {
+                            "expected": expected,
+                            "outcome": outcome,
+                            "final_trait": final_trait,
+                            "final_covariance": final_covariance,
+                        }
+
+                    type_findings["validation_outcomes"] = validation_outcomes
+
+                elif param_name == "lhs_sweep":
+                    # LHS exploration summary
+                    successful_results = [r for r in result.individual_results if r.get("success", False)]
+
+                    if successful_results:
+                        # Calculate summary statistics for key metrics
+                        if exp_type == "layer2":
+                            diversity_values = [r.get("final_diversity", 0) for r in successful_results]
+                            type_findings["lhs_exploration_summary"] = {
+                                "n_successful_runs": len(successful_results),
+                                "diversity_range": [float(min(diversity_values)), float(max(diversity_values))],
+                                "diversity_mean": float(np.mean(diversity_values)),
+                            }
+                        elif exp_type == "combined":
+                            correlation_values = [r.get("gene_culture_correlation", 0) for r in successful_results]
+                            type_findings["lhs_exploration_summary"] = {
+                                "n_successful_runs": len(successful_results),
+                                "correlation_range": [float(min(correlation_values)), float(max(correlation_values))],
+                                "correlation_mean": float(np.mean(correlation_values)),
+                            }
+
+                else:
+                    # Traditional parameter sweep analysis (backward compatibility)
+                    param_effects = result.results_summary.get("parameter_effects", {})
+
+                    if len(param_effects) >= 2:  # Need at least 2 conditions to compare
+                        # Simple effect size calculation
+                        if exp_type == "layer1":
+                            key_metric = "final_covariance_mean"
+                        elif exp_type == "layer2":
+                            key_metric = "final_diversity_mean"
+                        elif exp_type == "combined":
+                            key_metric = "gene_culture_correlation_mean"
+                        else:
+                            continue
+
+                        metric_values = []
+                        for _, stats in param_effects.items():
+                            if key_metric in stats:
+                                metric_values.append(stats[key_metric])
+
+                        if len(metric_values) >= 2:
+                            effect_size = (max(metric_values) - min(metric_values)) / (np.std(metric_values) + 1e-8)
+                            if effect_size > 0.5:  # Threshold for "significant" effect
+                                type_findings["significant_parameter_effects"].append(
+                                    {
+                                        "parameter": param_name,
+                                        "effect_size": float(effect_size),
+                                        "metric": key_metric,
+                                        "range": [float(min(metric_values)), float(max(metric_values))],
+                                    }
+                                )
 
             findings[exp_type] = type_findings
 
@@ -897,53 +1046,84 @@ class PaperExperimentRunner:
         paper_data = {}
 
         for exp_type, type_results in results_by_type.items():
-            # Create summary table for this experiment type
-            table_data = []
-
             for result in type_results:
                 param_name = result.parameter_name
-                param_effects = result.results_summary.get("parameter_effects", {})
 
-                for param_val, stats in param_effects.items():
-                    row = {
-                        "parameter": param_name,
-                        "value": param_val,
-                        "n_replications": stats.get("n_replications", 0),
-                        "success_rate": stats.get("success_rate", 0.0),
-                    }
+                if param_name == "lhs_sweep":
+                    # Handle LHS sweep data (wide format)
+                    lhs_data = []
+                    for row in result.individual_results:
+                        if row.get("success", False):
+                            lhs_data.append(row)
 
-                    # Add experiment-specific metrics
-                    if exp_type == "layer1":
-                        row.update(
-                            {
-                                "final_trait_mean": stats.get("final_trait_mean"),
-                                "final_trait_std": stats.get("final_trait_std"),
-                                "final_covariance_mean": stats.get("final_covariance_mean"),
-                                "final_covariance_std": stats.get("final_covariance_std"),
-                            }
-                        )
-                    elif exp_type == "layer2":
-                        row.update(
-                            {
-                                "final_diversity_mean": stats.get("final_diversity_mean"),
-                                "final_diversity_std": stats.get("final_diversity_std"),
-                                "total_events_mean": stats.get("total_events_mean"),
-                                "total_events_std": stats.get("total_events_std"),
-                            }
-                        )
-                    elif exp_type == "combined":
-                        row.update(
-                            {
-                                "gene_culture_correlation_mean": stats.get("gene_culture_correlation_mean"),
-                                "gene_culture_correlation_std": stats.get("gene_culture_correlation_std"),
-                                "interaction_strength_mean": stats.get("interaction_strength_mean"),
-                                "interaction_strength_std": stats.get("interaction_strength_std"),
-                            }
-                        )
+                    if lhs_data:
+                        paper_data[f"{exp_type}_lhs_data"] = lhs_data
 
-                    table_data.append(row)
+                elif param_name == "lk_scenario":
+                    # Handle validation scenario data
+                    validation_data = []
+                    param_effects = result.results_summary.get("parameter_effects", {})
 
-            paper_data[f"{exp_type}_summary_table"] = table_data
+                    for scenario_name, stats in param_effects.items():
+                        row = {
+                            "scenario": scenario_name,
+                            "n_replications": stats.get("n_replications", 0),
+                            "success_rate": stats.get("success_rate", 0.0),
+                            "final_trait_mean": stats.get("final_trait_mean"),
+                            "final_trait_std": stats.get("final_trait_std"),
+                            "final_covariance_mean": stats.get("final_covariance_mean"),
+                            "final_covariance_std": stats.get("final_covariance_std"),
+                        }
+                        validation_data.append(row)
+
+                    paper_data["validation_scenarios"] = validation_data
+
+                else:
+                    # Handle traditional parameter sweep data (backward compatibility)
+                    table_data = []
+                    param_effects = result.results_summary.get("parameter_effects", {})
+
+                    for param_val, stats in param_effects.items():
+                        row = {
+                            "parameter": param_name,
+                            "value": param_val,
+                            "n_replications": stats.get("n_replications", 0),
+                            "success_rate": stats.get("success_rate", 0.0),
+                        }
+
+                        # Add experiment-specific metrics
+                        if exp_type == "layer1":
+                            row.update(
+                                {
+                                    "final_trait_mean": stats.get("final_trait_mean"),
+                                    "final_trait_std": stats.get("final_trait_std"),
+                                    "final_covariance_mean": stats.get("final_covariance_mean"),
+                                    "final_covariance_std": stats.get("final_covariance_std"),
+                                }
+                            )
+                        elif exp_type == "layer2":
+                            row.update(
+                                {
+                                    "final_diversity_mean": stats.get("final_diversity_mean"),
+                                    "final_diversity_std": stats.get("final_diversity_std"),
+                                    "total_events_mean": stats.get("total_events_mean"),
+                                    "total_events_std": stats.get("total_events_std"),
+                                }
+                            )
+                        elif exp_type == "combined":
+                            row.update(
+                                {
+                                    "gene_culture_correlation_mean": stats.get("gene_culture_correlation_mean"),
+                                    "gene_culture_correlation_std": stats.get("gene_culture_correlation_std"),
+                                    "interaction_strength_mean": stats.get("interaction_strength_mean"),
+                                    "interaction_strength_std": stats.get("interaction_strength_std"),
+                                }
+                            )
+
+                        table_data.append(row)
+
+                    if table_data:
+                        paper_data[f"{exp_type}_{param_name}_table"] = table_data
 
         return paper_data
 
@@ -1095,11 +1275,14 @@ with comprehensive parameter sweeps designed for research publication.
 def run_paper_experiments(
     output_dir: str = "experiments/results/paper_data",
     quick_test: bool = False,
-    experiment_types: list[str] | None = None,
+    run_validation: bool = True,
+    run_lhs: bool = False,
+    lhs_samples: int = 200,
     replications: int = 10,
+    n_generations: int = 5000,
 ) -> dict[str, Any]:
     """
-    Run comprehensive paper experiments with systematic parameter sweeps.
+    Run multi-phase paper experiments with validation and LHS exploration.
 
     Parameters
     ----------
@@ -1107,10 +1290,16 @@ def run_paper_experiments(
         Directory to save experimental results
     quick_test : bool
         Run reduced scope experiments for testing
-    experiment_types : list[str] | None
-        List of experiment types to run, defaults to all
+    run_validation : bool
+        Run Phase 1 validation scenarios
+    run_lhs : bool
+        Run Phase 2 Latin Hypercube Sampling sweeps
+    lhs_samples : int
+        Number of LHS parameter combinations
     replications : int
         Number of replications per parameter condition
+    n_generations : int
+        Number of generations per simulation
 
     Returns
     -------
@@ -1119,20 +1308,23 @@ def run_paper_experiments(
 
     Examples
     --------
-    >>> # Run full paper experiments
+    >>> # Run validation only (default)
     >>> results = run_paper_experiments()
     >>>
-    >>> # Quick test run
-    >>> results = run_paper_experiments(quick_test=True)
+    >>> # Run full LHS exploration
+    >>> results = run_paper_experiments(run_lhs=True)
     >>>
-    >>> # Layer1 experiments only
-    >>> results = run_paper_experiments(experiment_types=["layer1"])
+    >>> # Quick test of LHS pipeline
+    >>> results = run_paper_experiments(quick_test=True, run_lhs=True)
     """
     config = PaperExperimentConfig(
         output_dir=output_dir,
         quick_test=quick_test,
-        experiment_types=experiment_types or ["layer1", "layer2", "combined"],
+        run_validation=run_validation,
+        run_lhs=run_lhs,
+        lhs_samples=lhs_samples,
         replications_per_condition=replications,
+        n_generations=n_generations,
     )
 
     runner = PaperExperimentRunner(config)
@@ -1142,14 +1334,14 @@ def run_paper_experiments(
 def main() -> None:
     """Main CLI entry point for paper experiments."""
     parser = argparse.ArgumentParser(
-        description="Comprehensive parameter sweep experiments for research publication",
+        description="Multi-phase experimental protocol for research publication",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   %(prog)s --output experiments/results/paper_data
   %(prog)s --quick-test
-  %(prog)s --layer1-only --replications 5
-  %(prog)s --combined-only --replications 15
+  %(prog)s --run-lhs --lhs-samples 100
+  %(prog)s --no-validation --run-lhs
         """,
     )
 
@@ -1157,31 +1349,37 @@ Examples:
         "--output", default="experiments/results/paper_data", help="Output directory for experimental results"
     )
     parser.add_argument("--quick-test", action="store_true", help="Run reduced scope experiments for testing")
-    parser.add_argument("--layer1-only", action="store_true", help="Run only Layer1 (genetic) experiments")
-    parser.add_argument("--layer2-only", action="store_true", help="Run only Layer2 (cultural) experiments")
-    parser.add_argument("--combined-only", action="store_true", help="Run only Combined (gene-culture) experiments")
+    parser.add_argument("--no-validation", action="store_true", help="Skip Phase 1 validation scenarios")
+    parser.add_argument("--run-lhs", action="store_true", help="Run Phase 2 Latin Hypercube Sampling sweeps")
+    parser.add_argument(
+        "--lhs-samples", type=int, default=200, help="Number of LHS parameter combinations (default: 200)"
+    )
     parser.add_argument(
         "--replications", type=int, default=10, help="Number of replications per parameter condition (default: 10)"
+    )
+    parser.add_argument(
+        "--generations", type=int, default=5000, help="Number of generations per simulation (default: 5000)"
     )
 
     args = parser.parse_args()
 
-    # Determine experiment types
-    experiment_types = ["layer1", "layer2", "combined"]
-    if args.layer1_only:
-        experiment_types = ["layer1"]
-    elif args.layer2_only:
-        experiment_types = ["layer2"]
-    elif args.combined_only:
-        experiment_types = ["combined"]
+    # Configure phases
+    run_validation = not args.no_validation
+    run_lhs = args.run_lhs
 
     try:
-        results = run_paper_experiments(
+        config = PaperExperimentConfig(
             output_dir=args.output,
             quick_test=args.quick_test,
-            experiment_types=experiment_types,
-            replications=args.replications,
+            run_validation=run_validation,
+            run_lhs=run_lhs,
+            lhs_samples=args.lhs_samples,
+            replications_per_condition=args.replications,
+            n_generations=args.generations,
         )
+
+        runner = PaperExperimentRunner(config)
+        results = runner.run_comprehensive_experiments()
 
         # Display final summary
         metadata = results.get("experiment_metadata", {})
