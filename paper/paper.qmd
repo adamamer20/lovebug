@@ -222,6 +222,7 @@ $$P_{\text{effective}} = w_g \cdot P_{\text{genetic}} + w_c \cdot P_{\text{cultu
 $$P_{\text{effective}} = \begin{cases}
 P_{\text{genetic}} & \text{if } \text{rand}() < w_g \\
 P_{\text{cultural}} & \text{otherwise}
+
 \end{cases}$$
 
 **Competitive Selection** ([`LayerActivationConfig.blending_mode = "competitive"`](../src/lovebug/layer_activation.py:185)):
