@@ -103,6 +103,7 @@ class ValidatedPaperConfig:
     output_dir: str = "experiments/results/paper_data"
     quick_test: bool = False
     run_validation: bool = True
+    run_empirical: bool = False
     run_lhs: bool = False
     lhs_samples: int = 200
     replications_per_condition: int = 10
@@ -148,6 +149,7 @@ class ValidatedPaperRunner:
         logger.info(f"Output directory: {self.output_dir}")
         logger.info(f"Quick test mode: {self.config.quick_test}")
         logger.info(f"Phase 1 validation: {self.config.run_validation}")
+        logger.info(f"Empirical replications: {self.config.run_empirical}")
         logger.info(f"Phase 2 LHS exploration: {self.config.run_lhs}")
 
         if self.config.quick_test:
@@ -167,6 +169,61 @@ class ValidatedPaperRunner:
         )
 
         logger.info(f"Logging initialized - log file: {log_file}")
+
+    @beartype
+    def run_empirical_replications(self) -> list[dict[str, Any]]:
+        """
+        Run empirical replications of key experiments from the literature.
+
+        Returns
+        -------
+        list[dict[str, Any]]
+            List of empirical replication results
+        """
+        logger.info("📚 Running empirical literature replications")
+
+        replication_results = []
+
+        try:
+            # Import replication modules
+            from experiments.replications.dugatkin_replication import DugatkinReplication
+            from experiments.replications.rodd_replication import RoddReplication
+            from experiments.replications.witte_replication import WitteReplication
+
+            # Run Dugatkin mate-choice copying replication
+            logger.info("🐠 Running Dugatkin mate-choice copying replication")
+            dugatkin = DugatkinReplication(population_size=20, seed=42)
+            dugatkin_result = dugatkin.run_experiment()
+            replication_results.append(dugatkin_result)
+            logger.info(f"Dugatkin replication {'SUCCESS' if dugatkin_result.get('success', False) else 'FAILED'}")
+
+            # Run Witte cultural transmission replication
+            logger.info("🐟 Running Witte cultural transmission replication")
+            pop_size = 100 if not self.config.quick_test else 50
+            generations = 200 if not self.config.quick_test else 50
+            witte = WitteReplication(population_size=pop_size, n_generations=generations, seed=42)
+            witte_result = witte.run_experiment()
+            replication_results.append(witte_result)
+            logger.info(f"Witte replication {'SUCCESS' if witte_result.get('success', False) else 'FAILED'}")
+
+            # Run Rodd sensory bias replication
+            logger.info("🐠 Running Rodd sensory bias replication")
+            pop_size = 1000 if not self.config.quick_test else 200
+            generations = 500 if not self.config.quick_test else 100
+            rodd = RoddReplication(population_size=pop_size, n_generations=generations, seed=42)
+            rodd_result = rodd.run_experiment()
+            replication_results.append(rodd_result)
+            logger.info(f"Rodd replication {'SUCCESS' if rodd_result.get('success', False) else 'FAILED'}")
+
+        except ImportError as e:
+            logger.error(f"Could not import replication modules: {e}")
+            replication_results.append({"error": f"Import failed: {e}"})
+        except Exception as e:
+            logger.error(f"Empirical replication failed: {e}")
+            replication_results.append({"error": f"Replication failed: {e}"})
+
+        logger.info(f"Completed {len(replication_results)} empirical replications")
+        return replication_results
 
     @beartype
     def run_lk_validation_scenarios(self) -> list[LoveBugConfig]:
@@ -215,6 +272,7 @@ class ValidatedPaperRunner:
                         horizontal_transmission_rate=0.1,
                         oblique_transmission_rate=0.1,
                         local_learning_radius=5,
+                        memory_update_strength=1.0,
                     ),
                     blending=LayerBlendingParams(blend_mode="weighted", blend_weight=1.0),
                     perceptual=PerceptualParams(),
@@ -251,6 +309,7 @@ class ValidatedPaperRunner:
                         horizontal_transmission_rate=0.1,
                         oblique_transmission_rate=0.1,
                         local_learning_radius=5,
+                        memory_update_strength=1.0,
                     ),
                     blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.7),
                     perceptual=PerceptualParams(),
@@ -287,6 +346,7 @@ class ValidatedPaperRunner:
                         horizontal_transmission_rate=0.1,
                         oblique_transmission_rate=0.1,
                         local_learning_radius=5,
+                        memory_update_strength=1.0,
                     ),
                     blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
                     perceptual=PerceptualParams(),
@@ -357,6 +417,7 @@ class ValidatedPaperRunner:
                     horizontal_transmission_rate=0.1,
                     oblique_transmission_rate=0.1,
                     local_learning_radius=5,
+                    memory_update_strength=1.0,
                 ),
                 blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
                 perceptual=PerceptualParams(),
@@ -417,6 +478,7 @@ class ValidatedPaperRunner:
                             horizontal_transmission_rate=0.1,
                             oblique_transmission_rate=0.1,
                             local_learning_radius=5,
+                            memory_update_strength=1.0,
                         ),
                         blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
                         perceptual=PerceptualParams(),
@@ -483,6 +545,7 @@ class ValidatedPaperRunner:
                         horizontal_transmission_rate=0.1,
                         oblique_transmission_rate=0.1,
                         local_learning_radius=5,
+                        memory_update_strength=1.0,
                     ),
                     blending=LayerBlendingParams(
                         blend_mode="weighted",
@@ -554,6 +617,7 @@ class ValidatedPaperRunner:
                     horizontal_transmission_rate=0.1,
                     oblique_transmission_rate=0.1,
                     local_learning_radius=5,
+                    memory_update_strength=1.0,
                 ),
                 blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
                 perceptual=PerceptualParams(),
@@ -625,6 +689,7 @@ class ValidatedPaperRunner:
                     horizontal_transmission_rate=0.1,
                     oblique_transmission_rate=0.1,
                     local_learning_radius=5,
+                    memory_update_strength=1.0,
                 ),
                 blending=LayerBlendingParams(
                     blend_mode="weighted",
@@ -702,6 +767,7 @@ class ValidatedPaperRunner:
         """
         logger.info("🚀 Starting Comprehensive Validated Paper Experiments")
         logger.info(f"Phase 1 validation: {self.config.run_validation}")
+        logger.info(f"Empirical replications: {self.config.run_empirical}")
         logger.info(f"Phase 2 LHS exploration: {self.config.run_lhs}")
 
         # Phase 1: Validation scenarios
@@ -712,6 +778,17 @@ class ValidatedPaperRunner:
             lk_configs = self.run_lk_validation_scenarios()
             lk_results = self.execute_experiments(lk_configs)
             self.all_results.extend(lk_results)
+
+        # Empirical Replications (can run independently)
+        if self.config.run_empirical:
+            logger.info("📚 Running empirical literature replications")
+            empirical_results = self.run_empirical_replications()
+            # Save empirical results separately since they have different structure
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            empirical_file = self.output_dir / f"empirical_replications_{timestamp}.json"
+            with open(empirical_file, "w") as f:
+                json.dump(empirical_results, f, indent=2, default=str)
+            logger.info(f"📚 Empirical replication results saved: {empirical_file}")
 
             # Cultural experiments (if not quick test)
             if not self.config.quick_test:
@@ -830,6 +907,7 @@ def run_validated_paper_experiments(
     output_dir: str = "experiments/results/paper_data",
     quick_test: bool = False,
     run_validation: bool = True,
+    run_empirical: bool = False,
     run_lhs: bool = False,
     lhs_samples: int = 200,
     replications: int = 10,
@@ -864,6 +942,7 @@ def run_validated_paper_experiments(
         output_dir=output_dir,
         quick_test=quick_test,
         run_validation=run_validation,
+        run_empirical=run_empirical,
         run_lhs=run_lhs,
         lhs_samples=lhs_samples,
         replications_per_condition=replications,
@@ -883,8 +962,10 @@ def main() -> None:
 Examples:
   %(prog)s --output experiments/results/paper_data
   %(prog)s --quick-test  # Fast validation with safe parameters
+  %(prog)s --run-empirical  # Run empirical literature replications
   %(prog)s --run-lhs --lhs-samples 100  # Parameter exploration
   %(prog)s --no-validation --run-lhs  # Skip validation, run LHS only
+  %(prog)s --run-empirical --run-lhs  # Full pipeline with replications
 
 Features of the validated system:
   • Type-safe Pydantic models prevent parameter errors
@@ -900,6 +981,7 @@ Features of the validated system:
     )
     parser.add_argument("--quick-test", action="store_true", help="Run reduced scope experiments for testing")
     parser.add_argument("--no-validation", action="store_true", help="Skip Phase 1 validation scenarios")
+    parser.add_argument("--run-empirical", action="store_true", help="Run empirical literature replications")
     parser.add_argument("--run-lhs", action="store_true", help="Run Phase 2 Latin Hypercube Sampling exploration")
     parser.add_argument("--lhs-samples", type=int, default=200, help="Number of LHS parameter combinations")
     parser.add_argument("--replications", type=int, default=10, help="Number of replications per condition")
@@ -918,6 +1000,7 @@ Features of the validated system:
             output_dir=args.output,
             quick_test=args.quick_test,
             run_validation=not args.no_validation,
+            run_empirical=args.run_empirical,
             run_lhs=args.run_lhs,
             lhs_samples=args.lhs_samples,
             replications=args.replications,
