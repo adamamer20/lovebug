@@ -101,12 +101,6 @@ RUN apt-get update && apt-get install -y \
 # Install Ollama
 RUN curl -fsSL https://ollama.com/install.sh | sh
 
-# Install Node.js (using NodeSource) and then globally install Claude Code CLI
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
- && apt-get install -y nodejs \
- && npm install -g @anthropic-ai/claude-code \
- && rm -rf /var/lib/apt/lists/*
-
 # Copy uv from deps stage
 COPY --from=deps /root/.local/bin/uv /usr/local/bin/uv
 
@@ -130,8 +124,12 @@ RUN groupadd -g 999 docker \
 USER dev
 WORKDIR /workspace
 
-# Note: Source code is mounted at runtime by VS Code, not copied into the image
-# This prevents layer invalidation when code changes
+# Tell npm to install global packages into the dev home directory
+ENV NPM_CONFIG_PREFIX=/home/dev/.local
+ENV PATH=/home/dev/.local/bin:$PATH
+
+# Install Claude Code CLI into the dev user’s local bin
+RUN npm install -g @anthropic-ai/claude-code
 
 # Set fish as default shell
 CMD ["/usr/bin/fish", "-l"]
