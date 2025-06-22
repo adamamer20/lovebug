@@ -59,7 +59,7 @@ def hamming_similarity(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     3. Performs operations, then converts result back to NumPy
     4. Total overhead: NumPy → Polars → operations → NumPy conversion
 
-    REPLACEMENT: Integrated directly into _courtship_optimized() as pure Polars expressions
+    REPLACEMENT: Integrated directly into _courtship() as pure Polars expressions
     SPEEDUP: ~4x improvement in courtship performance
 
     This function is kept for backward compatibility but not used in optimized path.
@@ -205,7 +205,7 @@ class LoveAgents(AgentSetPolars):
             self._update_effective_preferences()
 
         # Run main evolutionary processes using optimized courtship
-        offspring_df, mating_success_update = self._courtship_optimized()
+        offspring_df, mating_success_update = self._courtship()
 
         # Cultural learning step
         if self.layer_config.cultural_enabled:
@@ -340,7 +340,7 @@ class LoveAgents(AgentSetPolars):
             return self.agents["effective_preference"].to_numpy().astype(np.uint8)
 
     # ── Vectorised sub‑routines ────────────────────────────────────────────
-    def _courtship_optimized(self) -> tuple[pl.DataFrame | None, pl.Expr | None]:
+    def _courtship(self) -> tuple[pl.DataFrame | None, pl.Expr | None]:
         """
         OPTIMIZED courtship with 4x speedup from eliminating NumPy↔Polars conversions.
 
