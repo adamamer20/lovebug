@@ -40,12 +40,12 @@ from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, T
 from rich.table import Table
 from scipy.stats import qmc
 
-from experiments.models import CulturalExperimentResult, GeneticExperimentResult, IntegratedExperimentResult
-from experiments.runner import run_single_experiment
-
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from experiments.models import CulturalExperimentResult, GeneticExperimentResult, IntegratedExperimentResult
+from experiments.runner import run_single_experiment
 
 
 # Patch Mesa-Frames to handle mask synchronization issues
@@ -222,7 +222,7 @@ class PaperExperimentRunner:
         """
         self.logger.info("🧬 Validating against Lande-Kirkpatrick theory")
 
-        base_population = 2000 if not self.config.quick_test else 300
+        base_population = 2000 if not self.config.quick_test else 100
         generations = self.config.n_generations
 
         # Define validation scenarios with expected outcomes
