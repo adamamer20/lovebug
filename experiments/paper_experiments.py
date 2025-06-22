@@ -30,7 +30,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import polars as pl
 from beartype import beartype
@@ -260,7 +260,7 @@ class ValidatedPaperRunner:
         )
 
         # Generate validated configurations
-        base_population = 1000 if not self.config.quick_test else 200
+        base_population = 2000 if not self.config.quick_test else 200
         carrying_capacity = 2000 if not self.config.quick_test else 200
 
         configurations = []
@@ -292,6 +292,7 @@ class ValidatedPaperRunner:
         logger.info("🎭 Generating cultural evolution experiments")
 
         base_population = 1000 if not self.config.quick_test else 200
+        carrying_capacity = 1000 if not self.config.quick_test else 200
 
         configurations = []
 
@@ -306,7 +307,7 @@ class ValidatedPaperRunner:
                         name=f"cultural_{network_type}_tx{transmission_rate:.1f}_rep_{rep}",
                         population_size=base_population,
                         n_generations=self.config.n_generations,
-                        carrying_capacity=base_population * 2,  # Safe default
+                        carrying_capacity=carrying_capacity,
                         network_type=network_type,  # type: ignore[arg-type]
                         horizontal_transmission_rate=transmission_rate,
                         oblique_transmission_rate=transmission_rate * 0.8,
@@ -333,6 +334,7 @@ class ValidatedPaperRunner:
         logger.info("🧬🎭 Generating combined evolution experiments")
 
         base_population = 1000 if not self.config.quick_test else 200
+        carrying_capacity = 1000 if not self.config.quick_test else 200
 
         configurations = []
 
@@ -353,7 +355,7 @@ class ValidatedPaperRunner:
                     name=f"combined_g{genetic_weight:.1f}_c{cultural_weight:.1f}_rep_{rep}",
                     population_size=base_population,
                     n_generations=self.config.n_generations,
-                    carrying_capacity=base_population * 2,  # Safe default
+                    carrying_capacity=carrying_capacity,
                     genetic_enabled=True,
                     cultural_enabled=True,
                     genetic_weight=genetic_weight,
@@ -378,6 +380,157 @@ class ValidatedPaperRunner:
                 configurations.append(config)
 
         logger.info(f"Generated {len(configurations)} validated combined configurations")
+        return configurations
+
+    @beartype
+    def run_cultural_lhs_exploration(self) -> list[CulturalExperimentConfig]:
+        """
+        Generate Latin Hypercube Sampling exploration for cultural-only parameters.
+
+        Returns
+        -------
+        list[CulturalExperimentConfig]
+            List of validated cultural experiment configurations for LHS exploration
+        """
+        logger.info("🎭📊 Generating cultural LHS parameter exploration")
+
+        # Define parameter ranges for cultural exploration
+        param_ranges = {
+            "innovation_rate": (0.01, 0.3),
+            "horizontal_transmission_rate": (0.05, 0.8),
+            "oblique_transmission_rate": (0.01, 0.6),
+            "network_connectivity": (0.01, 0.5),
+            "cultural_memory_size": (5, 20),
+            "local_learning_radius": (2, 10),
+        }
+
+        # Generate LHS samples
+        sampler = qmc.LatinHypercube(d=len(param_ranges))
+        lhs_samples = sampler.random(n=self.config.lhs_samples)
+
+        # Scale samples to parameter ranges
+        param_names = list(param_ranges.keys())
+        scaled_samples = qmc.scale(
+            lhs_samples,
+            [param_ranges[name][0] for name in param_names],
+            [param_ranges[name][1] for name in param_names],
+        )
+
+        # Generate validated configurations
+        base_population = 1000 if not self.config.quick_test else 200
+        carrying_capacity = 1000 if not self.config.quick_test else 200
+
+        configurations = []
+        network_types: list[Literal["scale_free", "small_world", "random", "lattice"]] = [
+            "scale_free",
+            "small_world",
+            "random",
+        ]
+
+        for i, sample in enumerate(scaled_samples):
+            param_dict = dict(zip(param_names, sample))
+
+            # Convert integer parameters
+            param_dict["cultural_memory_size"] = int(param_dict["cultural_memory_size"])
+            param_dict["local_learning_radius"] = int(param_dict["local_learning_radius"])
+
+            # Cycle through network types
+            network_type = network_types[i % len(network_types)]
+
+            config = CulturalExperimentConfig(
+                name=f"cultural_lhs_{i:04d}",
+                population_size=base_population,
+                n_generations=self.config.n_generations,
+                carrying_capacity=carrying_capacity,
+                network_type=network_type,
+                **param_dict,
+            )
+            configurations.append(config)
+
+        logger.info(f"Generated {len(configurations)} validated cultural LHS configurations")
+        return configurations
+
+    @beartype
+    def run_combined_lhs_exploration(self) -> list[CombinedExperimentConfig]:
+        """
+        Generate Latin Hypercube Sampling exploration for combined genetic+cultural parameters.
+
+        Returns
+        -------
+        list[CombinedExperimentConfig]
+            List of validated combined experiment configurations for LHS exploration
+        """
+        logger.info("🧬🎭📊 Generating combined LHS parameter exploration")
+
+        # Define parameter ranges for combined exploration
+        param_ranges = {
+            "genetic_weight": (0.0, 1.0),
+            "h2_trait": (0.1, 0.9),
+            "h2_preference": (0.1, 0.9),
+            "genetic_correlation": (-0.5, 0.8),
+            "selection_strength": (0.01, 0.5),
+            "preference_cost": (0.0, 0.3),
+            "mutation_variance": (0.001, 0.05),
+            "innovation_rate": (0.01, 0.3),
+            "horizontal_transmission_rate": (0.05, 0.8),
+            "network_connectivity": (0.01, 0.3),
+            "cultural_memory_size": (5, 15),
+        }
+
+        # Generate LHS samples
+        sampler = qmc.LatinHypercube(d=len(param_ranges))
+        lhs_samples = sampler.random(n=self.config.lhs_samples)
+
+        # Scale samples to parameter ranges
+        param_names = list(param_ranges.keys())
+        scaled_samples = qmc.scale(
+            lhs_samples,
+            [param_ranges[name][0] for name in param_names],
+            [param_ranges[name][1] for name in param_names],
+        )
+
+        # Generate validated configurations
+        base_population = 1000 if not self.config.quick_test else 200
+        carrying_capacity = 1000 if not self.config.quick_test else 200
+
+        configurations = []
+        network_types: list[Literal["scale_free", "small_world", "random", "lattice"]] = [
+            "scale_free",
+            "small_world",
+            "random",
+        ]
+
+        for i, sample in enumerate(scaled_samples):
+            param_dict = dict(zip(param_names, sample))
+
+            # Convert integer parameters
+            param_dict["cultural_memory_size"] = int(param_dict["cultural_memory_size"])
+
+            # Calculate cultural weight (complementary to genetic weight)
+            genetic_weight = param_dict.pop("genetic_weight")
+            cultural_weight = 1.0 - genetic_weight
+
+            # Cycle through network types
+            network_type = network_types[i % len(network_types)]
+
+            config = CombinedExperimentConfig(
+                name=f"combined_lhs_{i:04d}",
+                population_size=base_population,
+                n_generations=self.config.n_generations,
+                carrying_capacity=carrying_capacity,
+                genetic_enabled=True,
+                cultural_enabled=True,
+                genetic_weight=genetic_weight,
+                cultural_weight=cultural_weight,
+                normalize_weights=True,
+                network_type=network_type,
+                oblique_transmission_rate=param_dict["horizontal_transmission_rate"] * 0.7,
+                local_learning_radius=5,  # Fixed reasonable default
+                **param_dict,
+            )
+            configurations.append(config)
+
+        logger.info(f"Generated {len(configurations)} validated combined LHS configurations")
         return configurations
 
     @beartype
@@ -465,9 +618,22 @@ class ValidatedPaperRunner:
         # Phase 2: LHS exploration
         if self.config.run_lhs:
             logger.info("📊 Phase 2: Running LHS parameter exploration")
+
+            # Genetic-only LHS exploration
             lhs_configs = self.run_lhs_parameter_exploration()
             lhs_results = self.execute_experiments(lhs_configs)
             self.all_results.extend(lhs_results)
+
+            # Cultural-only LHS exploration
+            if not self.config.quick_test:
+                cultural_lhs_configs = self.run_cultural_lhs_exploration()
+                cultural_lhs_results = self.execute_experiments(cultural_lhs_configs)
+                self.all_results.extend(cultural_lhs_results)
+
+                # Combined genetic+cultural LHS exploration
+                combined_lhs_configs = self.run_combined_lhs_exploration()
+                combined_lhs_results = self.execute_experiments(combined_lhs_configs)
+                self.all_results.extend(combined_lhs_results)
 
         # Generate summary
         summary = self._generate_summary()

@@ -87,11 +87,14 @@ class LoveAgents(AgentSetPolars):
         # Initialize genomes
         genomes = np.random.randint(0, 2**32, size=n, dtype=np.uint32)
 
+        # Initialize with stable age distribution instead of synchronized generations
+        max_age = model.genetic_params.max_age if model.genetic_params else 100
+        ages = np.random.randint(0, max_age, size=n, dtype=np.uint16)
         # Create base dataframe with genetic traits
         df_data = {
             "genome": genomes,
             "energy": pl.Series([10.0] * n, dtype=pl.Float32),
-            "age": pl.Series([0] * n, dtype=pl.UInt16),
+            "age": pl.Series(ages, dtype=pl.UInt16),
             "mating_success": pl.Series([0] * n, dtype=pl.UInt16),  # Track in DataFrame
         }
 
