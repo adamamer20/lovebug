@@ -1,72 +1,150 @@
-# Adam's Copilot Instruction File 🌟
+# CLAUDE.md
 
-*Generate crystal‑clear, Pythonic, fully‑typed, test‑first code that is easy to swap, automate, and scale — never monolithic, always DRY.*
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## 1 · Philosophy & General Principles
+# LoveBug: Agent-Based Evolutionary Simulation
 
-* ✨ **Clarity > cleverness.** Code should feel like readable English; avoid opaque one‑liners unless they are unequivocally clearer.
-* 🧑‍💻 *Single‑type per variable* — reassignment allowed only if the type remains identical.
-* 📚 Use **PEP 484/695** type hints everywhere. Provide `typing.overload` stubs when an argument can accept multiple types.
-* 🔄 **DRY**, atomic, modular, loosely coupled. Each function does one thing well and can be replaced without touching distant code.
-* 🌐 Be *agnostic*: no hard‑coding of paths, URLs, or GPUs counts; infer from environment variables or parameters.
-* 📝 Inline comments ≤ 80 chars answer **why**, not **what**.
+LoveBug is a research-oriented agent-based model for studying sexual selection and cultural-genetic coevolution. Built with Mesa-Frames and Polars for high-performance vectorized operations on large populations (100k+ individuals).
 
-## 2 · Environment & Tooling
+## Project Architecture
 
-* 📦 Manage dependencies with **astral‑sh/uv** (`uv pip install …`). Let **uv** handle pinning & lockfile; do **not** craft `requirements.txt`.
-* 🗄️ Config & secrets: load from `.env` via **python‑dotenv** when convenient, or use keyed sections in `pyproject.toml` for longer‑term settings.
-* 🧹 Enforce style with **ruff**. Ship a ready‑to‑use **pre‑commit** config that runs `ruff check`, `ruff format`, `pytest`, and type‑checks.
+### Core Components
 
-## 3 · Testing & Continuous Integration
+**Primary Model**: `src/lovebug/unified_mesa_model.py` - Enhanced Mesa-Frames model supporting:
+- Genetic-only evolution (Layer 1)
+- Cultural learning mechanisms (Layer 2)
+- Combined genetic-cultural evolution
+- Vectorized operations using Polars DataFrames
 
-* 🧪 **TDD:** start with failing **pytest** cases, then implement until they pass.
-* ⏫ Use **pre‑commit.ci** for automatic PR lint fixes.
+**Configuration System**:
+- `LayerActivationConfig`: Controls which evolutionary layers are active
+- `Layer2Config`: Cultural learning parameters (transmission rates, network topology, memory)
+- `LandeKirkpatrickParams`: Classic sexual selection model parameters
 
-## 4 · Data, Performance & Visuals
+**Key Architecture Patterns**:
+- All agents stored in single Polars DataFrame for vectorized operations
+- 32-bit genome encoding: `[display_traits][mate_preferences][behavior_threshold]`
+- Bit manipulation for efficient genetic operations using numpy uint32
+- Mesa-Frames AgentSetPolars for agent management
 
-* 📈 Prefer **polars** over pandas; exploit lazy queries, expression API, and `collect()` only when needed.
-* 🧮 Vectorise heavy maths with **polars** or **numpy**; benchmark loops before accepting them.
-* 📊 Include simple **matplotlib** plots when visuals clarify behaviour; wrap them in a reusable `plot_*` helper.
+### Project Structure
 
-## 5 · Documentation & Structure
+```
+src/lovebug/
+├── unified_mesa_model.py      # Main model implementation
+├── layer2/                    # Cultural evolution components
+│   ├── config.py             # Layer2Config class
+│   ├── cultural_layer.py     # Cultural learning algorithms
+│   └── network.py           # Social network topologies
+├── layer_activation.py       # Layer activation configuration
+└── visualization/            # Plotting and data visualization
 
-* 🏛️ Explicit `__all__` exports define the public API; everything else is private.
-* 📄 **NumPy‑style docstrings** with
+experiments/                  # Research experiment scripts
+├── paper_experiments.py     # Systematic parameter sweeps
+├── runner.py               # Experiment execution framework
+└── models.py              # Data models for results
 
-  * **Parameters**
-  * **Returns**
-  * **Raises**
-  * **Examples**
-* 🧾 Keep examples compact, runnable (`pytest -q`), and GPU‑aware when relevant.
-* 🪄 For CLI interfaces, provide a `--help` section using `argparse` & rich‑style formatting.
-* All imports should be at the top of the file
+notebooks/                   # Interactive research notebooks
+├── Lande-Kirkpatrick.py    # Classic sexual selection model
+└── Layer2-Social-Learning.py # Cultural transmission demo
+```
 
-## 6 · Safety & Best Practices
+## Development Commands
 
-* 🚫 No `eval`/`exec`. Build SQL with SQLAlchemy Core or parameterised queries.
-* 🔑 Secrets via env vars; never commit tokens.
-* 📝 Add `logging` (level INFO) with module‑level logger; make log format configurable via env var.
+### Basic Development
+```bash
+# Install dependencies
+uv sync --all-extras
 
-## 7 · Extras & Finishing Touches
+# Run tests
+uv run pytest
 
-* 🚀 Use `dataclasses.dataclass(slots=True, frozen=False)` or `pydantic.BaseModel` v2 for structured configs.
-* 🔗 Provide Makefile or `tasks.py` (Invoke) targets for common commands: `test`, `lint`, `ci`.
+# Code quality
+uv run ruff check .
+uv run ruff format .
 
----
+# Run with type checking
+uv run env DEV_TYPECHECK=1 pytest
+```
 
-### Quick Checklist for Copilot
+### Using Make Commands
+```bash
+make dev-install    # Install with all dependencies
+make test          # Run tests
+make test-cov      # Run tests with coverage
+make lint          # Check code quality
+make format        # Format code
+make docs          # Serve documentation locally
+```
 
-1. `uv` manages deps; lockfile up to date.
-2. Ruff‑clean, formatted, pre‑commit passes.
-3. Failing pytest → passing implementation.
-4. NumPy‑style docstrings & full typing.
-5. Polars preferred; memory efficient.
-6. GPU‑first (RTX 3090), no CPU fallback.
-7. GH Actions workflow + pre‑commit.ci ready.
-8. DRY, atomic, modular, easily swappable.
-9. Environment via `.env` or `pyproject.toml`.
-10. Do not keep code only for compatibility unless explicitly requested.
-11. Use "uv run" to run python scripts.
-12. Always log exceptions.
-13. Never fail silently
-14. use `uv run pytest` to test it out.
+### Running Simulations
+```bash
+# Basic model execution
+uv run python -m lovebug.unified_mesa_model
+
+# Interactive notebooks
+uv run python notebooks/Lande-Kirkpatrick.py
+uv run marimo run notebooks/Layer2-Social-Learning.py
+
+# Research experiments - Multi-phase protocol
+uv run python experiments/paper_experiments.py --output experiments/results/paper_data  # Phase 1 validation only
+uv run python experiments/paper_experiments.py --quick-test                              # Quick validation test
+uv run python experiments/paper_experiments.py --run-lhs --lhs-samples 100             # Phase 2 LHS exploration
+uv run python experiments/paper_experiments.py --no-validation --run-lhs               # LHS only (skip validation)
+```
+
+## Key Development Patterns
+
+### Model Configuration
+```python
+from lovebug import LoveModel, LayerActivationConfig, Layer2Config
+
+# Genetic-only evolution
+model = LoveModel(
+    population_size=5000,
+    layer_config=LayerActivationConfig(genetic_enabled=True, cultural_enabled=False)
+)
+
+# Combined evolution with cultural learning
+cultural_config = Layer2Config(
+    horizontal_transmission_rate=0.2,
+    innovation_rate=0.05,
+    network_type="small_world"
+)
+model = LoveModel(
+    population_size=5000,
+    layer_config=LayerActivationConfig(genetic_enabled=True, cultural_enabled=True),
+    cultural_params=cultural_config
+)
+```
+
+### Genetic Encoding
+- Genomes are 32-bit unsigned integers with bit-packed traits
+- Display traits: bits 0-15 (what others see)
+- Mate preferences: bits 16-23 (what they like)
+- Behavioral threshold: bits 24-31 (choosiness)
+- Use bit masks and shifts for trait extraction
+
+### Performance Considerations
+- All operations vectorized using Polars expressions
+- Avoid Python loops over agents - use DataFrame operations
+- Memory-efficient bit manipulation for genetic operations
+- Population sizes 100k+ supported in pure Python
+
+## Testing
+
+- Tests in `tests/` directory use pytest framework
+- Test files: `test_model.py`, `test_enhanced_unified_model.py`, `test_vectorized_layer2.py`
+- Markers: `@pytest.mark.slow` for computationally intensive tests
+- Run with `make test` or `uv run pytest`
+
+## Research Focus
+
+This codebase is designed for studying:
+- Sexual selection dynamics (Fisher-Lande-Kirkpatrick mechanisms)
+- Cultural-genetic coevolution
+- Social learning and cultural transmission
+- Population genetics in finite populations
+- Network effects on mate choice evolution
+
+The model implements established theoretical frameworks with computational efficiency for large-scale simulations and parameter sweeps.
