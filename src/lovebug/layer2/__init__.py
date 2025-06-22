@@ -8,7 +8,6 @@ complexity instead of O(n²).
 
 from __future__ import annotations
 
-from .config import Layer2Config
 from .cultural_layer import CulturalLayer
 from .learning_algorithms import (
     CulturalInnovationEngine,
@@ -29,6 +28,5 @@ __all__ = [
     "HorizontalTransmissionEngine",
     "CulturalInnovationEngine",
     "MemoryDecayEngine",
-    "Layer2Config",
     "SimulationMonitor",
 ]

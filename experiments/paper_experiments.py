@@ -30,7 +30,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import polars as pl
 from beartype import beartype
@@ -43,16 +43,16 @@ from scipy.stats import qmc
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Import the validated experiment system
-from experiments.config_models import (
-    CombinedExperimentConfig,
-    CulturalExperimentConfig,
-    GeneticExperimentConfig,
-    create_lk_costly_choice_config,
-    create_lk_runaway_config,
-    create_lk_stasis_config,
-)
+# Import the unified configuration models
 from experiments.validated_runner import ValidatedExperimentRunner
+from lovebug.config import (
+    CulturalParams,
+    GeneticParams,
+    LayerBlendingParams,
+    LoveBugConfig,
+    PerceptualParams,
+    SimulationParams,
+)
 
 
 # Patch Mesa-Frames to handle mask synchronization issues
@@ -169,56 +169,132 @@ class ValidatedPaperRunner:
         logger.info(f"Logging initialized - log file: {log_file}")
 
     @beartype
-    def run_lk_validation_scenarios(self) -> list[GeneticExperimentConfig]:
+    def run_lk_validation_scenarios(self) -> list[LoveBugConfig]:
         """
-        Generate validated Lande-Kirkpatrick validation scenarios.
+        Generate validated Lande-Kirkpatrick validation scenarios using unified config.
 
         Returns
         -------
-        list[GeneticExperimentConfig]
+        list[LoveBugConfig]
             List of validated experiment configurations
         """
         logger.info("🧬 Generating Lande-Kirkpatrick validation scenarios")
 
-        # Determine population parameters based on test mode
         base_population = 2000 if not self.config.quick_test else 200
-        carrying_capacity = 2000 if not self.config.quick_test else 200
 
         logger.info(
             f"LK validation - population: {base_population}, generations: {self.config.n_generations}, replications: {self.config.replications_per_condition}"
         )
 
-        # Generate validated experiment configurations
         scenarios = []
 
         for rep in range(self.config.replications_per_condition):
             # Stasis scenario
             scenarios.append(
-                create_lk_stasis_config(
-                    name=f"lk_stasis_rep_{rep}",
-                    population_size=base_population,
-                    n_generations=self.config.n_generations,
-                    carrying_capacity=carrying_capacity,
+                LoveBugConfig(
+                    name=f"lk_stasis_rep{rep}",
+                    genetic=GeneticParams(
+                        h2_trait=0.5,
+                        h2_preference=0.5,
+                        mutation_rate=0.01,
+                        crossover_rate=0.7,
+                        population_size=base_population,
+                        elitism=1,
+                        energy_decay=0.01,
+                        mutation_variance=0.01,
+                        max_age=100,
+                        carrying_capacity=base_population,
+                    ),
+                    cultural=CulturalParams(
+                        learning_rate=0.05,
+                        innovation_rate=0.01,
+                        network_type="scale_free",
+                        network_connectivity=1.0,
+                        cultural_memory_size=5,
+                        memory_decay_rate=0.01,
+                        horizontal_transmission_rate=0.1,
+                        oblique_transmission_rate=0.1,
+                        local_learning_radius=5,
+                    ),
+                    blending=LayerBlendingParams(blend_mode="weighted", blend_weight=1.0),
+                    perceptual=PerceptualParams(),
+                    simulation=SimulationParams(
+                        population_size=base_population,
+                        steps=self.config.n_generations,
+                        seed=rep,
+                    ),
                 )
             )
-
             # Runaway scenario
             scenarios.append(
-                create_lk_runaway_config(
-                    name=f"lk_runaway_rep_{rep}",
-                    population_size=base_population,
-                    n_generations=self.config.n_generations,
-                    carrying_capacity=carrying_capacity,
+                LoveBugConfig(
+                    name=f"lk_runaway_rep{rep}",
+                    genetic=GeneticParams(
+                        h2_trait=0.5,
+                        h2_preference=0.5,
+                        mutation_rate=0.01,
+                        crossover_rate=0.7,
+                        population_size=base_population,
+                        elitism=1,
+                        energy_decay=0.01,
+                        mutation_variance=0.01,
+                        max_age=100,
+                        carrying_capacity=base_population,
+                    ),
+                    cultural=CulturalParams(
+                        learning_rate=0.05,
+                        innovation_rate=0.01,
+                        network_type="scale_free",
+                        network_connectivity=1.0,
+                        cultural_memory_size=5,
+                        memory_decay_rate=0.01,
+                        horizontal_transmission_rate=0.1,
+                        oblique_transmission_rate=0.1,
+                        local_learning_radius=5,
+                    ),
+                    blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.7),
+                    perceptual=PerceptualParams(),
+                    simulation=SimulationParams(
+                        population_size=base_population,
+                        steps=self.config.n_generations,
+                        seed=rep + 1000,
+                    ),
                 )
             )
-
             # Costly choice scenario
             scenarios.append(
-                create_lk_costly_choice_config(
-                    name=f"lk_costly_choice_rep_{rep}",
-                    population_size=base_population,
-                    n_generations=self.config.n_generations,
-                    carrying_capacity=carrying_capacity,
+                LoveBugConfig(
+                    name=f"lk_costly_choice_rep{rep}",
+                    genetic=GeneticParams(
+                        h2_trait=0.5,
+                        h2_preference=0.5,
+                        mutation_rate=0.01,
+                        crossover_rate=0.7,
+                        population_size=base_population,
+                        elitism=1,
+                        energy_decay=0.01,
+                        mutation_variance=0.01,
+                        max_age=100,
+                        carrying_capacity=base_population,
+                    ),
+                    cultural=CulturalParams(
+                        learning_rate=0.05,
+                        innovation_rate=0.05,
+                        network_type="scale_free",
+                        network_connectivity=1.0,
+                        cultural_memory_size=5,
+                        memory_decay_rate=0.01,
+                        horizontal_transmission_rate=0.1,
+                        oblique_transmission_rate=0.1,
+                        local_learning_radius=5,
+                    ),
+                    blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
+                    perceptual=PerceptualParams(),
+                    simulation=SimulationParams(
+                        population_size=base_population,
+                        steps=self.config.n_generations,
+                        seed=rep + 2000,
+                    ),
                 )
             )
 
@@ -226,32 +302,27 @@ class ValidatedPaperRunner:
         return scenarios
 
     @beartype
-    def run_lhs_parameter_exploration(self) -> list[GeneticExperimentConfig]:
+    def run_lhs_parameter_exploration(self) -> list[LoveBugConfig]:
         """
         Generate Latin Hypercube Sampling parameter exploration.
 
         Returns
         -------
-        list[GeneticExperimentConfig]
+        list[LoveBugConfig]
             List of validated experiment configurations for LHS exploration
         """
         logger.info("📊 Generating LHS parameter exploration")
 
-        # Define parameter ranges for exploration
         param_ranges = {
-            "h2_trait": (0.1, 0.9),
-            "h2_preference": (0.1, 0.9),
-            "genetic_correlation": (-0.5, 0.8),
-            "selection_strength": (0.01, 0.5),
-            "preference_cost": (0.0, 0.3),
-            "mutation_variance": (0.001, 0.05),
+            "mutation_rate": (0.001, 0.05),
+            "crossover_rate": (0.5, 1.0),
+            "population_size": (100, 2000),
+            "elitism": (1, 5),
         }
 
-        # Generate LHS samples
         sampler = qmc.LatinHypercube(d=len(param_ranges))
         lhs_samples = sampler.random(n=self.config.lhs_samples)
 
-        # Scale samples to parameter ranges
         param_names = list(param_ranges.keys())
         scaled_samples = qmc.scale(
             lhs_samples,
@@ -259,20 +330,41 @@ class ValidatedPaperRunner:
             [param_ranges[name][1] for name in param_names],
         )
 
-        # Generate validated configurations
-        base_population = 2000 if not self.config.quick_test else 200
-        carrying_capacity = 2000 if not self.config.quick_test else 200
-
         configurations = []
         for i, sample in enumerate(scaled_samples):
             param_dict = dict(zip(param_names, sample))
-
-            config = GeneticExperimentConfig(
-                name=f"lhs_exploration_{i:04d}",
-                population_size=base_population,
-                n_generations=self.config.n_generations,
-                carrying_capacity=carrying_capacity,
-                **param_dict,
+            config = LoveBugConfig(
+                name=f"lhs_genetic_sample{i}",
+                genetic=GeneticParams(
+                    h2_trait=0.5,
+                    h2_preference=0.5,
+                    mutation_rate=float(param_dict["mutation_rate"]),
+                    crossover_rate=float(param_dict["crossover_rate"]),
+                    population_size=int(param_dict["population_size"]),
+                    elitism=int(param_dict["elitism"]),
+                    energy_decay=0.01,
+                    mutation_variance=0.01,
+                    max_age=100,
+                    carrying_capacity=int(param_dict["population_size"]),
+                ),
+                cultural=CulturalParams(
+                    learning_rate=0.05,
+                    innovation_rate=0.01,
+                    network_type="scale_free",
+                    network_connectivity=1.0,
+                    cultural_memory_size=5,
+                    memory_decay_rate=0.01,
+                    horizontal_transmission_rate=0.1,
+                    oblique_transmission_rate=0.1,
+                    local_learning_radius=5,
+                ),
+                blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
+                perceptual=PerceptualParams(),
+                simulation=SimulationParams(
+                    population_size=1000,
+                    steps=self.config.n_generations,
+                    seed=i,
+                ),
             )
             configurations.append(config)
 
@@ -280,41 +372,59 @@ class ValidatedPaperRunner:
         return configurations
 
     @beartype
-    def run_cultural_experiments(self) -> list[CulturalExperimentConfig]:
+    def run_cultural_experiments(self) -> list[LoveBugConfig]:
         """
         Generate cultural evolution experiment configurations.
 
         Returns
         -------
-        list[CulturalExperimentConfig]
+        list[LoveBugConfig]
             List of validated cultural experiment configurations
         """
         logger.info("🎭 Generating cultural evolution experiments")
 
         base_population = 1000 if not self.config.quick_test else 200
-        carrying_capacity = 1000 if not self.config.quick_test else 200
 
         configurations = []
 
-        # Test different network topologies and transmission rates
         network_types: list[str] = ["scale_free", "small_world", "random"]
         transmission_rates = [0.1, 0.3, 0.5] if not self.config.quick_test else [0.3]
 
         for network_type in network_types:
             for transmission_rate in transmission_rates:
                 for rep in range(self.config.replications_per_condition):
-                    config = CulturalExperimentConfig(
-                        name=f"cultural_{network_type}_tx{transmission_rate:.1f}_rep_{rep}",
-                        population_size=base_population,
-                        n_generations=self.config.n_generations,
-                        carrying_capacity=carrying_capacity,
-                        network_type=network_type,  # type: ignore[arg-type]
-                        horizontal_transmission_rate=transmission_rate,
-                        oblique_transmission_rate=transmission_rate * 0.8,
-                        innovation_rate=0.05,
-                        network_connectivity=0.1,
-                        cultural_memory_size=10,
-                        local_learning_radius=5,
+                    config = LoveBugConfig(
+                        name=f"cultural_{network_type}_rate{transmission_rate}_rep{rep}",
+                        genetic=GeneticParams(
+                            h2_trait=0.5,
+                            h2_preference=0.5,
+                            mutation_rate=0.01,
+                            crossover_rate=0.7,
+                            population_size=base_population,
+                            elitism=1,
+                            energy_decay=0.01,
+                            mutation_variance=0.01,
+                            max_age=100,
+                            carrying_capacity=base_population,
+                        ),
+                        cultural=CulturalParams(
+                            learning_rate=transmission_rate,
+                            innovation_rate=0.05,
+                            network_type=network_type,
+                            network_connectivity=1.0,
+                            cultural_memory_size=5,
+                            memory_decay_rate=0.01,
+                            horizontal_transmission_rate=0.1,
+                            oblique_transmission_rate=0.1,
+                            local_learning_radius=5,
+                        ),
+                        blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
+                        perceptual=PerceptualParams(),
+                        simulation=SimulationParams(
+                            population_size=base_population,
+                            steps=self.config.n_generations,
+                            seed=rep,
+                        ),
                     )
                     configurations.append(config)
 
@@ -322,23 +432,21 @@ class ValidatedPaperRunner:
         return configurations
 
     @beartype
-    def run_combined_experiments(self) -> list[CombinedExperimentConfig]:
+    def run_combined_experiments(self) -> list[LoveBugConfig]:
         """
         Generate combined genetic+cultural experiment configurations.
 
         Returns
         -------
-        list[CombinedExperimentConfig]
+        list[LoveBugConfig]
             List of validated combined experiment configurations
         """
         logger.info("🧬🎭 Generating combined evolution experiments")
 
         base_population = 1000 if not self.config.quick_test else 200
-        carrying_capacity = 1000 if not self.config.quick_test else 200
 
         configurations = []
 
-        # Test different layer weight combinations
         weight_combinations = (
             [
                 (0.8, 0.2),  # Genetic-dominated
@@ -351,31 +459,41 @@ class ValidatedPaperRunner:
 
         for genetic_weight, cultural_weight in weight_combinations:
             for rep in range(self.config.replications_per_condition):
-                config = CombinedExperimentConfig(
-                    name=f"combined_g{genetic_weight:.1f}_c{cultural_weight:.1f}_rep_{rep}",
-                    population_size=base_population,
-                    n_generations=self.config.n_generations,
-                    carrying_capacity=carrying_capacity,
-                    genetic_enabled=True,
-                    cultural_enabled=True,
-                    genetic_weight=genetic_weight,
-                    cultural_weight=cultural_weight,
-                    normalize_weights=True,
-                    # Genetic parameters (moderate values)
-                    h2_trait=0.5,
-                    h2_preference=0.5,
-                    genetic_correlation=0.2,
-                    selection_strength=0.1,
-                    preference_cost=0.05,
-                    mutation_variance=0.01,
-                    # Cultural parameters (moderate values)
-                    innovation_rate=0.1,
-                    horizontal_transmission_rate=0.3,
-                    oblique_transmission_rate=0.2,
-                    network_type="scale_free",
-                    network_connectivity=0.1,
-                    cultural_memory_size=10,
-                    local_learning_radius=5,
+                config = LoveBugConfig(
+                    name=f"combined_g{genetic_weight}_c{cultural_weight}_rep{rep}",
+                    genetic=GeneticParams(
+                        h2_trait=0.5,
+                        h2_preference=0.5,
+                        mutation_rate=0.01,
+                        crossover_rate=0.7,
+                        population_size=base_population,
+                        elitism=1,
+                        energy_decay=0.01,
+                        mutation_variance=0.01,
+                        max_age=100,
+                        carrying_capacity=base_population,
+                    ),
+                    cultural=CulturalParams(
+                        learning_rate=cultural_weight,
+                        innovation_rate=0.1,
+                        network_type="scale_free",
+                        network_connectivity=1.0,
+                        cultural_memory_size=5,
+                        memory_decay_rate=0.01,
+                        horizontal_transmission_rate=0.1,
+                        oblique_transmission_rate=0.1,
+                        local_learning_radius=5,
+                    ),
+                    blending=LayerBlendingParams(
+                        blend_mode="weighted",
+                        blend_weight=genetic_weight,
+                    ),
+                    perceptual=PerceptualParams(),
+                    simulation=SimulationParams(
+                        population_size=base_population,
+                        steps=self.config.n_generations,
+                        seed=rep,
+                    ),
                 )
                 configurations.append(config)
 
@@ -383,7 +501,7 @@ class ValidatedPaperRunner:
         return configurations
 
     @beartype
-    def run_cultural_lhs_exploration(self) -> list[CulturalExperimentConfig]:
+    def run_cultural_lhs_exploration(self) -> list[LoveBugConfig]:
         """
         Generate Latin Hypercube Sampling exploration for cultural-only parameters.
 
@@ -394,21 +512,14 @@ class ValidatedPaperRunner:
         """
         logger.info("🎭📊 Generating cultural LHS parameter exploration")
 
-        # Define parameter ranges for cultural exploration
         param_ranges = {
+            "learning_rate": (0.01, 0.5),
             "innovation_rate": (0.01, 0.3),
-            "horizontal_transmission_rate": (0.05, 0.8),
-            "oblique_transmission_rate": (0.01, 0.6),
-            "network_connectivity": (0.01, 0.5),
-            "cultural_memory_size": (5, 20),
-            "local_learning_radius": (2, 10),
         }
 
-        # Generate LHS samples
         sampler = qmc.LatinHypercube(d=len(param_ranges))
         lhs_samples = sampler.random(n=self.config.lhs_samples)
 
-        # Scale samples to parameter ranges
         param_names = list(param_ranges.keys())
         scaled_samples = qmc.scale(
             lhs_samples,
@@ -416,34 +527,41 @@ class ValidatedPaperRunner:
             [param_ranges[name][1] for name in param_names],
         )
 
-        # Generate validated configurations
-        base_population = 1000 if not self.config.quick_test else 200
-        carrying_capacity = 1000 if not self.config.quick_test else 200
-
         configurations = []
-        network_types: list[Literal["scale_free", "small_world", "random", "lattice"]] = [
-            "scale_free",
-            "small_world",
-            "random",
-        ]
-
         for i, sample in enumerate(scaled_samples):
             param_dict = dict(zip(param_names, sample))
-
-            # Convert integer parameters
-            param_dict["cultural_memory_size"] = int(param_dict["cultural_memory_size"])
-            param_dict["local_learning_radius"] = int(param_dict["local_learning_radius"])
-
-            # Cycle through network types
-            network_type = network_types[i % len(network_types)]
-
-            config = CulturalExperimentConfig(
-                name=f"cultural_lhs_{i:04d}",
-                population_size=base_population,
-                n_generations=self.config.n_generations,
-                carrying_capacity=carrying_capacity,
-                network_type=network_type,
-                **param_dict,
+            config = LoveBugConfig(
+                name=f"lhs_cultural_sample{i}",
+                genetic=GeneticParams(
+                    h2_trait=0.5,
+                    h2_preference=0.5,
+                    mutation_rate=0.01,
+                    crossover_rate=0.7,
+                    population_size=1000,
+                    elitism=1,
+                    energy_decay=0.01,
+                    mutation_variance=0.01,
+                    max_age=100,
+                    carrying_capacity=1000,
+                ),
+                cultural=CulturalParams(
+                    learning_rate=float(param_dict["learning_rate"]),
+                    innovation_rate=float(param_dict["innovation_rate"]),
+                    network_type="scale_free",
+                    network_connectivity=1.0,
+                    cultural_memory_size=5,
+                    memory_decay_rate=0.01,
+                    horizontal_transmission_rate=0.1,
+                    oblique_transmission_rate=0.1,
+                    local_learning_radius=5,
+                ),
+                blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
+                perceptual=PerceptualParams(),
+                simulation=SimulationParams(
+                    population_size=int(param_dict["population_size"]),
+                    steps=self.config.n_generations,
+                    seed=i,
+                ),
             )
             configurations.append(config)
 
@@ -451,37 +569,28 @@ class ValidatedPaperRunner:
         return configurations
 
     @beartype
-    def run_combined_lhs_exploration(self) -> list[CombinedExperimentConfig]:
+    def run_combined_lhs_exploration(self) -> list[LoveBugConfig]:
         """
         Generate Latin Hypercube Sampling exploration for combined genetic+cultural parameters.
 
         Returns
         -------
-        list[CombinedExperimentConfig]
+        list[LoveBugConfig]
             List of validated combined experiment configurations for LHS exploration
         """
         logger.info("🧬🎭📊 Generating combined LHS parameter exploration")
 
-        # Define parameter ranges for combined exploration
         param_ranges = {
-            "genetic_weight": (0.0, 1.0),
-            "h2_trait": (0.1, 0.9),
-            "h2_preference": (0.1, 0.9),
-            "genetic_correlation": (-0.5, 0.8),
-            "selection_strength": (0.01, 0.5),
-            "preference_cost": (0.0, 0.3),
-            "mutation_variance": (0.001, 0.05),
+            "blend_weight": (0.0, 1.0),
+            "mutation_rate": (0.001, 0.05),
+            "crossover_rate": (0.5, 1.0),
+            "learning_rate": (0.01, 0.5),
             "innovation_rate": (0.01, 0.3),
-            "horizontal_transmission_rate": (0.05, 0.8),
-            "network_connectivity": (0.01, 0.3),
-            "cultural_memory_size": (5, 15),
         }
 
-        # Generate LHS samples
         sampler = qmc.LatinHypercube(d=len(param_ranges))
         lhs_samples = sampler.random(n=self.config.lhs_samples)
 
-        # Scale samples to parameter ranges
         param_names = list(param_ranges.keys())
         scaled_samples = qmc.scale(
             lhs_samples,
@@ -489,44 +598,44 @@ class ValidatedPaperRunner:
             [param_ranges[name][1] for name in param_names],
         )
 
-        # Generate validated configurations
-        base_population = 1000 if not self.config.quick_test else 200
-        carrying_capacity = 1000 if not self.config.quick_test else 200
-
         configurations = []
-        network_types: list[Literal["scale_free", "small_world", "random", "lattice"]] = [
-            "scale_free",
-            "small_world",
-            "random",
-        ]
-
         for i, sample in enumerate(scaled_samples):
             param_dict = dict(zip(param_names, sample))
-
-            # Convert integer parameters
-            param_dict["cultural_memory_size"] = int(param_dict["cultural_memory_size"])
-
-            # Calculate cultural weight (complementary to genetic weight)
-            genetic_weight = param_dict.pop("genetic_weight")
-            cultural_weight = 1.0 - genetic_weight
-
-            # Cycle through network types
-            network_type = network_types[i % len(network_types)]
-
-            config = CombinedExperimentConfig(
-                name=f"combined_lhs_{i:04d}",
-                population_size=base_population,
-                n_generations=self.config.n_generations,
-                carrying_capacity=carrying_capacity,
-                genetic_enabled=True,
-                cultural_enabled=True,
-                genetic_weight=genetic_weight,
-                cultural_weight=cultural_weight,
-                normalize_weights=True,
-                network_type=network_type,
-                oblique_transmission_rate=param_dict["horizontal_transmission_rate"] * 0.7,
-                local_learning_radius=5,  # Fixed reasonable default
-                **param_dict,
+            config = LoveBugConfig(
+                name=f"lhs_combined_sample{i}",
+                genetic=GeneticParams(
+                    h2_trait=0.5,
+                    h2_preference=0.5,
+                    mutation_rate=float(param_dict["mutation_rate"]),
+                    crossover_rate=float(param_dict["crossover_rate"]),
+                    population_size=1000,
+                    elitism=1,
+                    energy_decay=0.01,
+                    mutation_variance=0.01,
+                    max_age=100,
+                    carrying_capacity=1000,
+                ),
+                cultural=CulturalParams(
+                    learning_rate=float(param_dict["learning_rate"]),
+                    innovation_rate=float(param_dict["innovation_rate"]),
+                    network_type="scale_free",
+                    network_connectivity=1.0,
+                    cultural_memory_size=5,
+                    memory_decay_rate=0.01,
+                    horizontal_transmission_rate=0.1,
+                    oblique_transmission_rate=0.1,
+                    local_learning_radius=5,
+                ),
+                blending=LayerBlendingParams(
+                    blend_mode="weighted",
+                    blend_weight=float(param_dict["blend_weight"]),
+                ),
+                perceptual=PerceptualParams(),
+                simulation=SimulationParams(
+                    population_size=int(param_dict["population_size"]),
+                    steps=self.config.n_generations,
+                    seed=i,
+                ),
             )
             configurations.append(config)
 
@@ -540,7 +649,7 @@ class ValidatedPaperRunner:
 
         Parameters
         ----------
-        configurations : list[GeneticExperimentConfig | CulturalExperimentConfig | CombinedExperimentConfig]
+        configurations : list[GeneticExperimentConfig | CulturalExperimentConfig | LoveBugConfig]
             List of validated experiment configurations to execute
 
         Returns

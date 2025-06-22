@@ -32,9 +32,15 @@ with app.setup:
         base_path = os.path.abspath(".")
     sys.path.insert(0, os.path.join(base_path, "..", "src"))
 
-    from lovebug.layer2.config import Layer2Config
-    from lovebug.layer_activation import LayerActivationConfig
-    from lovebug.parameters import LandeKirkpatrickParams
+    from lovebug.config import (
+        CulturalParams,
+        GeneticParams,
+        LayerBlendingParams,
+        LayerConfig,
+        LoveBugConfig,
+        PerceptualParams,
+        SimulationParams,
+    )
     from lovebug.unified_mesa_model import LoveModel
 
     # Configure logging
@@ -92,30 +98,73 @@ def _():
 
         trajectory_data: pl.DataFrame
         final_metrics: dict[str, Any]
-        layer_config: LayerActivationConfig
-        genetic_params: LandeKirkpatrickParams | None
-        cultural_params: Layer2Config | None
+        layer_config: LayerBlendingParams
+        genetic_params: GeneticParams | None
+        cultural_params: CulturalParams | None
         execution_time: float
         convergence_time: int | None
 
     @beartype
     def run_demo_experiment(  # RENAMED to avoid conflicts
-        layer_config: LayerActivationConfig,
-        genetic_params: LandeKirkpatrickParams | None,
-        cultural_params: Layer2Config | None,
+        layer_config: LayerBlendingParams,
+        genetic_params: GeneticParams | None,
+        cultural_params: CulturalParams | None = None,
         n_agents: int = 100,
         n_generations: int = 20,
     ) -> DemoResults:
         """Run a demonstration experiment with the given configuration."""
         start_time = time.time()
 
-        # Create unified model
-        model = LoveModel(
-            layer_config=layer_config,
-            genetic_params=genetic_params,
-            cultural_params=cultural_params,
-            n_agents=n_agents,
+        # Create unified config and model
+        config = LoveBugConfig(
+            name="demo",
+            genetic=genetic_params
+            if genetic_params is not None
+            else GeneticParams(
+                mutation_rate=0.01,
+                crossover_rate=0.7,
+                population_size=n_agents,
+                elitism=1,
+                energy_decay=0.01,
+                mutation_variance=0.01,
+                max_age=100,
+                carrying_capacity=n_agents,
+            ),
+            cultural=cultural_params
+            if cultural_params is not None
+            else CulturalParams(
+                learning_rate=0.05,
+                innovation_rate=0.01,
+                memory_span=5,
+                network_type="scale_free",
+                network_connectivity=1.0,
+                cultural_memory_size=5,
+                memory_decay_rate=0.01,
+                horizontal_transmission_rate=0.1,
+                oblique_transmission_rate=0.1,
+                local_learning_radius=5,
+            ),
+            blending=LayerBlendingParams(
+                blend_mode=layer_config.blend_mode,
+                blend_weight=layer_config.blend_weight,
+            ),
+            perceptual=PerceptualParams(),
+            simulation=SimulationParams(
+                population_size=n_agents,
+                steps=n_generations,
+                seed=42,
+            ),
+            layer=LayerConfig(
+                genetic_enabled=True,
+                cultural_enabled=True,
+                blending_mode=layer_config.blend_mode,
+                genetic_weight=layer_config.blend_weight,
+                cultural_weight=1.0 - layer_config.blend_weight,
+                sigma_perception=0.0,
+                theta_detect=0.0,
+            ),
         )
+        model = LoveModel(config=config)
 
         # Run simulation
         model_results = model.run(n_generations)
@@ -319,43 +368,46 @@ def _(
     demo_results_obj = None
 
     try:
-        # Create layer config
-        demo_layer_config = LayerActivationConfig(
-            genetic_enabled=genetic_weight_ctrl.value > 0,
-            cultural_enabled=cultural_weight_ctrl.value > 0,
+        # Create layer blending config
+        demo_layer_config = LayerBlendingParams(
+            blend_mode=blending_mode_ctrl.value,
+            blend_weight=genetic_weight_ctrl.value,  # or use a function of both weights
+        )
+        demo_layer_full = LayerConfig(
+            genetic_enabled=True,
+            cultural_enabled=True,
+            blending_mode=blending_mode_ctrl.value,
             genetic_weight=genetic_weight_ctrl.value,
             cultural_weight=cultural_weight_ctrl.value,
-            blending_mode=blending_mode_ctrl.value,
-            normalize_weights=True,
-            theta_detect=theta_detect_ctrl.value,
             sigma_perception=sigma_perception_ctrl.value,
+            theta_detect=theta_detect_ctrl.value,
         )
 
         # Create genetic parameters
-        demo_genetic_params = None
-        if demo_layer_config.genetic_enabled:
-            demo_genetic_params = LandeKirkpatrickParams(
-                h2_trait=0.5,
-                h2_preference=0.5,
-                genetic_correlation=0.2,
-                selection_strength=0.1,
-                preference_cost=0.05,
-                mutation_variance=0.01,
-            )
+        demo_genetic_params = GeneticParams(
+            mutation_rate=0.01,
+            crossover_rate=0.7,
+            population_size=n_agents_ctrl.value,
+            elitism=1,
+            energy_decay=0.01,
+            mutation_variance=0.01,
+            max_age=100,
+            carrying_capacity=n_agents_ctrl.value,
+        )
 
         # Create cultural parameters
-        demo_cultural_params = None
-        if demo_layer_config.cultural_enabled:
-            demo_cultural_params = Layer2Config(
-                local_learning_radius=local_radius_ctrl.value,
-                horizontal_transmission_rate=horizontal_rate_ctrl.value,
-                oblique_transmission_rate=0.2,
-                innovation_rate=innovation_rate_ctrl.value,
-                network_type="small_world",
-                network_connectivity=0.1,
-                cultural_memory_size=10,
-                memory_decay_rate=0.05,
-            )
+        demo_cultural_params = CulturalParams(
+            learning_rate=horizontal_rate_ctrl.value,
+            innovation_rate=innovation_rate_ctrl.value,
+            memory_span=5,
+            network_type="scale_free",
+            network_connectivity=1.0,
+            cultural_memory_size=5,
+            memory_decay_rate=0.01,
+            horizontal_transmission_rate=horizontal_rate_ctrl.value,
+            oblique_transmission_rate=0.1,
+            local_learning_radius=local_radius_ctrl.value,
+        )
 
         # Run demonstration
         demo_results_obj = run_demo_experiment(
@@ -367,9 +419,9 @@ def _(
         )
 
         # Determine pattern
-        if demo_layer_config.is_genetic_only():
+        if demo_layer_full.is_genetic_only():
             pattern = "🧬 **Pure Genetic Evolution**"
-        elif demo_layer_config.is_cultural_only():
+        elif demo_layer_full.is_cultural_only():
             pattern = "🧠 **Pure Cultural Evolution**"
         else:
             pattern = "🔄 **Gene-Culture Coevolution**"
@@ -389,11 +441,11 @@ def _(
         - Convergence Time: {demo_results_obj.convergence_time if demo_results_obj.convergence_time is not None else "No convergence"} generations
 
         **Layer Configuration:**
-        - Genetic Weight: {demo_layer_config.genetic_weight:.3f}
-        - Cultural Weight: {demo_layer_config.cultural_weight:.3f}
-        - Blending Mode: {demo_layer_config.blending_mode}
-        - Detection Threshold: {demo_layer_config.theta_detect:.1f}
-        - Perceptual Noise: {demo_layer_config.sigma_perception:.1f}
+        - Genetic Weight: {demo_layer_full.genetic_weight:.3f}
+        - Cultural Weight: {demo_layer_full.cultural_weight:.3f}
+        - Blending Mode: {demo_layer_full.blending_mode}
+        - Detection Threshold: {demo_layer_full.theta_detect:.1f}
+        - Perceptual Noise: {demo_layer_full.sigma_perception:.1f}
         """)
 
     except Exception as e:

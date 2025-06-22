@@ -38,14 +38,6 @@ This page provides comprehensive API documentation for the LoveBug package. The 
       show_source: false
       heading_level: 4
 
-### Layer2Config
-
-::: lovebug.layer2.config.Layer2Config
-    options:
-      show_root_heading: true
-      show_source: false
-      heading_level: 4
-
 ## Cultural Learning Layer (Layer 2)
 
 ### CulturalLayer
@@ -160,21 +152,14 @@ print(f"Steps completed: {model.schedule.steps}")
 ### Cultural-Genetic Coevolution
 
 ```python
-from lovebug import LoveModel, LayerActivationConfig, Layer2Config
+from lovebug import LoveModel, LayerActivationConfig
 
-# Configure cultural learning layer
-cultural_config = Layer2Config(
-    social_learning_rate=0.1,
-    network_type="small_world",
-    cultural_mutation_rate=1e-5
-)
-
+# Example: configure and run a model
 layer_config = LayerActivationConfig(
     cultural_layer=True,
-    layer2_config=cultural_config
+    # layer2_config=...  # Provide appropriate config if needed
 )
 
-# Create model with cultural learning
 model = LoveModel(
     population_size=10000,
     max_steps=500,

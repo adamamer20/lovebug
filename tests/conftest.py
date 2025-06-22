@@ -19,9 +19,14 @@ import numpy as np
 import polars as pl
 import pytest
 
-from lovebug.layer2.config import Layer2Config
-from lovebug.layer_activation import LayerActivationConfig
-from lovebug.parameters import LandeKirkpatrickParams
+from lovebug.config import (
+    CulturalParams,
+    GeneticParams,
+    LayerBlendingParams,
+    LayerConfig,
+    LoveBugConfig,
+    SimulationParams,
+)
 from lovebug.unified_mesa_model import LoveModel
 
 # ============================================================================
@@ -37,88 +42,212 @@ def pytest_configure(config: pytest.Config) -> None:
 
 
 # ============================================================================
-# Configuration Fixtures
+# Unified Configuration Fixtures
 # ============================================================================
 
 
 @pytest.fixture
-def genetic_config() -> LayerActivationConfig:
-    """Genetic-only layer activation configuration."""
-    return LayerActivationConfig.genetic_only()
+def genetic_only_config() -> LoveBugConfig:
+    """Genetic-only configuration."""
+    return LoveBugConfig(
+        name="genetic_only_test",
+        genetic=GeneticParams(
+            h2_trait=0.5,
+            h2_preference=0.5,
+            mutation_rate=0.01,
+            crossover_rate=0.7,
+            population_size=50,
+            elitism=1,
+            energy_decay=0.01,
+            mutation_variance=0.01,
+            max_age=100,
+            carrying_capacity=1000,
+        ),
+        cultural=CulturalParams(
+            learning_rate=0.0,
+            innovation_rate=0.0,
+            memory_span=1,
+            network_type="small_world",
+            network_connectivity=1.0,
+            cultural_memory_size=1,
+            memory_decay_rate=0.01,
+            horizontal_transmission_rate=0.0,
+            oblique_transmission_rate=0.0,
+            local_learning_radius=5,
+            memory_update_strength=1.0,
+        ),
+        blending=LayerBlendingParams(blend_mode="weighted", blend_weight=1.0),
+        simulation=SimulationParams(
+            population_size=50,
+            steps=20,
+            seed=42,
+        ),
+        layer=LayerConfig(
+            genetic_enabled=True,
+            cultural_enabled=False,
+            sigma_perception=0.0,
+            theta_detect=1.0,
+        ),
+    )
 
 
 @pytest.fixture
-def cultural_config() -> LayerActivationConfig:
-    """Cultural-only layer activation configuration."""
-    return LayerActivationConfig.cultural_only()
+def cultural_only_config() -> LoveBugConfig:
+    """Cultural-only configuration."""
+    return LoveBugConfig(
+        name="cultural_only_test",
+        genetic=GeneticParams(
+            h2_trait=0.5,
+            h2_preference=0.5,
+            mutation_rate=0.0,
+            crossover_rate=0.0,
+            population_size=50,
+            elitism=0,
+            energy_decay=0.01,
+            mutation_variance=0.0,
+            max_age=100,
+            carrying_capacity=1000,
+        ),
+        cultural=CulturalParams(
+            learning_rate=0.05,
+            innovation_rate=0.01,
+            memory_span=5,
+            network_type="small_world",
+            network_connectivity=1.0,
+            cultural_memory_size=5,
+            memory_decay_rate=0.01,
+            horizontal_transmission_rate=0.1,
+            oblique_transmission_rate=0.1,
+            local_learning_radius=5,
+            memory_update_strength=1.0,
+        ),
+        blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.0),
+        simulation=SimulationParams(
+            population_size=50,
+            steps=20,
+            seed=42,
+        ),
+        layer=LayerConfig(
+            genetic_enabled=False,
+            cultural_enabled=True,
+            sigma_perception=0.0,
+            theta_detect=1.0,
+        ),
+    )
 
 
 @pytest.fixture
-def balanced_config() -> LayerActivationConfig:
+def balanced_config() -> LoveBugConfig:
     """Balanced genetic and cultural configuration."""
-    return LayerActivationConfig.balanced_combined(0.5)
-
-
-@pytest.fixture
-def genetic_params() -> LandeKirkpatrickParams:
-    """Standard genetic parameters for testing."""
-    return LandeKirkpatrickParams(
-        n_generations=20,
-        pop_size=100,
-        h2_trait=0.5,
-        h2_preference=0.3,
-        selection_strength=0.1,
-        mutation_variance=0.01,
-    )
-
-
-@pytest.fixture
-def cultural_params() -> Layer2Config:
-    """Standard cultural parameters for testing."""
-    return Layer2Config(
-        horizontal_transmission_rate=0.3,
-        oblique_transmission_rate=0.2,
-        innovation_rate=0.1,
-        cultural_memory_size=5,
-        local_learning_radius=3,
+    return LoveBugConfig(
+        name="balanced_test",
+        genetic=GeneticParams(
+            h2_trait=0.5,
+            h2_preference=0.5,
+            mutation_rate=0.01,
+            crossover_rate=0.7,
+            population_size=100,
+            elitism=1,
+            energy_decay=0.01,
+            mutation_variance=0.01,
+            max_age=100,
+            carrying_capacity=1000,
+        ),
+        cultural=CulturalParams(
+            learning_rate=0.05,
+            innovation_rate=0.01,
+            memory_span=5,
+            network_type="small_world",
+            network_connectivity=1.0,
+            cultural_memory_size=5,
+            memory_decay_rate=0.01,
+            horizontal_transmission_rate=0.1,
+            oblique_transmission_rate=0.1,
+            local_learning_radius=5,
+            memory_update_strength=1.0,
+        ),
+        blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
+        simulation=SimulationParams(
+            population_size=100,
+            steps=20,
+            seed=42,
+        ),
+        layer=LayerConfig(
+            genetic_enabled=True,
+            cultural_enabled=True,
+            sigma_perception=0.0,
+            theta_detect=1.0,
+        ),
     )
 
 
 # ============================================================================
-# Model Fixtures
+# Model Fixtures (Unified)
 # ============================================================================
 
 
 @pytest.fixture
-def small_genetic_model(genetic_config: LayerActivationConfig, genetic_params: LandeKirkpatrickParams) -> LoveModel:
+def small_genetic_model(genetic_only_config: LoveBugConfig) -> LoveModel:
     """Small genetic-only model for quick testing."""
-    return LoveModel(layer_config=genetic_config, genetic_params=genetic_params, n_agents=50)
+    return LoveModel(config=genetic_only_config)
 
 
 @pytest.fixture
-def small_cultural_model(cultural_config: LayerActivationConfig, cultural_params: Layer2Config) -> LoveModel:
+def small_cultural_model(cultural_only_config: LoveBugConfig) -> LoveModel:
     """Small cultural-only model for quick testing."""
-    return LoveModel(layer_config=cultural_config, cultural_params=cultural_params, n_agents=50)
+    return LoveModel(config=cultural_only_config)
 
 
 @pytest.fixture
-def medium_balanced_model(
-    balanced_config: LayerActivationConfig, genetic_params: LandeKirkpatrickParams, cultural_params: Layer2Config
-) -> LoveModel:
+def medium_balanced_model(balanced_config: LoveBugConfig) -> LoveModel:
     """Medium-sized balanced model for integration testing."""
-    return LoveModel(
-        layer_config=balanced_config, genetic_params=genetic_params, cultural_params=cultural_params, n_agents=100
-    )
+    return LoveModel(config=balanced_config)
 
 
 @pytest.fixture
-def large_performance_model(
-    balanced_config: LayerActivationConfig, genetic_params: LandeKirkpatrickParams, cultural_params: Layer2Config
-) -> LoveModel:
+def large_performance_model() -> LoveModel:
     """Large model for performance testing."""
-    return LoveModel(
-        layer_config=balanced_config, genetic_params=genetic_params, cultural_params=cultural_params, n_agents=500
+    config = LoveBugConfig(
+        name="large_performance_test",
+        genetic=GeneticParams(
+            h2_trait=0.5,
+            h2_preference=0.5,
+            mutation_rate=0.01,
+            crossover_rate=0.7,
+            population_size=500,
+            elitism=1,
+            energy_decay=0.01,
+            mutation_variance=0.01,
+            max_age=100,
+            carrying_capacity=1000,
+        ),
+        cultural=CulturalParams(
+            learning_rate=0.05,
+            innovation_rate=0.01,
+            memory_span=5,
+            network_type="small_world",
+            network_connectivity=1.0,
+            cultural_memory_size=5,
+            memory_decay_rate=0.01,
+            horizontal_transmission_rate=0.1,
+            oblique_transmission_rate=0.1,
+            local_learning_radius=5,
+            memory_update_strength=1.0,
+        ),
+        blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
+        simulation=SimulationParams(
+            population_size=500,
+            steps=100,
+            seed=42,
+        ),
+        layer=LayerConfig(
+            genetic_enabled=True,
+            cultural_enabled=True,
+            sigma_perception=0.0,
+            theta_detect=1.0,
+        ),
     )
+    return LoveModel(config=config)
 
 
 # ============================================================================
@@ -147,7 +276,7 @@ def mock_agent_set() -> Mock:
             "network_degree": [0] * 10,
         }
     )
-    mock_agents.__len__ = lambda self: 10
+    mock_agents.__len__ = lambda: 10
     return mock_agents
 
 
@@ -281,26 +410,6 @@ def assert_model_evolution(model: LoveModel, min_steps: int = 5) -> None:
     assert model.step_count >= min_steps
 
 
-def assert_valid_config_serialization(config: LayerActivationConfig | Layer2Config) -> None:
-    """Assert that configuration can be serialized and deserialized.
-
-    Parameters
-    ----------
-    config : LayerActivationConfig | Layer2Config
-        Configuration to test
-    """
-    config_dict = config.to_dict()
-    assert isinstance(config_dict, dict)
-
-    # Test reconstruction
-    if isinstance(config, LayerActivationConfig):
-        restored_config = LayerActivationConfig.from_dict(config_dict)
-        assert restored_config.to_dict() == config_dict
-    else:
-        # Layer2Config doesn't have from_dict method, so just verify to_dict works
-        assert config_dict is not None
-
-
 def create_agents_with_memory(n_agents: int, memory_size: int) -> pl.DataFrame:
     """Create agent DataFrame with cultural memory columns.
 
@@ -365,18 +474,127 @@ def model_config_type(request: pytest.FixtureRequest) -> str:
 
 
 @pytest.fixture
-def model_by_config_type(
-    model_config_type: str, genetic_params: LandeKirkpatrickParams, cultural_params: Layer2Config
-) -> LoveModel:
-    """Create model based on configuration type parameter."""
+def model_by_config_type(model_config_type: str) -> LoveModel:
+    """Create model based on configuration type parameter using unified config."""
     if model_config_type == "genetic_only":
-        config = LayerActivationConfig.genetic_only()
-        return LoveModel(layer_config=config, genetic_params=genetic_params, n_agents=50)
-    elif model_config_type == "cultural_only":
-        config = LayerActivationConfig.cultural_only()
-        return LoveModel(layer_config=config, cultural_params=cultural_params, n_agents=50)
-    else:  # balanced
-        config = LayerActivationConfig.balanced_combined(0.5)
-        return LoveModel(
-            layer_config=config, genetic_params=genetic_params, cultural_params=cultural_params, n_agents=50
+        config = LoveBugConfig(
+            name="genetic_only_param_test",
+            genetic=GeneticParams(
+                h2_trait=0.5,
+                h2_preference=0.5,
+                mutation_rate=0.01,
+                crossover_rate=0.7,
+                population_size=50,
+                elitism=1,
+                energy_decay=0.01,
+                mutation_variance=0.01,
+                max_age=100,
+                carrying_capacity=1000,
+            ),
+            cultural=CulturalParams(
+                learning_rate=0.0,
+                innovation_rate=0.0,
+                memory_span=1,
+                network_type="small_world",
+                network_connectivity=1.0,
+                cultural_memory_size=1,
+                memory_decay_rate=0.01,
+                horizontal_transmission_rate=0.0,
+                oblique_transmission_rate=0.0,
+                local_learning_radius=5,
+                memory_update_strength=1.0,
+            ),
+            blending=LayerBlendingParams(blend_mode="weighted", blend_weight=1.0),
+            simulation=SimulationParams(
+                population_size=50,
+                steps=20,
+                seed=42,
+            ),
+            layer=LayerConfig(
+                genetic_enabled=True,
+                cultural_enabled=False,
+                sigma_perception=0.0,
+                theta_detect=1.0,
+            ),
         )
+    elif model_config_type == "cultural_only":
+        config = LoveBugConfig(
+            name="cultural_only_param_test",
+            genetic=GeneticParams(
+                h2_trait=0.5,
+                h2_preference=0.5,
+                mutation_rate=0.0,
+                crossover_rate=0.0,
+                population_size=50,
+                elitism=0,
+                energy_decay=0.01,
+                mutation_variance=0.0,
+                max_age=100,
+                carrying_capacity=1000,
+            ),
+            cultural=CulturalParams(
+                learning_rate=0.05,
+                innovation_rate=0.01,
+                memory_span=5,
+                network_type="small_world",
+                network_connectivity=1.0,
+                cultural_memory_size=5,
+                memory_decay_rate=0.01,
+                horizontal_transmission_rate=0.1,
+                oblique_transmission_rate=0.1,
+                local_learning_radius=5,
+                memory_update_strength=1.0,
+            ),
+            blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.0),
+            simulation=SimulationParams(
+                population_size=50,
+                steps=20,
+                seed=42,
+            ),
+            layer=LayerConfig(
+                genetic_enabled=False,
+                cultural_enabled=True,
+                sigma_perception=0.0,
+                theta_detect=1.0,
+            ),
+        )
+    else:  # balanced
+        config = LoveBugConfig(
+            name="balanced_param_test",
+            genetic=GeneticParams(
+                h2_trait=0.5,
+                h2_preference=0.5,
+                mutation_rate=0.01,
+                crossover_rate=0.7,
+                population_size=50,
+                elitism=1,
+                energy_decay=0.01,
+                mutation_variance=0.01,
+                max_age=100,
+                carrying_capacity=1000,
+            ),
+            cultural=CulturalParams(
+                learning_rate=0.05,
+                innovation_rate=0.01,
+                memory_span=5,
+                network_type="small_world",
+                network_connectivity=1.0,
+                cultural_memory_size=5,
+                memory_decay_rate=0.01,
+                horizontal_transmission_rate=0.1,
+                oblique_transmission_rate=0.1,
+                local_learning_radius=5,
+                memory_update_strength=1.0,
+            ),
+            blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
+            simulation=SimulationParams(
+                population_size=50,
+                steps=20,
+                seed=42,
+            ),
+            layer=LayerConfig(
+                genetic_enabled=True,
+                cultural_enabled=True,
+            ),
+        )
+    return LoveModel(config=config)

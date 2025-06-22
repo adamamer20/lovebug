@@ -14,7 +14,6 @@ import numpy as np
 import polars as pl
 from beartype import beartype
 
-from .config import Layer2Config
 from .learning_algorithms import (
     CulturalInnovationEngine,
     HorizontalTransmissionEngine,
@@ -44,18 +43,17 @@ class CulturalLayer:
     ----------
     agent_set : LoveAgents
         Mesa-frames agent set to operate on
-    config : Layer2Config
+    config : Any
         Configuration for cultural transmission parameters
 
     Examples
     --------
-    >>> from lovebug.layer2.config import Layer2Config
-    >>> config = Layer2Config(innovation_rate=0.1)
+    >>> config = ...  # Provide appropriate config object
     >>> cultural_layer = CulturalLayer(agents, config)
     >>> cultural_layer.step()
     """
 
-    def __init__(self, agent_set: LoveAgents, config: Layer2Config) -> None:
+    def __init__(self, agent_set: LoveAgents, config: Any) -> None:
         self.agents = agent_set
         self.config = config
         self.generation = 0

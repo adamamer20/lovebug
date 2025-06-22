@@ -10,12 +10,11 @@ arrays for maximum performance.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import numpy as np
 import polars as pl
 from beartype import beartype
-
-from .config import Layer2Config
 
 __all__ = [
     "LearningEligibilityComputer",
@@ -36,7 +35,7 @@ class LearningEligibilityComputer:
     determine which agents can participate in cultural learning.
     """
 
-    def __init__(self, config: Layer2Config) -> None:
+    def __init__(self, config: Any) -> None:
         self.config = config
 
     @beartype
@@ -58,7 +57,7 @@ class LearningEligibilityComputer:
 
         Examples
         --------
-        >>> computer = LearningEligibilityComputer(Layer2Config())
+        >>> computer = LearningEligibilityComputer(config)
         >>> eligibility = computer.compute_eligibility(agents_df, generation=10)
         """
         # Define minimum requirements for learning eligibility
@@ -101,7 +100,7 @@ class ObliqueTransmissionEngine:
     selection from older generations.
     """
 
-    def __init__(self, config: Layer2Config) -> None:
+    def __init__(self, config: Any) -> None:
         self.config = config
 
     @beartype
@@ -180,7 +179,7 @@ class HorizontalTransmissionEngine:
     learning modes implemented through DataFrame joins and aggregations.
     """
 
-    def __init__(self, config: Layer2Config) -> None:
+    def __init__(self, config: Any) -> None:
         self.config = config
 
     @beartype
@@ -303,7 +302,7 @@ class CulturalInnovationEngine:
     strategies (bit-flip, random, neighbor-blend).
     """
 
-    def __init__(self, config: Layer2Config) -> None:
+    def __init__(self, config: Any) -> None:
         self.config = config
 
     @beartype
@@ -391,7 +390,7 @@ class MemoryDecayEngine:
     decay rates in bulk operations.
     """
 
-    def __init__(self, config: Layer2Config) -> None:
+    def __init__(self, config: Any) -> None:
         self.config = config
 
     @beartype

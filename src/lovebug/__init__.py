@@ -4,13 +4,19 @@ LoveBug: An agent‑based model (ABM) of sexual selection and mating‑preferenc
 
 from importlib import metadata as _metadata
 
+# Import unified configuration classes
+from .config import (
+    CulturalParams,
+    GeneticParams,
+    LayerBlendingParams,
+    LayerConfig,
+    LoveBugConfig,
+    PerceptualParams,
+    SimulationParams,
+)
+
 # Import vectorized components for advanced users
 from .layer2 import CulturalLayer
-from .layer2.config import Layer2Config
-
-# Import core configuration classes
-from .layer_activation import LayerActivationConfig
-from .parameters import LandeKirkpatrickParams
 
 # Import the enhanced LoveModel as the primary interface
 from .unified_mesa_model import LoveAgents, LoveModel
@@ -20,10 +26,14 @@ __all__ = [
     # Enhanced primary interface
     "LoveModel",
     "LoveAgents",
-    # Configuration classes
-    "LayerActivationConfig",
-    "LandeKirkpatrickParams",
-    "Layer2Config",
+    # Unified configuration system
+    "LoveBugConfig",
+    "GeneticParams",
+    "CulturalParams",
+    "LayerBlendingParams",
+    "PerceptualParams",
+    "SimulationParams",
+    "LayerConfig",
     # Vectorized components
     "CulturalLayer",
 ]

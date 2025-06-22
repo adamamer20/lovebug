@@ -16,11 +16,9 @@ import polars as pl
 from beartype import beartype
 from mesa_frames import AgentSetPolars, ModelDF
 
-from lovebug.layer2.config import Layer2Config
+from lovebug.config import LoveBugConfig
 from lovebug.layer2.cultural_layer import CulturalLayer
 from lovebug.layer2.network import NetworkTopology, SocialNetwork
-from lovebug.layer_activation import LayerActivationConfig
-from lovebug.parameters import LandeKirkpatrickParams
 
 __all__ = ["LoveAgents", "LoveModel"]
 
@@ -82,13 +80,13 @@ class LoveAgents(AgentSetPolars):
 
     def __init__(self, n: int, model: LoveModel):
         super().__init__(model)
-        self.layer_config = model.layer_config
+        self.config = model.config
 
         # Initialize genomes
         genomes = np.random.randint(0, 2**32, size=n, dtype=np.uint32)
 
         # Initialize with stable age distribution instead of synchronized generations
-        max_age = model.genetic_params.max_age if model.genetic_params else 100
+        max_age = self.config.genetic.max_age
         ages = np.random.randint(0, max_age, size=n, dtype=np.uint16)
         # Create base dataframe with genetic traits
         df_data = {
@@ -99,14 +97,14 @@ class LoveAgents(AgentSetPolars):
         }
 
         # Add cultural traits if cultural layer is enabled
-        if self.layer_config.cultural_enabled:
+        if self.config.layer.cultural_enabled:
             df_data["pref_culture"] = ((genomes & PREF_MASK) >> PREF_SHIFT).astype(np.uint8)
             df_data["cultural_innovation_count"] = pl.Series([0] * n, dtype=pl.UInt16)
             df_data["prestige_score"] = pl.Series([0.0] * n, dtype=pl.Float32)
 
             # Add cultural memory columns
-            if model.cultural_params and model.cultural_params.cultural_memory_size > 0:
-                memory_size = model.cultural_params.cultural_memory_size
+            memory_size = getattr(self.config.cultural, "memory_span", 0)
+            if memory_size > 0:
                 for i in range(memory_size):
                     df_data[f"cultural_memory_{i}"] = pl.Series([0.0] * n, dtype=pl.Float32)
 
@@ -114,40 +112,36 @@ class LoveAgents(AgentSetPolars):
             df_data["social_network_neighbors"] = pl.Series([[] for _ in range(n)], dtype=pl.List(pl.Int32))
 
         # Add fields for tracking layer effects
-        if self.layer_config.is_combined():
+        if getattr(self.config, "blending", None):
             df_data["effective_preference"] = ((genomes & PREF_MASK) >> PREF_SHIFT).astype(np.uint8)
 
         self += pl.DataFrame(df_data)
         self._mask = pl.repeat(True, len(self.agents), dtype=pl.Boolean, eager=True)
 
         # Initialize social network if cultural layer enabled
-        if self.layer_config.cultural_enabled and model.cultural_params:
+        if getattr(self.config, "cultural", None):
             self._initialize_social_network()
 
         # Initialize vectorized cultural layer if enabled and configured
         self.vectorized_cultural_layer = None
-        if (
-            self.layer_config.cultural_enabled
-            and model.cultural_params
-            and getattr(model, "use_vectorized_cultural_layer", True)
-        ):
+        if getattr(self.config, "cultural", None):
             try:
-                self.vectorized_cultural_layer = CulturalLayer(self, model.cultural_params)
+                self.vectorized_cultural_layer = CulturalLayer(self, self.config.cultural)
                 logger.info("Initialized vectorized cultural layer")
             except Exception as e:
                 logger.warning(f"Failed to initialize vectorized cultural layer: {e}")
                 logger.info("Falling back to sequential cultural learning")
 
-        logger.debug(f"Initialized {n} agents with layer config: {self.layer_config}")
+        logger.debug(f"Initialized {n} agents with config: {self.config}")
 
     def _initialize_social_network(self) -> None:
         """Initialize social network and populate neighbor data."""
-        if not self.model.cultural_params:
+        if not self.model.config.layer.cultural_enabled:
             return
 
         topology = NetworkTopology(
-            network_type=self.model.cultural_params.network_type,
-            connectivity=self.model.cultural_params.network_connectivity,
+            network_type=self.model.config.cultural.network_type,
+            connectivity=self.model.config.cultural.network_connectivity,
         )
         self.social_network = SocialNetwork(len(self), topology)
 
@@ -210,7 +204,7 @@ class LoveAgents(AgentSetPolars):
             return
 
         # Update effective preferences based on layer activation
-        if self.layer_config.is_combined():
+        if self.model.config.layer.is_combined():
             self._update_effective_preferences()
 
         # --- 1. Calculate Births ---
@@ -218,7 +212,7 @@ class LoveAgents(AgentSetPolars):
         offspring_df, mating_success_update = self._courtship()
 
         # --- 2. Cultural Learning ---
-        if self.layer_config.cultural_enabled:
+        if self.model.config.layer.cultural_enabled:
             if self.vectorized_cultural_layer:
                 # Use vectorized cultural learning
                 self.vectorized_cultural_layer.step()
@@ -233,9 +227,9 @@ class LoveAgents(AgentSetPolars):
         # --- 3. Batched State Update and Population Regulation ---
 
         # Get parameters
-        energy_decay = self.model.genetic_params.energy_decay if self.model.genetic_params else DEFAULT_ENERGY_DECAY
-        max_age = self.model.genetic_params.max_age if self.model.genetic_params else DEFAULT_MAX_AGE
-        carrying_capacity = self.model.genetic_params.carrying_capacity if self.model.genetic_params else n_start_step
+        energy_decay = self.model.config.genetic.energy_decay
+        max_age = self.model.config.genetic.max_age
+        carrying_capacity = self.model.config.genetic.carrying_capacity
 
         # --- A. Update and filter the existing population ---
         updates = [
@@ -298,7 +292,7 @@ class LoveAgents(AgentSetPolars):
 
     def _update_effective_preferences(self) -> None:
         """Update effective preferences by blending genetic and cultural layers."""
-        if not self.layer_config.is_combined():
+        if not self.model.config.layer.is_combined():
             return
 
         n = len(self)
@@ -308,22 +302,22 @@ class LoveAgents(AgentSetPolars):
         genetic_prefs = ((self.agents["genome"].to_numpy() & PREF_MASK) >> PREF_SHIFT).astype(np.uint8)
         cultural_prefs = self.agents["pref_culture"].to_numpy().astype(np.uint8)
 
-        if self.layer_config.blending_mode == "weighted_average":
+        if self.model.config.blending.blend_mode == "weighted":
             # Weighted average blending
-            genetic_weight = self.layer_config.get_effective_genetic_weight()
-            cultural_weight = self.layer_config.get_effective_cultural_weight()
+            genetic_weight = self.model.config.blending.get_effective_genetic_weight()
+            cultural_weight = self.model.config.blending.get_effective_cultural_weight()
 
             # Blend at bit level for more realistic interaction
             effective_prefs = (genetic_weight * genetic_prefs + cultural_weight * cultural_prefs).astype(np.uint8)
 
-        elif self.layer_config.blending_mode == "probabilistic":
+        elif self.model.config.blending.blend_mode == "additive":
             # Probabilistic switching
-            genetic_weight = self.layer_config.get_effective_genetic_weight()
+            genetic_weight = self.model.config.blending.get_effective_genetic_weight()
             choose_genetic = np.random.random(n) < genetic_weight
             effective_prefs = genetic_prefs.copy()
             effective_prefs[~choose_genetic] = cultural_prefs[~choose_genetic]
 
-        elif self.layer_config.blending_mode == "competitive":
+        elif self.model.config.blending.blend_mode == "multiplicative":
             # Competitive: stronger preference wins
             genetic_strength = np.abs(genetic_prefs.astype(np.float32) - 128)
             cultural_strength = np.abs(cultural_prefs.astype(np.float32) - 128)
@@ -332,7 +326,7 @@ class LoveAgents(AgentSetPolars):
             effective_prefs[~use_genetic] = cultural_prefs[~use_genetic]
 
         else:
-            raise ValueError(f"Unknown blending mode: {self.layer_config.blending_mode}")
+            raise ValueError(f"Unknown blending mode: {self.model.config.blending.blend_mode}")
 
         self["effective_preference"] = pl.Series(effective_prefs, dtype=pl.UInt8)
 
@@ -354,12 +348,12 @@ class LoveAgents(AgentSetPolars):
             Perceived similarity scores after applying constraints
         """
         # Apply perceptual noise using σ_perception parameter
-        noise = np.random.normal(0, self.layer_config.sigma_perception, size=similarity_scores.shape)
+        noise = np.random.normal(0, self.model.config.layer.sigma_perception, size=similarity_scores.shape)
         noisy_scores = similarity_scores.astype(np.float32) + noise
 
         # Apply detection threshold - signals below θ_detect are undetectable
         perceived_scores = np.where(
-            noisy_scores >= self.layer_config.theta_detect,
+            noisy_scores >= self.model.config.layer.theta_detect,
             noisy_scores,
             0.0,  # Undetectable signals score as 0
         )
@@ -369,10 +363,10 @@ class LoveAgents(AgentSetPolars):
 
     def get_effective_pref(self) -> np.ndarray:
         """Get effective preference based on layer activation."""
-        if self.layer_config.is_genetic_only():
+        if self.model.config.layer.is_genetic_only():
             # Genetic only
             return ((self.agents["genome"].to_numpy() & PREF_MASK) >> PREF_SHIFT).astype(np.uint8)
-        elif self.layer_config.is_cultural_only():
+        elif self.model.config.layer.is_cultural_only():
             # Cultural only
             return self.agents["pref_culture"].to_numpy().astype(np.uint8)
         else:
@@ -456,8 +450,8 @@ class LoveAgents(AgentSetPolars):
         )
 
         # Vectorized perceptual noise generation (replaces _apply_perceptual_constraints)
-        sigma_perception = self.layer_config.sigma_perception
-        theta_detect = self.layer_config.theta_detect
+        sigma_perception = self.model.config.layer.sigma_perception
+        theta_detect = self.model.config.layer.theta_detect
         noise_self = np.random.normal(0, sigma_perception, size=n).astype(np.float32)
         noise_partner = np.random.normal(0, sigma_perception, size=n).astype(np.float32)
 
@@ -557,9 +551,7 @@ class LoveAgents(AgentSetPolars):
         mating_success_update = pl.lit(mating_success, dtype=pl.UInt16).alias("mating_success")
 
         # Apply genetic parameters if available
-        mutation_rate = DEFAULT_MUTATION_RATE
-        if self.model.genetic_params:
-            mutation_rate = self.model.genetic_params.mutation_variance
+        mutation_rate = self.model.config.genetic.mutation_variance
 
         # Uniform crossover via random mask
         mask = np.random.randint(0, 2**32, size=len(idx))
@@ -586,14 +578,12 @@ class LoveAgents(AgentSetPolars):
         n_offspring = len(idx)
 
         # Add cultural traits for offspring if cultural layer enabled
-        if self.layer_config.cultural_enabled:
+        if self.model.config.layer.cultural_enabled:
             # Inherit cultural preferences with some innovation
             parent_cultures_a = self.agents["pref_culture"].to_numpy()[idx]
             parent_cultures_b = self.agents["pref_culture"].to_numpy()[partner_idx]
 
-            innovation_rate = 0.05
-            if self.model.cultural_params:
-                innovation_rate = self.model.cultural_params.innovation_rate
+            innovation_rate = self.model.config.cultural.innovation_rate
 
             # Cultural inheritance (choose randomly from parents)
             inherit_from_a = np.random.random(len(idx)) < 0.5
@@ -614,13 +604,13 @@ class LoveAgents(AgentSetPolars):
             )
 
             # Add cultural memory columns for offspring
-            if self.model.cultural_params and self.model.cultural_params.cultural_memory_size > 0:
-                memory_size = self.model.cultural_params.cultural_memory_size
+            if self.model.config.cultural.cultural_memory_size > 0:
+                memory_size = self.model.config.cultural.cultural_memory_size
                 for i in range(memory_size):
                     offspring_data[f"cultural_memory_{i}"] = pl.Series([0.0] * n_offspring, dtype=pl.Float32)
 
         # Add fields for tracking layer effects in offspring
-        if self.layer_config.is_combined():
+        if self.model.config.layer.is_combined():
             offspring_data["effective_preference"] = pl.Series(
                 ((offspring_genomes & PREF_MASK) >> PREF_SHIFT).astype(np.uint8), dtype=pl.UInt8
             )
@@ -720,7 +710,7 @@ class LoveAgents(AgentSetPolars):
 
     def _vectorized_cultural_learning(self) -> None:
         """Enhanced vectorized cultural learning with advanced features."""
-        if not self.layer_config.cultural_enabled:
+        if not self.model.config.layer.cultural_enabled:
             return
 
         n = len(self)
@@ -728,14 +718,9 @@ class LoveAgents(AgentSetPolars):
             return
 
         # Get learning parameters
-        p_learn = 0.1
-        innovation_rate = 0.05
-        oblique_rate = 0.0
-
-        if self.model.cultural_params:
-            p_learn = self.model.cultural_params.horizontal_transmission_rate
-            innovation_rate = self.model.cultural_params.innovation_rate
-            oblique_rate = self.model.cultural_params.oblique_transmission_rate
+        p_learn = self.model.config.cultural.horizontal_transmission_rate
+        innovation_rate = self.model.config.cultural.innovation_rate
+        oblique_rate = self.model.config.cultural.oblique_transmission_rate
 
         # Track events for this generation
         cultural_events = []
@@ -816,9 +801,7 @@ class LoveAgents(AgentSetPolars):
         learner_indices = np.where(learners)[0]
 
         # Get local learning radius from config
-        local_radius = 5  # Default fallback
-        if self.model.cultural_params:
-            local_radius = self.model.cultural_params.local_learning_radius
+        local_radius = self.model.config.cultural.local_learning_radius
 
         # Apply learning with local radius constraint
         for learner_idx in learner_indices:
@@ -875,11 +858,11 @@ class LoveAgents(AgentSetPolars):
 
     def _update_cultural_memory_vectorized(self) -> None:
         """Update cultural memory using vectorized operations."""
-        if not self.model.cultural_params:
+        if self.model.config.cultural.cultural_memory_size == 0:
             return
 
-        memory_size = self.model.cultural_params.cultural_memory_size
-        decay_rate = self.model.cultural_params.memory_decay_rate
+        memory_size = self.model.config.cultural.cultural_memory_size
+        decay_rate = self.model.config.cultural.memory_decay_rate
 
         # Shift memories (move older memories down)
         for i in range(memory_size - 1, 0, -1):
@@ -900,77 +883,39 @@ class LoveAgents(AgentSetPolars):
 
 class LoveModel(ModelDF):
     """
-    Enhanced Unified Mesa-Frames model supporting advanced layer activation.
-
-    This model can run genetic-only, cultural-only, or combined evolution
-    based on LayerActivationConfig settings while maintaining the vectorized
-    efficiency and adding advanced cultural features.
+    Enhanced Unified Mesa-Frames model using unified LoveBugConfig.
 
     Parameters
     ----------
-    layer_config : LayerActivationConfig
-        Configuration specifying which layers are active and their weights
-    genetic_params : LandeKirkpatrickParams | None, optional
-        Parameters for genetic evolution
-    cultural_params : Layer2Config | None, optional
-        Parameters for cultural evolution
-    n_agents : int, default=1000
-        Number of agents in the population
-    use_vectorized_cultural_layer : bool, default=True
-        Whether to use the vectorized cultural layer implementation
+    config : LoveBugConfig
+        Unified configuration object for the simulation.
 
     Examples
     --------
-    >>> # Pure genetic evolution
-    >>> genetic_config = LayerActivationConfig.genetic_only()
-    >>> genetic_params = LandeKirkpatrickParams()
-    >>> model = LoveModel(genetic_config, genetic_params, None)
-    >>> model.run(100)
-
-    >>> # Combined evolution
-    >>> combined_config = LayerActivationConfig.balanced_combined(0.6)
-    >>> cultural_params = Layer2Config()
-    >>> model = LoveModel(combined_config, genetic_params, cultural_params)
+    >>> config = LoveBugConfig()
+    >>> model = LoveModel(config)
     >>> model.run(100)
     """
 
     @beartype
-    def __init__(
-        self,
-        layer_config: LayerActivationConfig,
-        genetic_params: LandeKirkpatrickParams | None = None,
-        cultural_params: Layer2Config | None = None,
-        n_agents: int = 1000,
-        use_vectorized_cultural_layer: bool = True,
-    ) -> None:
+    def __init__(self, config: LoveBugConfig) -> None:
         super().__init__()
+        self.config = config
 
-        self.layer_config = layer_config
-        self.genetic_params = genetic_params
-        self.cultural_params = cultural_params
-        self.use_vectorized_cultural_layer = use_vectorized_cultural_layer
+        # All configuration is now accessed through self.config
 
         # Event tracking
         self._cultural_learning_events = 0
         self._cultural_innovation_events = 0
 
-        # Validate required parameters
-        if layer_config.genetic_enabled and genetic_params is None:
-            logger.warning("genetic_params not provided for genetic layer - using defaults")
-        if layer_config.cultural_enabled and cultural_params is None:
-            logger.warning("cultural_params not provided for cultural layer - using defaults")
-
         # Initialize agents
-        self.agents += LoveAgents(n_agents, self)
+        self.agents += LoveAgents(self.config.simulation.population_size, self)
 
         # Track metrics
         self.history: list[dict[str, Any]] = []
         self.step_count = 0
 
-        logger.info(
-            f"Enhanced LoveModel initialized: genetic={layer_config.genetic_enabled}, "
-            f"cultural={layer_config.cultural_enabled}, n_agents={n_agents}"
-        )
+        logger.info(f"LoveModel initialized: n_agents={self.config.simulation.population_size}")
 
     def step(self) -> None:
         """Execute one model timestep and collect metrics."""
@@ -1013,7 +958,7 @@ class LoveModel(ModelDF):
         )
 
         # Genetic metrics
-        if self.layer_config.genetic_enabled:
+        if self.config.layer.genetic_enabled:
             gene_pref = ((df["genome"] & PREF_MASK) // (1 << PREF_SHIFT)).cast(pl.UInt32)
             gene_pref_mean = gene_pref.mean()
             gene_pref_var = gene_pref.var()
@@ -1026,7 +971,7 @@ class LoveModel(ModelDF):
             )
 
         # Cultural metrics
-        if self.layer_config.cultural_enabled and "pref_culture" in df.columns:
+        if self.config.layer.cultural_enabled and "pref_culture" in df.columns:
             culture_pref = df["pref_culture"].cast(pl.UInt32)
             culture_pref_mean = culture_pref.mean()
             culture_pref_var = culture_pref.var()
@@ -1054,14 +999,14 @@ class LoveModel(ModelDF):
                 )
 
             # Gene-culture distance
-            if self.layer_config.genetic_enabled:
+            if self.config.layer.genetic_enabled:
                 gene = ((df["genome"] & PREF_MASK) // (1 << PREF_SHIFT)).cast(pl.UInt32)
                 culture = df["pref_culture"].cast(pl.UInt32)
                 dist = ((gene ^ culture) & 0xFF).bitwise_count_ones().mean()
                 metrics["gene_culture_distance"] = float(dist) if dist is not None else 0.0
 
         # Combined model metrics
-        if self.layer_config.is_combined() and "effective_preference" in df.columns:
+        if self.config.layer.is_combined() and "effective_preference" in df.columns:
             eff_pref = df["effective_preference"].cast(pl.UInt32)
             eff_pref_mean = eff_pref.mean()
             eff_pref_var = eff_pref.var()
@@ -1097,7 +1042,7 @@ class LoveModel(ModelDF):
 
         # Compile results
         results = {
-            "layer_config": self.layer_config.to_dict(),
+            "layer_config": self.config.layer.model_dump(),
             "n_steps": n_steps,
             "final_population": len(self.agents),
             "trajectory": self.history,
@@ -1105,13 +1050,13 @@ class LoveModel(ModelDF):
         }
 
         # Add layer-specific summaries
-        if self.layer_config.genetic_enabled:
+        if self.config.layer.genetic_enabled:
             results["genetic_summary"] = self._summarize_genetic_evolution()
 
-        if self.layer_config.cultural_enabled:
+        if self.config.layer.cultural_enabled:
             results["cultural_summary"] = self._summarize_cultural_evolution()
 
-        if self.layer_config.is_combined():
+        if self.config.layer.is_combined():
             results["interaction_summary"] = self._summarize_layer_interactions()
 
         logger.info(f"Enhanced unified simulation completed: final population {len(self.agents)}")
@@ -1166,7 +1111,7 @@ class LoveModel(ModelDF):
             "max_correlation": max(correlations) if correlations else 0.0,
             "mean_gene_culture_distance": np.mean(distances) if distances else 0.0,
             "final_gene_culture_distance": distances[-1] if distances else 0.0,
-            "interaction_strength": self.layer_config.genetic_weight * self.layer_config.cultural_weight,
+            "interaction_strength": self.config.layer.genetic_weight * self.config.layer.cultural_weight,
         }
 
     def _calculate_fixation_time(self, trait_name: str) -> int | None:

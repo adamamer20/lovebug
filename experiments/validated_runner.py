@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
-Validated experiment runner using Pydantic models.
+Simplified experiment runner using unified LoveBugConfig.
 
-This module replaces the fragile dictionary-based experiment runner with
-a type-safe version that uses Pydantic models for validation and clear
-interfaces for model initialization.
+This module provides a clean, type-safe experiment runner that accepts
+only the unified LoveBugConfig and determines experiment behavior based
+on the configuration contents.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import time
 import uuid
@@ -17,27 +18,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 from beartype import beartype
-from pydantic import ValidationError
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from experiments.config_models import (
-    CombinedExperimentConfig,
-    CulturalExperimentConfig,
-    GeneticExperimentConfig,
-)
-from experiments.model_factory import create_love_model_from_config
 from experiments.models import (
-    CommonParameters,
-    CulturalExperimentResult,
     ExperimentMetadata,
-    GeneticExperimentResult,
-    IntegratedExperimentResult,
 )
+from lovebug.config import LoveBugConfig
+from lovebug.unified_mesa_model import LoveModel
 
 __all__ = ["run_validated_experiment", "ValidatedExperimentRunner"]
 
@@ -45,19 +36,24 @@ logger = logging.getLogger(__name__)
 
 
 @beartype
-def run_validated_genetic_experiment(config: GeneticExperimentConfig) -> GeneticExperimentResult:
+def run_validated_experiment(config: LoveBugConfig) -> dict[str, Any]:
     """
-    Execute a genetic evolution experiment with validated configuration.
+    Execute an experiment with unified configuration.
+
+    The experiment type is determined automatically based on the layer configuration:
+    - Genetic-only: layer.genetic_enabled=True, layer.cultural_enabled=False
+    - Cultural-only: layer.genetic_enabled=False, layer.cultural_enabled=True
+    - Combined: layer.genetic_enabled=True, layer.cultural_enabled=True
 
     Parameters
     ----------
-    config : GeneticExperimentConfig
-        Validated experiment configuration
+    config : LoveBugConfig
+        Unified experiment configuration
 
     Returns
     -------
-    GeneticExperimentResult
-        Type-safe genetic experiment result
+    dict[str, Any]
+        Experiment results with metadata
 
     Raises
     ------
@@ -66,482 +62,239 @@ def run_validated_genetic_experiment(config: GeneticExperimentConfig) -> Genetic
     """
     experiment_start = time.time()
     start_time = datetime.now()
+    experiment_id = str(uuid.uuid4())[:8]
 
     try:
-        logger.info(f"Starting validated genetic experiment: {config.name}")
+        logger.info(f"Starting validated experiment: {config.name} (ID: {experiment_id})")
+        logger.info(f"Layer config: genetic={config.layer.genetic_enabled}, cultural={config.layer.cultural_enabled}")
         logger.debug(f"Configuration: {config.model_dump_json(indent=2)}")
 
-        # Create model using validated factory
-        model = create_love_model_from_config(config)
+        # Create and run model
+        model = LoveModel(config=config)
+
+        # Use simulation parameters for steps and replications
+        n_steps = config.simulation.steps
 
         # Run simulation
-        model_results = model.run(n_steps=config.n_generations)
+        model_results = model.run(n_steps=n_steps)
 
-        # Extract results
-        trajectory = model_results.get("trajectory", [])
-        final_metrics = model_results.get("final_metrics", {})
-
-        # Calculate final values
-        if trajectory:
-            final_metrics_trajectory = trajectory[-1]
-            final_trait = final_metrics_trajectory.get("mean_genetic_trait", 0.0)
-            final_preference = final_metrics_trajectory.get("mean_genetic_preference", 128.0)
-            final_covariance = final_metrics.get("genetic_covariance", config.genetic_correlation)
+        # Determine experiment type for metadata
+        if config.layer.is_genetic_only():
+            experiment_type = "genetic"
+        elif config.layer.is_cultural_only():
+            experiment_type = "cultural"
+        elif config.layer.is_combined():
+            experiment_type = "integrated"
         else:
-            final_trait = 0.0
-            final_preference = 128.0
-            final_covariance = config.genetic_correlation
+            experiment_type = "genetic"  # Default fallback
+            logger.warning("Neither genetic nor cultural layers enabled, defaulting to genetic")
 
-        # Classify outcome using configuration's computed field
-        scenario_type = config.scenario_type
-        if scenario_type in ["runaway", "stasis", "equilibrium"]:
-            outcome = scenario_type  # type: ignore[assignment]
-        else:
-            outcome = "equilibrium"  # Default fallback
+        experiment_duration = time.time() - experiment_start
+        end_time = datetime.now()
 
         # Create metadata
-        experiment_id = str(uuid.uuid4())[:8]
         metadata = ExperimentMetadata(
             experiment_id=experiment_id,
             name=config.name,
-            experiment_type="genetic",
+            experiment_type=experiment_type,
             start_time=start_time,
-            duration_seconds=time.time() - experiment_start,
+            duration_seconds=experiment_duration,
             success=True,
-            process_id=0,  # Will be set by process manager if needed
+            process_id=os.getpid(),
         )
 
-        common_params = CommonParameters(
-            n_generations=config.n_generations,
-            population_size=config.population_size,
-            random_seed=config.random_seed,
-        )
-
-        result = GeneticExperimentResult(
-            metadata=metadata,
-            common_params=common_params,
-            final_trait=final_trait,
-            final_preference=final_preference,
-            final_covariance=final_covariance,
-            outcome=outcome,
-            generations_completed=len(trajectory),
-            h2_trait=config.h2_trait,
-            h2_preference=config.h2_preference,
-            genetic_correlation=config.genetic_correlation,
-            selection_strength=config.selection_strength,
-            preference_cost=config.preference_cost,
-            mutation_variance=config.mutation_variance,
-        )
-
-        logger.info(
-            f"Genetic experiment completed: {config.name} → {outcome} (final population: {final_metrics.get('population_size', 'unknown')})"
-        )
-        return result
-
-    except Exception as e:
-        logger.exception(f"Genetic experiment failed: {config.name}")
-        raise ValueError(f"Genetic experiment failed: {e}") from e
-
-
-@beartype
-def run_validated_cultural_experiment(config: CulturalExperimentConfig) -> CulturalExperimentResult:
-    """
-    Execute a cultural evolution experiment with validated configuration.
-
-    Parameters
-    ----------
-    config : CulturalExperimentConfig
-        Validated experiment configuration
-
-    Returns
-    -------
-    CulturalExperimentResult
-        Type-safe cultural experiment result
-
-    Raises
-    ------
-    ValueError
-        If model initialization or execution fails
-    """
-    experiment_start = time.time()
-    start_time = datetime.now()
-
-    try:
-        logger.info(f"Starting validated cultural experiment: {config.name}")
-        logger.debug(f"Configuration: {config.model_dump_json(indent=2)}")
-
-        # Create model using validated factory
-        model = create_love_model_from_config(config)
-
-        # Run simulation
-        model_results = model.run(n_steps=config.n_generations)
-
-        # Extract results
-        trajectory = model_results.get("trajectory", [])
-        final_metrics = model_results.get("final_metrics", {})
-
-        # Calculate cultural metrics
-        final_diversity = final_metrics.get("cultural_diversity", 0.5)
-        total_events = sum(h.get("cultural_learning_events", 0) for h in trajectory)
-
-        # Calculate diversity trend
-        diversity_samples = [h.get("cultural_diversity", 0.5) for h in trajectory[::10]]  # Sample every 10 steps
-        diversity_trend = 0.0
-        if len(diversity_samples) > 1:
-            diversity_trend = np.polyfit(range(len(diversity_samples)), diversity_samples, 1)[0]
-
-        # Classify cultural outcome
-        if final_diversity > 0.7:
-            cultural_outcome = "high_diversity"
-        elif final_diversity < 0.2:
-            cultural_outcome = "low_diversity"
-        else:
-            cultural_outcome = "moderate_diversity"
-
-        # Create metadata
-        experiment_id = str(uuid.uuid4())[:8]
-        metadata = ExperimentMetadata(
-            experiment_id=experiment_id,
-            name=config.name,
-            experiment_type="cultural",
-            start_time=start_time,
-            duration_seconds=time.time() - experiment_start,
-            success=True,
-            process_id=0,
-        )
-
-        common_params = CommonParameters(
-            n_generations=config.n_generations,
-            population_size=config.population_size,
-            random_seed=config.random_seed,
-        )
-
-        result = CulturalExperimentResult(
-            metadata=metadata,
-            common_params=common_params,
-            final_diversity=final_diversity,
-            diversity_trend=diversity_trend,
-            total_events=total_events,
-            cultural_outcome=cultural_outcome,
-            generations_completed=len(trajectory),
-            innovation_rate=config.innovation_rate,
-            horizontal_transmission_rate=config.horizontal_transmission_rate,
-            oblique_transmission_rate=config.oblique_transmission_rate,
-            network_type=config.network_type,
-            network_connectivity=config.network_connectivity,
-            cultural_memory_size=config.cultural_memory_size,
-        )
-
-        logger.info(
-            f"Cultural experiment completed: {config.name} → {cultural_outcome} (diversity: {final_diversity:.3f})"
-        )
-        return result
-
-    except Exception as e:
-        logger.exception(f"Cultural experiment failed: {config.name}")
-        raise ValueError(f"Cultural experiment failed: {e}") from e
-
-
-@beartype
-def run_validated_combined_experiment(config: CombinedExperimentConfig) -> IntegratedExperimentResult:
-    """
-    Execute a combined genetic+cultural experiment with validated configuration.
-
-    Parameters
-    ----------
-    config : CombinedExperimentConfig
-        Validated experiment configuration
-
-    Returns
-    -------
-    IntegratedExperimentResult
-        Type-safe integrated experiment result
-
-    Raises
-    ------
-    ValueError
-        If model initialization or execution fails
-    """
-    experiment_start = time.time()
-    start_time = datetime.now()
-
-    try:
-        logger.info(f"Starting validated combined experiment: {config.name}")
-        logger.debug(f"Configuration: {config.model_dump_json(indent=2)}")
-
-        # Create model using validated factory
-        model = create_love_model_from_config(config)
-
-        # Run simulation
-        model_results = model.run(n_steps=config.n_generations)
-
-        # Extract results
-        trajectory = model_results.get("trajectory", [])
-        final_metrics = model_results.get("final_metrics", {})
-
-        # Create genetic component result
-        genetic_component = GeneticExperimentResult(
-            metadata=ExperimentMetadata(
-                experiment_id=f"genetic_{str(uuid.uuid4())[:8]}",
-                name=f"genetic_component_{config.name}",
-                experiment_type="genetic",
-                start_time=start_time,
-                duration_seconds=time.time() - experiment_start,
-                success=True,
-                process_id=0,
-            ),
-            common_params=CommonParameters(
-                n_generations=config.n_generations,
-                population_size=config.population_size,
-                random_seed=config.random_seed,
-            ),
-            final_trait=final_metrics.get("mean_genetic_trait", 0.0),
-            final_preference=final_metrics.get("mean_genetic_preference", 128.0),
-            final_covariance=final_metrics.get("genetic_covariance", 0.0),
-            outcome="equilibrium",  # Could be determined from trajectory analysis
-            generations_completed=len(trajectory),
-            h2_trait=config.h2_trait,
-            h2_preference=config.h2_preference,
-            genetic_correlation=config.genetic_correlation,
-            selection_strength=config.selection_strength,
-            preference_cost=config.preference_cost,
-            mutation_variance=config.mutation_variance,
-        )
-
-        # Create cultural component result
-        final_diversity = final_metrics.get("cultural_diversity", 0.5)
-        total_events = sum(h.get("cultural_learning_events", 0) for h in trajectory)
-
-        cultural_outcome = "moderate_diversity"
-        if final_diversity > 0.7:
-            cultural_outcome = "high_diversity"
-        elif final_diversity < 0.2:
-            cultural_outcome = "low_diversity"
-
-        cultural_component = CulturalExperimentResult(
-            metadata=ExperimentMetadata(
-                experiment_id=f"cultural_{str(uuid.uuid4())[:8]}",
-                name=f"cultural_component_{config.name}",
-                experiment_type="cultural",
-                start_time=start_time,
-                duration_seconds=time.time() - experiment_start,
-                success=True,
-                process_id=0,
-            ),
-            common_params=CommonParameters(
-                n_generations=config.n_generations,
-                population_size=config.population_size,
-                random_seed=config.random_seed,
-            ),
-            final_diversity=final_diversity,
-            diversity_trend=0.0,  # Could be calculated from trajectory
-            total_events=total_events,
-            cultural_outcome=cultural_outcome,
-            generations_completed=len(trajectory),
-            innovation_rate=config.innovation_rate,
-            horizontal_transmission_rate=config.horizontal_transmission_rate,
-            oblique_transmission_rate=config.oblique_transmission_rate,
-            network_type=config.network_type,
-            network_connectivity=config.network_connectivity,
-            cultural_memory_size=config.cultural_memory_size,
-        )
-
-        # Calculate interaction metrics
-        gene_culture_correlation = final_metrics.get("gene_culture_correlation", 0.0)
-        interaction_strength = config.normalized_genetic_weight * config.normalized_cultural_weight
-
-        # Collect emergent properties
-        emergent_properties = {
-            "effective_preference_variance": final_metrics.get("var_effective_preference", 0.0),
-            "gene_culture_distance": final_metrics.get("gene_culture_distance", 0.0),
-            "population_stability": 1.0
-            if final_metrics.get("population_size", 0) > config.population_size * 0.1
-            else 0.0,
-            "blending_efficiency": interaction_strength,
-            "perceptual_constraint_effect": config.theta_detect / 16.0,
+        # Combine results
+        results = {
+            "metadata": {
+                "experiment_id": metadata.experiment_id,
+                "name": metadata.name,
+                "experiment_type": metadata.experiment_type,
+                "start_time": metadata.start_time,
+                "end_time": end_time,
+                "duration_seconds": metadata.duration_seconds,
+                "population_size": config.simulation.population_size,
+                "n_generations": n_steps,
+                "random_seed": config.simulation.seed,
+                "success": metadata.success,
+                "process_id": metadata.process_id,
+            },
+            "model_results": model_results,
+            "config": config.model_dump(),
+            "final_population_size": len(model.agents),
+            "total_steps": model.step_count,
+            "success": True,
         }
 
-        # Create integrated result
-        experiment_id = str(uuid.uuid4())[:8]
-        integrated_result = IntegratedExperimentResult(
-            metadata=ExperimentMetadata(
-                experiment_id=experiment_id,
-                name=config.name,
-                experiment_type="integrated",
-                start_time=start_time,
-                duration_seconds=time.time() - experiment_start,
-                success=True,
-                process_id=0,
-            ),
-            common_params=CommonParameters(
-                n_generations=config.n_generations,
-                population_size=config.population_size,
-                random_seed=config.random_seed,
-            ),
-            genetic_component=genetic_component,
-            cultural_component=cultural_component,
-            gene_culture_correlation=gene_culture_correlation,
-            interaction_strength=interaction_strength,
-            emergent_properties=emergent_properties,
-        )
-
-        logger.info(
-            f"Combined experiment completed: {config.name} (final population: {final_metrics.get('population_size', 'unknown')})"
-        )
-        return integrated_result
+        logger.info(f"Experiment {experiment_id} completed successfully in {experiment_duration:.2f}s")
+        return results
 
     except Exception as e:
-        logger.exception(f"Combined experiment failed: {config.name}")
-        raise ValueError(f"Combined experiment failed: {e}") from e
+        experiment_duration = time.time() - experiment_start
+        logger.error(f"Experiment {experiment_id} failed after {experiment_duration:.2f}s: {e}")
 
-
-@beartype
-def run_validated_experiment(
-    config: GeneticExperimentConfig | CulturalExperimentConfig | CombinedExperimentConfig,
-) -> GeneticExperimentResult | CulturalExperimentResult | IntegratedExperimentResult:
-    """
-    Execute any type of experiment with validated configuration.
-
-    This is the main entry point for the validated experiment system.
-    It dispatches to the appropriate experiment function based on the
-    configuration type.
-
-    Parameters
-    ----------
-    config : GeneticExperimentConfig | CulturalExperimentConfig | CombinedExperimentConfig
-        Validated experiment configuration
-
-    Returns
-    -------
-    GeneticExperimentResult | CulturalExperimentResult | IntegratedExperimentResult
-        Type-safe experiment result
-
-    Raises
-    ------
-    ValueError
-        If configuration type is not recognized or experiment fails
-    """
-    if isinstance(config, GeneticExperimentConfig):
-        return run_validated_genetic_experiment(config)
-    elif isinstance(config, CulturalExperimentConfig):
-        return run_validated_cultural_experiment(config)
-    elif isinstance(config, CombinedExperimentConfig):
-        return run_validated_combined_experiment(config)
-    else:
-        raise ValueError(f"Unknown experiment configuration type: {type(config)}")
+        # Return failure result
+        return {
+            "metadata": {
+                "experiment_id": experiment_id,
+                "experiment_name": config.name,
+                "start_time": start_time,
+                "end_time": datetime.now(),
+                "duration_seconds": experiment_duration,
+                "experiment_type": "failed",
+                "error": str(e),
+            },
+            "success": False,
+            "error": str(e),
+        }
 
 
 class ValidatedExperimentRunner:
     """
-    Experiment runner that uses validated Pydantic configurations.
+    Unified experiment runner for LoveBug simulations.
 
-    This class replaces the fragile dictionary-based experiment runner
-    with a type-safe version that validates all parameters before
-    model initialization.
+    This class provides a clean interface for running experiments with
+    automatic type detection and consistent result formatting.
     """
 
-    def __init__(self, validate_on_init: bool = True):
+    def __init__(self, base_output_dir: Path | str = "experiments/results"):
         """
-        Initialize the validated experiment runner.
+        Initialize the experiment runner.
 
         Parameters
         ----------
-        validate_on_init : bool
-            Whether to validate configurations immediately when added
+        base_output_dir : Path | str
+            Base directory for experiment outputs
         """
-        self.validate_on_init = validate_on_init
-        self.experiments_run = 0
-        self.experiments_failed = 0
+        self.base_output_dir = Path(base_output_dir)
+        self.base_output_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.info("Initialized ValidatedExperimentRunner with Pydantic validation")
+        logger.info(f"ValidatedExperimentRunner initialized with output dir: {self.base_output_dir}")
 
     @beartype
-    def run_from_dict(
-        self,
-        experiment_type: str,
-        parameters: dict[str, Any],
-    ) -> GeneticExperimentResult | CulturalExperimentResult | IntegratedExperimentResult:
+    def run_experiment(self, config: LoveBugConfig, save_results: bool = True) -> dict[str, Any]:
         """
-        Run experiment from dictionary parameters (with validation).
-
-        This method provides backward compatibility with the dictionary-based
-        interface while adding Pydantic validation.
+        Run a single experiment with the given configuration.
 
         Parameters
         ----------
-        experiment_type : str
-            Type of experiment ("genetic", "cultural", or "combined")
-        parameters : dict[str, Any]
-            Raw experiment parameters
+        config : LoveBugConfig
+            Experiment configuration
+        save_results : bool, default True
+            Whether to save results to disk
 
         Returns
         -------
-        GeneticExperimentResult | CulturalExperimentResult | IntegratedExperimentResult
-            Type-safe experiment result
-
-        Raises
-        ------
-        ValidationError
-            If parameters are invalid
-        ValueError
-            If experiment type is unknown or execution fails
+        dict[str, Any]
+            Experiment results
         """
-        try:
-            # Validate parameters using appropriate Pydantic model
-            if experiment_type == "genetic":
-                config = GeneticExperimentConfig(**parameters)
-            elif experiment_type == "cultural":
-                config = CulturalExperimentConfig(**parameters)
-            elif experiment_type == "combined":
-                config = CombinedExperimentConfig(**parameters)
-            else:
-                raise ValueError(f"Unknown experiment type: {experiment_type}")
+        results = run_validated_experiment(config)
 
-            # Run validated experiment
-            result = run_validated_experiment(config)
-            self.experiments_run += 1
-            return result
+        if save_results and results.get("success", False):
+            self._save_results(results)
 
-        except ValidationError as e:
-            logger.error(f"Parameter validation failed for {experiment_type} experiment: {e}")
-            self.experiments_failed += 1
-            raise
-        except Exception:
-            logger.exception(f"Experiment execution failed: {experiment_type}")
-            self.experiments_failed += 1
-            raise
+        return results
 
     @beartype
-    def run_from_config(
-        self,
-        config: GeneticExperimentConfig | CulturalExperimentConfig | CombinedExperimentConfig,
-    ) -> GeneticExperimentResult | CulturalExperimentResult | IntegratedExperimentResult:
+    def run_batch(self, configs: list[LoveBugConfig], save_results: bool = True) -> list[dict[str, Any]]:
         """
-        Run experiment from validated Pydantic configuration.
+        Run a batch of experiments.
 
         Parameters
         ----------
-        config : GeneticExperimentConfig | CulturalExperimentConfig | CombinedExperimentConfig
-            Already validated experiment configuration
+        configs : list[LoveBugConfig]
+            List of experiment configurations
+        save_results : bool, default True
+            Whether to save results to disk
 
         Returns
         -------
-        GeneticExperimentResult | CulturalExperimentResult | IntegratedExperimentResult
-            Type-safe experiment result
+        list[dict[str, Any]]
+            List of experiment results
         """
-        try:
-            result = run_validated_experiment(config)
-            self.experiments_run += 1
-            return result
-        except Exception:
-            logger.exception(f"Experiment execution failed: {config.name}")
-            self.experiments_failed += 1
-            raise
+        results = []
+        total_configs = len(configs)
 
-    def get_stats(self) -> dict[str, int | float]:
-        """Get experiment execution statistics."""
-        return {
-            "experiments_run": self.experiments_run,
-            "experiments_failed": self.experiments_failed,
-            "success_rate": self.experiments_run / max(1, self.experiments_run + self.experiments_failed),
-        }
+        logger.info(f"Starting batch run of {total_configs} experiments")
+
+        for i, config in enumerate(configs, 1):
+            logger.info(f"Running experiment {i}/{total_configs}: {config.name}")
+
+            try:
+                result = self.run_experiment(config, save_results=save_results)
+                results.append(result)
+
+                if result.get("success", False):
+                    logger.info(f"Experiment {i}/{total_configs} completed successfully")
+                else:
+                    logger.error(f"Experiment {i}/{total_configs} failed: {result.get('error', 'Unknown error')}")
+
+            except Exception as e:
+                logger.error(f"Exception in experiment {i}/{total_configs}: {e}")
+                results.append(
+                    {
+                        "success": False,
+                        "error": str(e),
+                        "config": config.model_dump(),
+                    }
+                )
+
+        successful = sum(1 for r in results if r.get("success", False))
+        logger.info(f"Batch completed: {successful}/{total_configs} experiments successful")
+
+        return results
+
+    def _save_results(self, results: dict[str, Any]) -> None:
+        """Save experiment results to disk."""
+        try:
+            metadata = results.get("metadata", {})
+            experiment_id = metadata.get("experiment_id", "unknown")
+            experiment_name = metadata.get("experiment_name", "unnamed")
+
+            # Create safe filename
+            safe_name = "".join(c for c in experiment_name if c.isalnum() or c in ("-", "_"))
+            filename = f"{safe_name}_{experiment_id}.json"
+            filepath = self.base_output_dir / filename
+
+            import json
+
+            with open(filepath, "w") as f:
+                json.dump(results, f, indent=2, default=str)
+
+            logger.debug(f"Results saved to {filepath}")
+
+        except Exception as e:
+            logger.error(f"Failed to save results: {e}")
+
+
+# Backwards compatibility functions (deprecated)
+@beartype
+def run_validated_genetic_experiment(config: LoveBugConfig) -> dict[str, Any]:
+    """
+    DEPRECATED: Use run_validated_experiment() instead.
+
+    Execute a genetic evolution experiment with validated configuration.
+    """
+    logger.warning("run_validated_genetic_experiment is deprecated. Use run_validated_experiment instead.")
+    return run_validated_experiment(config)
+
+
+@beartype
+def run_validated_cultural_experiment(config: LoveBugConfig) -> dict[str, Any]:
+    """
+    DEPRECATED: Use run_validated_experiment() instead.
+
+    Execute a cultural evolution experiment with validated configuration.
+    """
+    logger.warning("run_validated_cultural_experiment is deprecated. Use run_validated_experiment instead.")
+    return run_validated_experiment(config)
+
+
+@beartype
+def run_validated_integrated_experiment(config: LoveBugConfig) -> dict[str, Any]:
+    """
+    DEPRECATED: Use run_validated_experiment() instead.
+
+    Execute an integrated genetic-cultural experiment with validated configuration.
+    """
+    logger.warning("run_validated_integrated_experiment is deprecated. Use run_validated_experiment instead.")
+    return run_validated_experiment(config)

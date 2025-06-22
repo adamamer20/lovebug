@@ -28,8 +28,8 @@ class DataCollector:
 
     Example:
         collector = DataCollector()
-        from lovebug.layer_activation import LayerActivationConfig
-        config = LayerActivationConfig.genetic_only()
+        from lovebug.config import LayerBlendingParams
+        config = LayerBlendingParams(blend_mode="weighted", blend_weight=1.0)
         model = LoveModel(layer_config=config, n_agents=1000)
 
         for step in range(100):

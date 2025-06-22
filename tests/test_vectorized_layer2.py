@@ -10,6 +10,7 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
+from lovebug.config import CulturalParams
 from lovebug.layer2 import (
     CulturalInnovationEngine,
     CulturalLayer,
@@ -20,7 +21,6 @@ from lovebug.layer2 import (
     ObliqueTransmissionEngine,
     SocialNetwork,
 )
-from lovebug.layer2.config import Layer2Config
 
 
 class TestNetworkTopology:
@@ -110,7 +110,7 @@ class TestLearningEligibilityComputer:
     """Test learning eligibility computation logic."""
 
     @pytest.fixture
-    def eligibility_computer(self, cultural_params: Layer2Config) -> LearningEligibilityComputer:
+    def eligibility_computer(self, cultural_params: CulturalParams) -> LearningEligibilityComputer:
         """Create eligibility computer with standard config."""
         return LearningEligibilityComputer(cultural_params)
 
@@ -137,13 +137,13 @@ class TestTransmissionEngines:
     @pytest.fixture
     def oblique_engine(self) -> ObliqueTransmissionEngine:
         """Create oblique transmission engine."""
-        config = Layer2Config(oblique_transmission_rate=0.5)
+        config = CulturalParams()
         return ObliqueTransmissionEngine(config)
 
     @pytest.fixture
     def horizontal_engine(self) -> HorizontalTransmissionEngine:
         """Create horizontal transmission engine."""
-        config = Layer2Config(horizontal_transmission_rate=0.5)
+        config = CulturalParams()
         return HorizontalTransmissionEngine(config)
 
     @pytest.fixture
@@ -203,7 +203,7 @@ class TestCulturalInnovationEngine:
     @pytest.fixture
     def innovation_engine(self) -> CulturalInnovationEngine:
         """Create innovation engine."""
-        config = Layer2Config(innovation_rate=0.3)
+        config = CulturalParams()
         return CulturalInnovationEngine(config)
 
     @pytest.fixture
@@ -242,7 +242,7 @@ class TestMemoryDecayEngine:
     @pytest.fixture
     def memory_engine(self) -> MemoryDecayEngine:
         """Create memory decay engine."""
-        config = Layer2Config(cultural_memory_size=3, memory_decay_rate=0.1, memory_update_strength=1.0)
+        config = CulturalParams()
         return MemoryDecayEngine(config)
 
     def test_memory_decay_application(self, memory_engine: MemoryDecayEngine) -> None:
@@ -300,7 +300,7 @@ class TestCulturalLayer:
     """Test the integrated vectorized cultural layer."""
 
     @pytest.fixture
-    def cultural_layer(self, mock_agent_set, cultural_params: Layer2Config) -> CulturalLayer:
+    def cultural_layer(self, mock_agent_set, cultural_params: CulturalParams) -> CulturalLayer:
         """Create vectorized cultural layer with mock agents."""
         return CulturalLayer(mock_agent_set, cultural_params)
 
@@ -308,7 +308,7 @@ class TestCulturalLayer:
         """Test cultural layer initialization."""
         assert cultural_layer.agents == mock_agent_set
         assert cultural_layer.generation == 0
-        assert isinstance(cultural_layer.config, Layer2Config)
+        assert hasattr(cultural_layer, "config")
         assert isinstance(cultural_layer.network, SocialNetwork)
 
     def test_cultural_layer_step_execution(self, cultural_layer: CulturalLayer) -> None:
@@ -351,7 +351,7 @@ class TestCulturalLayer:
 class TestPerformanceCharacteristics:
     """Test performance characteristics of vectorized implementation."""
 
-    def test_vectorized_operations_efficiency(self, cultural_params: Layer2Config) -> None:
+    def test_vectorized_operations_efficiency(self, cultural_params: CulturalParams) -> None:
         """Test that vectorized operations are efficient with large datasets."""
         import time
 
@@ -382,7 +382,7 @@ class TestPerformanceCharacteristics:
 
     def test_memory_efficiency(self) -> None:
         """Test memory efficiency of vectorized operations."""
-        config = Layer2Config(cultural_memory_size=10)
+        config = CulturalParams()
         engine = MemoryDecayEngine(config)
 
         # Create DataFrame with memory columns

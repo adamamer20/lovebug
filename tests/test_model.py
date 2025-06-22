@@ -10,7 +10,6 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from lovebug.layer_activation import LayerActivationConfig
 from lovebug.unified_mesa_model import LoveModel
 
 
@@ -29,13 +28,13 @@ class TestLoveModelBasics:
 
         assert similarity == 0  # All 16 bits are different
 
-    def test_model_initialization(self, genetic_config: LayerActivationConfig) -> None:
+    def test_model_initialization(self, genetic_only_config) -> None:
         """Test that LoveModel initializes correctly."""
-        model = LoveModel(layer_config=genetic_config, n_agents=100)
+        model = LoveModel(config=genetic_only_config)
 
-        assert len(model.agents) == 100
-        assert model.layer_config.genetic_enabled is True
-        assert model.layer_config.cultural_enabled is False
+        assert len(model.agents) == genetic_only_config.simulation.population_size
+        assert model.config.layer.genetic_enabled is True
+        assert model.config.layer.cultural_enabled is False
 
     def test_model_step_execution(self, small_genetic_model: LoveModel) -> None:
         """Test that model can execute steps without errors."""
@@ -59,9 +58,11 @@ class TestLoveModelBasics:
         assert small_genetic_model.step_count == 10
 
     @pytest.mark.parametrize("n_agents", [25, 50, 100])
-    def test_model_with_different_population_sizes(self, genetic_config: LayerActivationConfig, n_agents: int) -> None:
+    def test_model_with_different_population_sizes(self, genetic_only_config, n_agents: int) -> None:
         """Test model works with different initial population sizes."""
-        model = LoveModel(layer_config=genetic_config, n_agents=n_agents)
+        config = genetic_only_config
+        config.simulation.population_size = n_agents
+        model = LoveModel(config=config)
 
         assert len(model.agents) == n_agents
 
