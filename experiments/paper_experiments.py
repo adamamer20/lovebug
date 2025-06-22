@@ -32,6 +32,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import polars as pl
 from beartype import beartype
 from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeRemainingColumn
@@ -52,6 +53,42 @@ from experiments.config_models import (
     create_lk_stasis_config,
 )
 from experiments.validated_runner import ValidatedExperimentRunner
+
+
+# Patch Mesa-Frames to handle mask synchronization issues
+def _patched_add(original_add):
+    """Patch Mesa-Frames add method to handle mask shape mismatches gracefully."""
+
+    def patched_add(self, agents, inplace=True):
+        obj = self._get_obj(inplace)
+
+        # Handle the case where mask and agents are out of sync
+        if hasattr(obj, "_mask") and isinstance(obj._mask, pl.Series):
+            current_mask_len = len(obj._mask)
+            current_agents_len = len(obj._agents)
+
+            if current_mask_len != current_agents_len:
+                # Recreate mask to match current agents
+                obj._mask = pl.repeat(True, current_agents_len, dtype=pl.Boolean, eager=True)
+
+        # Call original add method
+        return original_add(obj, agents, inplace=inplace)
+
+    return patched_add
+
+
+# Apply the patch
+try:
+    from mesa_frames.concrete.agentset import AgentSetPolars
+
+    if hasattr(AgentSetPolars, "add"):
+        original_add = AgentSetPolars.add
+        AgentSetPolars.add = _patched_add(original_add)
+        print("✅ Mesa-Frames add method patched successfully")
+except ImportError:
+    print("⚠️ Mesa-Frames not available for patching")
+except Exception as e:
+    print(f"⚠️ Failed to patch Mesa-Frames: {e}")
 
 __all__ = ["ValidatedPaperConfig", "ValidatedPaperRunner", "run_validated_paper_experiments"]
 

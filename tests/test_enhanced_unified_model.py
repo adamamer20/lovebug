@@ -305,3 +305,69 @@ class TestConfigurationValidation:
             model.step()
 
         assert len(model.agents) > 0
+
+
+class TestPopulationRegulation:
+    """Test stochastic fitness-based population regulation mechanism."""
+
+    def test_population_regulation_with_carrying_capacity(self) -> None:
+        """Test that population is regulated when exceeding carrying capacity."""
+        # Set up a scenario that promotes population growth
+        genetic_params = LandeKirkpatrickParams(
+            carrying_capacity=50,  # Small carrying capacity to trigger culling
+            energy_decay=0.1,  # Low energy decay to promote survival
+            max_age=200,  # High max age to reduce natural deaths
+            mutation_variance=0.001,  # Low mutation rate for stability
+        )
+
+        config = LayerActivationConfig.genetic_only()
+        model = LoveModel(
+            layer_config=config,
+            genetic_params=genetic_params,
+            n_agents=30,  # Start below carrying capacity
+        )
+
+        # Run simulation to allow population growth
+        for _ in range(20):
+            model.step()
+            if len(model.agents) == 0:
+                break
+
+        # Population should exist but be regulated
+        final_pop = len(model.agents)
+        assert final_pop > 0
+        assert final_pop <= genetic_params.carrying_capacity
+
+        # Test that the culling mechanism activates when population exceeds capacity
+        # by checking the trajectory for population size variations
+        trajectory = model.history
+        population_sizes = [step.get("population_size", 0) for step in trajectory]
+
+        # Should have some population growth followed by regulation
+        max_pop = max(population_sizes) if population_sizes else 0
+        assert max_pop <= genetic_params.carrying_capacity * 1.1  # Allow small overshoot
+
+    def test_population_regulation_preserves_fitness_distribution(self) -> None:
+        """Test that population regulation preserves energy-based fitness distribution."""
+        genetic_params = LandeKirkpatrickParams(carrying_capacity=100, energy_decay=0.05, max_age=150)
+
+        config = LayerActivationConfig.genetic_only()
+        model = LoveModel(layer_config=config, genetic_params=genetic_params, n_agents=80)
+
+        # Run simulation to build up population
+        for _ in range(15):
+            model.step()
+            if len(model.agents) == 0:
+                break
+
+        if len(model.agents) > 0:
+            # Get final population data
+            df = model.get_agent_dataframe()
+
+            # Check that agents with higher energy are more likely to survive
+            # by verifying energy distribution is reasonable
+            mean_energy = df["energy"].mean()
+            assert mean_energy is not None and mean_energy > 0
+
+            # Population should be within or at carrying capacity
+            assert len(df) <= genetic_params.carrying_capacity

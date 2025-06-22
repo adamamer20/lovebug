@@ -195,19 +195,26 @@ class LoveAgents(AgentSetPolars):
         - Time per agent per generation: 2ms → 0.006ms (333x improvement)
         - Quick test time: 540s → 2.3s (232x improvement)
         - Full validation time: 1800s → 7.8s (231x improvement)
+
+        BUG FIX: Corrected population culling timing and logic
+        =====================================================
+        - Fixed critical bug where culling happened after adding offspring but random arrays
+          were sized incorrectly, causing population explosions
+        - Implemented proper order: births → aging/death → combine → cull → finalize
         """
-        n = len(self)
-        if n == 0:
+        n_start_step = len(self)
+        if n_start_step == 0:
             return
 
         # Update effective preferences based on layer activation
         if self.layer_config.is_combined():
             self._update_effective_preferences()
 
-        # Run main evolutionary processes using optimized courtship
+        # --- 1. Calculate Births ---
+        # This returns a DataFrame of new agents and an expression for parent mating success
         offspring_df, mating_success_update = self._courtship()
 
-        # Cultural learning step
+        # --- 2. Cultural Learning ---
         if self.layer_config.cultural_enabled:
             if self.vectorized_cultural_layer:
                 # Use vectorized cultural learning
@@ -220,70 +227,71 @@ class LoveAgents(AgentSetPolars):
                 # Fallback to sequential cultural learning
                 self._vectorized_cultural_learning()
 
-        # OPTIMIZATION: Batched DataFrame operations (60x speedup)
-        # ========================================================
-        # Single batched operation replaces separate metabolism() and age_and_die() calls
-        # This eliminates multiple DataFrame rebuilds per timestep
+        # --- 3. Batched State Update and Population Regulation ---
 
+        # Get parameters
         energy_decay = self.model.genetic_params.energy_decay if self.model.genetic_params else DEFAULT_ENERGY_DECAY
         max_age = self.model.genetic_params.max_age if self.model.genetic_params else DEFAULT_MAX_AGE
+        carrying_capacity = self.model.genetic_params.carrying_capacity if self.model.genetic_params else n_start_step
 
-        # Batch all updates and filtering into single operation
-        updates = []
-
-        # Add mating success update if available
+        # --- A. Update and filter the existing population ---
+        updates = [
+            (pl.col("age") + 1).alias("age"),
+            (pl.col("energy") - energy_decay).alias("energy"),
+        ]
         if mating_success_update is not None:
             updates.append(mating_success_update)
         else:
+            # Ensure mating_success is reset if no one mated
             updates.append(pl.lit(0, dtype=pl.UInt16).alias("mating_success"))
 
-        # Add aging and metabolism updates
-        updates.extend(
-            [
-                (pl.col("age") + 1).alias("age"),
-                (pl.col("energy") - energy_decay).alias("energy"),
-            ]
-        )
+        # Apply updates and filter for death by natural causes
+        survivors_df = self.agents.with_columns(updates).filter((pl.col("age") < max_age) & (pl.col("energy") > 0))
 
-        # Apply all updates and filter in single operation (fast path)
-        # Note: Direct DataFrame assignment - mask will be updated on next access if needed
-        self.agents = self.agents.with_columns(updates).filter((pl.col("age") < max_age) & (pl.col("energy") > 0))
-
-        # Add offspring if any were created
+        # --- B. Add new offspring ---
         if offspring_df is not None and len(offspring_df) > 0:
-            # Mesa-frames will automatically assign unique_id values when adding new agents
-            # We should NOT include unique_id in the offspring DataFrame - let mesa-frames handle it
+            # Remove unique_id column if present - let mesa-frames handle it
             if "unique_id" in offspring_df.columns:
                 offspring_df = offspring_df.drop("unique_id")
-            self += offspring_df
+            # Combine survivors and offspring with schema alignment
+            try:
+                combined_df = pl.concat([survivors_df, offspring_df], how="diagonal")
+            except pl.SchemaError:
+                # Handle schema mismatch by aligning schemas before concatenation
+                survivors_schema = survivors_df.schema
+                offspring_aligned = offspring_df.select(
+                    [
+                        pl.col(col).cast(survivors_schema[col]) if col in survivors_schema else pl.col(col)
+                        for col in offspring_df.columns
+                    ]
+                )
+                combined_df = pl.concat([survivors_df, offspring_aligned], how="diagonal")
+        else:
+            combined_df = survivors_df
 
-        # FINAL STEP: Apply stochastic fitness-based population regulation using native Polars
-        n_current = len(self)
-        carrying_capacity = self.model.genetic_params.carrying_capacity if self.model.genetic_params else n_current
+        n_after_births = len(combined_df)
 
-        if n_current > carrying_capacity:
-            # This expression-based approach is highly efficient and idiomatic Polars.
-            # It avoids intermediate NumPy arrays and uses Polars' query optimizer.
-
-            # We create a stochastic "survival score" to rank agents.
-            # Score = energy * random_value. Higher score = higher chance of survival.
-            # Using a random exponential variate is a common and robust technique (Gumbel-Max trick).
+        # --- C. Apply Culling due to overpopulation ---
+        if n_after_births > carrying_capacity:
+            # Stochastic fitness-based culling on the combined population
+            # Generate random survival scores with correct array size
             survival_score_expr = (
-                (pl.col("energy") + 1e-6)  # Add epsilon to avoid issues with zero energy
-                * pl.lit(np.random.exponential(scale=1.0, size=n_current))
+                (pl.col("energy") + 1e-6) * pl.lit(np.random.exponential(scale=1.0, size=n_after_births))
             ).alias("survival_score")
 
-            # Get the indices of the top K survivors based on this stochastic score.
-            # This is faster than sorting the whole DataFrame if K is much smaller than N.
-            survivor_indices = (
-                self.agents.with_columns(survival_score_expr)
-                .select(pl.col("survival_score").arg_sort(descending=True).slice(0, carrying_capacity))
-                .to_series()
+            # Sort by the stochastic score and take the top K
+            final_df = (
+                combined_df.with_columns(survival_score_expr)
+                .sort(by="survival_score", descending=True)
+                .slice(0, carrying_capacity)
+                .drop("survival_score")
             )
+        else:
+            final_df = combined_df
 
-            # Use the AgentSet's built-in select method with the selected indices.
-            # This correctly updates all internal state, including the mask.
-            self.select(survivor_indices)
+        # --- D. Finalize the agent set for the next step ---
+        # Replace the entire internal dataframe safely
+        self.agents = final_df
 
     def _update_effective_preferences(self) -> None:
         """Update effective preferences by blending genetic and cultural layers."""
@@ -564,7 +572,7 @@ class LoveAgents(AgentSetPolars):
         # Prepare offspring data - ensure all columns from parent DataFrame are included
         # to avoid shape mismatch when adding to agent set
         offspring_data = {
-            "genome": offspring_genomes,
+            "genome": pl.Series(offspring_genomes, dtype=pl.UInt32),
             "energy": pl.Series([10.0] * len(idx), dtype=pl.Float32),
             "age": pl.Series([0] * len(idx), dtype=pl.UInt16),
             "mating_success": pl.Series([0] * len(idx), dtype=pl.UInt16),
@@ -595,7 +603,7 @@ class LoveAgents(AgentSetPolars):
                 n_innovate = int(np.sum(innovate))
                 offspring_culture[innovate] = np.random.randint(0, 256, n_innovate, dtype=np.uint8)
 
-            offspring_data["pref_culture"] = offspring_culture.astype(np.uint8)
+            offspring_data["pref_culture"] = pl.Series(offspring_culture.astype(np.uint8), dtype=pl.UInt8)
             offspring_data["cultural_innovation_count"] = pl.Series([0] * n_offspring, dtype=pl.UInt16)
             offspring_data["prestige_score"] = pl.Series([0.0] * n_offspring, dtype=pl.Float32)
             offspring_data["social_network_neighbors"] = pl.Series(
@@ -610,7 +618,9 @@ class LoveAgents(AgentSetPolars):
 
         # Add fields for tracking layer effects in offspring
         if self.layer_config.is_combined():
-            offspring_data["effective_preference"] = ((offspring_genomes & PREF_MASK) >> PREF_SHIFT).astype(np.uint8)
+            offspring_data["effective_preference"] = pl.Series(
+                ((offspring_genomes & PREF_MASK) >> PREF_SHIFT).astype(np.uint8), dtype=pl.UInt8
+            )
 
         # Ensure offspring have all columns present in the current agent DataFrame
         # This prevents shape mismatch errors when adding to agent set
@@ -627,36 +637,56 @@ class LoveAgents(AgentSetPolars):
                         offspring_data[col] = pl.Series([[] for _ in range(n_offspring)], dtype=col_dtype)
                         continue  # Skip the default series creation below
                     elif col_dtype == pl.UInt8:
-                        default_val = 0
+                        default_val = np.uint8(0)
                     elif col_dtype == pl.UInt16:
-                        default_val = 0
+                        default_val = np.uint16(0)
                     elif col_dtype == pl.UInt32:
-                        default_val = 0
+                        default_val = np.uint32(0)
                     elif col_dtype == pl.UInt64:
-                        default_val = 0
+                        default_val = np.uint64(0)
                     elif col_dtype == pl.Float32:
-                        default_val = 0.0
+                        default_val = np.float32(0.0)
                     elif col_dtype == pl.Float64:
-                        default_val = 0.0
+                        default_val = np.float64(0.0)
                     elif col_dtype == pl.Boolean:
                         default_val = True
                     elif col_dtype == pl.Utf8:
                         default_val = ""
                     else:
-                        # Fallback: try to infer from existing data
+                        # Fallback: try to infer from existing data with proper dtype
                         sample_data = agent_df.select(col).limit(1).to_numpy().flatten()
                         if len(sample_data) > 0:
                             sample_val = sample_data[0]
                             if isinstance(sample_val, (int, np.integer)):
-                                default_val = 0
+                                if "UInt" in str(col_dtype):
+                                    default_val = (
+                                        np.uint32(0)
+                                        if "UInt32" in str(col_dtype)
+                                        else np.uint16(0)
+                                        if "UInt16" in str(col_dtype)
+                                        else np.uint8(0)
+                                        if "UInt8" in str(col_dtype)
+                                        else np.uint64(0)
+                                    )
+                                else:
+                                    default_val = 0
                             elif isinstance(sample_val, (float, np.floating)):
-                                default_val = 0.0
+                                if "Float32" in str(col_dtype):
+                                    default_val = np.float32(0.0)
+                                else:
+                                    default_val = np.float64(0.0)
                             elif isinstance(sample_val, bool):
                                 default_val = True
                             else:
-                                default_val = 0
+                                default_val = np.uint32(0) if "UInt32" in str(col_dtype) else 0
                         else:
-                            default_val = 0
+                            default_val = (
+                                np.uint32(0)
+                                if "UInt32" in str(col_dtype)
+                                else np.float32(0.0)
+                                if "Float32" in str(col_dtype)
+                                else 0
+                            )
 
                     offspring_data[col] = pl.Series([default_val] * n_offspring, dtype=col_dtype)
 
