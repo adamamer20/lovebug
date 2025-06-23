@@ -33,6 +33,9 @@ class GeneticParams(BaseModel):
     mutation_variance: float = Field(0.01, ge=0.0, description="Variance of mutation effect (>= 0).")
     max_age: PositiveInt = Field(100, description="Maximum age for individuals.")
     carrying_capacity: PositiveInt = Field(1000, description="Maximum population size (carrying capacity).")
+    energy_replenishment_rate: float = Field(
+        0.01, ge=0.0, description="Per-generation energy replenishment rate (>= 0)."
+    )
 
     @model_validator(mode="after")
     def check_rates(self) -> "GeneticParams":

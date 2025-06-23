@@ -232,19 +232,27 @@ class LoveAgents(AgentSetPolars):
         energy_decay = self.model.config.genetic.energy_decay
         max_age = self.model.config.genetic.max_age
         carrying_capacity = self.model.config.genetic.carrying_capacity
+        energy_replenishment_rate = self.model.config.genetic.energy_replenishment_rate
 
         # --- A. Update and filter the existing population ---
         updates = [
             (pl.col("age") + 1).alias("age"),
         ]
 
-        # Apply energy decay and parental energy costs
-        if energy_cost_update is not None:
-            # Apply both energy decay and parental costs
-            updates.append((energy_cost_update - energy_decay).alias("energy"))
+        # Calculate density-dependent energy replenishment
+        current_population = len(self.agents)
+        if current_population > 0:
+            energy_per_agent = (carrying_capacity * energy_replenishment_rate) / current_population
         else:
-            # Apply only energy decay
-            updates.append((pl.col("energy") - energy_decay).alias("energy"))
+            energy_per_agent = energy_replenishment_rate
+
+        # Apply energy changes: replenishment - decay - parental costs
+        if energy_cost_update is not None:
+            # Apply energy replenishment, decay, and parental costs
+            updates.append((energy_cost_update + energy_per_agent - energy_decay).alias("energy"))
+        else:
+            # Apply energy replenishment and decay only
+            updates.append((pl.col("energy") + energy_per_agent - energy_decay).alias("energy"))
 
         if mating_success_update is not None:
             updates.append(mating_success_update)
@@ -276,25 +284,8 @@ class LoveAgents(AgentSetPolars):
         else:
             combined_df = survivors_df
 
-        n_after_births = len(combined_df)
-
-        # --- C. Apply Culling due to overpopulation ---
-        if n_after_births > carrying_capacity:
-            # Stochastic fitness-based culling on the combined population
-            # Generate random survival scores with correct array size
-            survival_score_expr = (
-                (pl.col("energy") + 1e-6) * pl.lit(np.random.exponential(scale=1.0, size=n_after_births))
-            ).alias("survival_score")
-
-            # Sort by the stochastic score and take the top K
-            final_df = (
-                combined_df.with_columns(survival_score_expr)
-                .sort(by="survival_score", descending=True)
-                .slice(0, carrying_capacity)
-                .drop("survival_score")
-            )
-        else:
-            final_df = combined_df
+        # No artificial culling - population self-regulates through energy dynamics
+        final_df = combined_df
 
         # --- D. Finalize the agent set for the next step ---
         # Replace the entire internal dataframe safely
