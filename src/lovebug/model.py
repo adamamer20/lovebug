@@ -342,10 +342,23 @@ class LoveAgentsRefactored(AgentSetPolars):
         # B. Courtship
         offspring_df = self._courtship_and_reproduction()
 
+        # Deduct energy cost of reproduction from parents
+        if offspring_df is not None and "parent_a_idx" in offspring_df.columns:
+            parent_costs = offspring_df.group_by("parent_a_idx").agg(
+                (pl.col("parent_a_investment").sum()).alias("total_cost")
+            )
+            self.agents = (
+                self.agents.join(parent_costs, left_on="unique_id", right_on="parent_a_idx", how="left")
+                .with_columns((pl.col("energy") - pl.col("total_cost").fill_null(0.0)).alias("energy"))
+                .drop("total_cost")
+            )
+
         # C. Add offspring to population (no artificial culling)
         if offspring_df is not None and len(offspring_df) > 0:
             # Combine current population with offspring
-            combined_df = pl.concat([self.agents, offspring_df], how="diagonal")
+            combined_df = pl.concat(
+                [self.agents, offspring_df.drop(["parent_a_idx", "parent_a_investment"])], how="diagonal"
+            )
             self.agents = combined_df
 
         # Reset mating success counters
@@ -505,11 +518,18 @@ class LoveAgentsRefactored(AgentSetPolars):
         # Calculate offspring energy from parental investment
         parent_energy_a = self.agents["energy"].to_numpy()[idx]
         parent_energy_b = self.agents["energy"].to_numpy()[partner_idx]
-        parental_contribution = 0.25
-        offspring_energy = parental_contribution * (parent_energy_a + parent_energy_b)
+        parental_contribution_rate = 0.25  # Each parent contributes 25% of their energy
+
+        parent_a_investment = parent_energy_a * parental_contribution_rate
+        parent_b_investment = parent_energy_b * parental_contribution_rate
+        offspring_energy = parent_a_investment + parent_b_investment
 
         # Create offspring DataFrame
         offspring_data = {
+            # Track parent index and investment for energy deduction
+            "parent_a_idx": pl.Series(self.agents["unique_id"].to_numpy()[idx], dtype=pl.UInt64),
+            "parent_a_investment": pl.Series(parent_a_investment, dtype=pl.Float32),
+            # --- Offspring genes and initial state ---
             "gene_display": pl.Series(offspring_display, dtype=pl.UInt16),
             "gene_preference": pl.Series(offspring_preference, dtype=pl.UInt16),
             "gene_threshold": pl.Series(offspring_threshold, dtype=pl.UInt8),
