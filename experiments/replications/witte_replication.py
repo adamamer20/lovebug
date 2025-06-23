@@ -61,7 +61,11 @@ class WitteReplication:
             genetic=GeneticParams(
                 mutation_rate=0.005,  # Small but non-zero to prevent genetic drift issues
                 crossover_rate=0.3,  # Modest recombination to maintain diversity
-                heritability=0.1,  # Low heritability - focus on cultural transmission
+                h2_trait=0.1,  # Low heritability - focus on cultural transmission
+                h2_preference=0.1,
+                energy_decay=0.012,  # Witte: Zebra finch aviary densities
+                energy_replenishment_rate=0.008,  # Rule: energy_decay * N₀/K = 0.012 * 100/150
+                carrying_capacity=self.population_size + 50,  # K = 150
             ),
             cultural=CulturalParams(
                 learning_rate=0.3,  # Key parameter for cultural learning
@@ -84,10 +88,7 @@ class WitteReplication:
             ),
             simulation=SimulationParams(
                 population_size=self.population_size,
-                num_steps=self.n_generations,
-                energy_replenishment_rate=100.0,  # Very high energy gain to prevent extinction
-                energy_decay=5.0,  # Lower energy loss
-                density_dependence=0.0005,  # Lighter density regulation
+                steps=self.n_generations,
                 seed=self.seed,
             ),
         )

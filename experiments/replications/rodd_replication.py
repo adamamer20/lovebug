@@ -65,9 +65,9 @@ class RoddReplication:
                 mutation_rate=0.01,  # Moderate mutation for trait evolution
                 crossover_rate=0.7,  # Allow recombination of unlinked genes
                 max_age=50,  # Reasonable lifespan
-                energy_decay=0.02,  # Moderate aging
-                energy_replenishment_rate=0.05,  # Sustainable population
-                carrying_capacity=self.population_size,
+                energy_decay=0.01,  # Rodd: High-flow Trinidad pools
+                energy_replenishment_rate=0.0067,  # Rule: energy_decay * N₀/K = 0.01 * 2000/3000
+                carrying_capacity=self.population_size + 1000,  # K = 3000
             ),
             cultural=CulturalParams(
                 learning_rate=0.0,  # Pure genetic evolution - no cultural learning

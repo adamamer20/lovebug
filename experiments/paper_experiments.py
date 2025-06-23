@@ -120,6 +120,10 @@ class ValidatedPaperConfig:
     witte_population_size: int = 100  # Witte replication population
     rodd_population_size: int = 2000  # Rodd replication population
 
+    # Default energy parameters following literature-aligned rule of thumb
+    default_energy_decay: float = 0.012
+    default_energy_replenishment_rate: float = 0.006
+
     def __post_init__(self) -> None:
         if self.quick_test:
             # Reduced scope for testing with safe parameters
@@ -134,6 +138,11 @@ class ValidatedPaperConfig:
             self.dugatkin_population_size = 15
             self.witte_population_size = 50
             self.rodd_population_size = 200
+
+            # Scale default energy parameters for quick test mode to maintain viability
+            # Use more lenient parameters to ensure population survives
+            self.default_energy_decay = 0.008
+            self.default_energy_replenishment_rate = 0.01
 
 
 class ValidatedPaperRunner:
@@ -271,6 +280,24 @@ class ValidatedPaperRunner:
             f"LK validation - population: {base_population}, generations: {self.config.n_generations}, replications: {self.config.replications_per_condition}"
         )
 
+        # Adjust energy parameters for quick test mode to ensure viability
+        if self.config.quick_test:
+            # For quick test with smaller populations, use slightly more favorable energy balance
+            stasis_energy_decay = 0.010
+            stasis_energy_replen = 0.007
+            runaway_energy_decay = 0.006
+            runaway_energy_replen = 0.014
+            costly_energy_decay = 0.025
+            costly_energy_replen = 0.013
+        else:
+            # Use literature-aligned values for full experiments
+            stasis_energy_decay = 0.012
+            stasis_energy_replen = 0.006
+            runaway_energy_decay = 0.008
+            runaway_energy_replen = 0.016
+            costly_energy_decay = 0.03
+            costly_energy_replen = 0.015
+
         scenarios = []
 
         for rep in range(self.config.replications_per_condition):
@@ -294,8 +321,8 @@ class ValidatedPaperRunner:
                         crossover_rate=0.7,
                         population_size=base_population,
                         carrying_capacity=base_population * 2,
-                        energy_replenishment_rate=0.01,  # Balanced energy
-                        energy_decay=0.01,
+                        energy_replenishment_rate=stasis_energy_replen,  # LK Stasis: Energy limited but not stressful
+                        energy_decay=stasis_energy_decay,
                         max_age=100,
                         elitism=1,
                     ),
@@ -327,8 +354,8 @@ class ValidatedPaperRunner:
                         crossover_rate=0.9,  # High crossover explores new combinations
                         population_size=base_population,
                         carrying_capacity=base_population * 2,
-                        energy_replenishment_rate=0.05,  # Abundant energy = no cost to choosiness
-                        energy_decay=0.005,  # Low energy decay = low cost
+                        energy_replenishment_rate=runaway_energy_replen,  # LK Runaway: plentiful food (twice maintenance)
+                        energy_decay=runaway_energy_decay,  # Low energy decay = low cost
                         max_age=100,
                         elitism=2,  # Preserve best individuals
                     ),
@@ -360,8 +387,8 @@ class ValidatedPaperRunner:
                         crossover_rate=0.9,  # High crossover like runaway
                         population_size=base_population,
                         carrying_capacity=base_population * 2,
-                        energy_replenishment_rate=0.012,  # Limited energy, but sustainable
-                        energy_decay=0.02,  # High energy decay makes it a costly choice
+                        energy_replenishment_rate=costly_energy_replen,  # LK Costly choice: high metabolic drain
+                        energy_decay=costly_energy_decay,  # High energy decay makes it a costly choice
                         max_age=100,
                         elitism=2,
                     ),
@@ -402,6 +429,7 @@ class ValidatedPaperRunner:
             "crossover_rate": (0.5, 1.0),
             "population_size": (100, self.config.lhs_population_size),
             "elitism": (1, 5),
+            "energy_decay": (0.006, 0.03),  # Literature-backed range
         }
 
         sampler = qmc.LatinHypercube(d=len(param_ranges))
@@ -417,6 +445,14 @@ class ValidatedPaperRunner:
         configurations = []
         for i, sample in enumerate(scaled_samples):
             param_dict = dict(zip(param_names, sample))
+
+            # Apply rule-of-thumb formula for energy parameters
+            pop_size = int(param_dict["population_size"])
+            carrying_cap = pop_size  # They're equal in LHS
+            energy_decay = float(param_dict["energy_decay"])
+            # Add small buffer to ensure viability (net energy balance > 0)
+            energy_replen = energy_decay * pop_size / carrying_cap + 0.002  # = energy_decay + buffer
+
             config = LoveBugConfig(
                 name=f"lhs_genetic_sample{i}",
                 genetic=GeneticParams(
@@ -424,12 +460,13 @@ class ValidatedPaperRunner:
                     h2_preference=0.5,
                     mutation_rate=float(param_dict["mutation_rate"]),
                     crossover_rate=float(param_dict["crossover_rate"]),
-                    population_size=int(param_dict["population_size"]),
+                    population_size=pop_size,
                     elitism=int(param_dict["elitism"]),
-                    energy_decay=0.01,
+                    energy_decay=energy_decay,
+                    energy_replenishment_rate=energy_replen,
                     mutation_variance=0.01,
                     max_age=100,
-                    carrying_capacity=int(param_dict["population_size"]),
+                    carrying_capacity=carrying_cap,
                 ),
                 cultural=CulturalParams(
                     learning_rate=0.05,
@@ -487,7 +524,8 @@ class ValidatedPaperRunner:
                             crossover_rate=0.7,
                             population_size=base_population,
                             elitism=1,
-                            energy_decay=0.01,
+                            energy_decay=self.config.default_energy_decay,
+                            energy_replenishment_rate=self.config.default_energy_replenishment_rate,
                             mutation_variance=0.01,
                             max_age=100,
                             carrying_capacity=base_population,
@@ -554,7 +592,8 @@ class ValidatedPaperRunner:
                         crossover_rate=0.7,
                         population_size=base_population,
                         elitism=1,
-                        energy_decay=0.01,
+                        energy_decay=self.config.default_energy_decay,
+                        energy_replenishment_rate=self.config.default_energy_replenishment_rate,
                         mutation_variance=0.01,
                         max_age=100,
                         carrying_capacity=base_population,
@@ -626,7 +665,8 @@ class ValidatedPaperRunner:
                     crossover_rate=0.7,
                     population_size=self.config.lhs_population_size,
                     elitism=1,
-                    energy_decay=0.01,
+                    energy_decay=self.config.default_energy_decay,
+                    energy_replenishment_rate=self.config.default_energy_replenishment_rate,
                     mutation_variance=0.01,
                     max_age=100,
                     carrying_capacity=self.config.lhs_population_size,
@@ -698,7 +738,8 @@ class ValidatedPaperRunner:
                     crossover_rate=float(param_dict["crossover_rate"]),
                     population_size=self.config.lhs_population_size,
                     elitism=1,
-                    energy_decay=0.01,
+                    energy_decay=self.config.default_energy_decay,
+                    energy_replenishment_rate=self.config.default_energy_replenishment_rate,
                     mutation_variance=0.01,
                     max_age=100,
                     carrying_capacity=self.config.lhs_population_size,

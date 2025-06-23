@@ -39,6 +39,8 @@ class GeneticParams(BaseModel):
     parental_investment_rate: float = Field(
         0.6, ge=0.0, le=1.0, description="Fraction of a parent's energy invested in each offspring (0-1)."
     )
+    energy_min_mating: float = Field(1.0, ge=0.0, description="Minimum energy required for mating (>= 0).")
+    juvenile_cost: float = Field(0.5, ge=0.0, description="Energy cost for juveniles (>= 0).")
 
     @model_validator(mode="after")
     def check_rates(self) -> "GeneticParams":
