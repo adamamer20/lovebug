@@ -88,10 +88,17 @@ class LoveAgents(AgentSetPolars):
         # Initialize with stable age distribution instead of synchronized generations
         max_age = self.config.genetic.max_age
         ages = np.random.randint(0, max_age, size=n, dtype=np.uint16)
+
+        # Calculate realistic energy based on age (older agents have less energy)
+        energy_decay = self.config.genetic.energy_decay
+        initial_energy = 10.0 - (ages * energy_decay)
+        # Ensure energy is positive (agents with negative energy wouldn't survive)
+        initial_energy = np.maximum(initial_energy, 0.1)  # Minimum energy to survive
+
         # Create base dataframe with genetic traits
         df_data = {
             "genome": genomes,
-            "energy": pl.Series([10.0] * n, dtype=pl.Float32),
+            "energy": pl.Series(initial_energy, dtype=pl.Float32),
             "age": pl.Series(ages, dtype=pl.UInt16),
             "mating_success": pl.Series([0] * n, dtype=pl.UInt16),  # Track in DataFrame
         }
@@ -208,8 +215,8 @@ class LoveAgents(AgentSetPolars):
             self._update_effective_preferences()
 
         # --- 1. Calculate Births ---
-        # This returns a DataFrame of new agents and an expression for parent mating success
-        offspring_df, mating_success_update = self._courtship()
+        # This returns a DataFrame of new agents, expressions for parent mating success, and energy cost
+        offspring_df, mating_success_update, energy_cost_update = self._courtship()
 
         # --- 2. Cultural Learning ---
         if self.model.config.layer.cultural_enabled:
@@ -234,8 +241,16 @@ class LoveAgents(AgentSetPolars):
         # --- A. Update and filter the existing population ---
         updates = [
             (pl.col("age") + 1).alias("age"),
-            (pl.col("energy") - energy_decay).alias("energy"),
         ]
+
+        # Apply energy decay and parental energy costs
+        if energy_cost_update is not None:
+            # Apply both energy decay and parental costs
+            updates.append((energy_cost_update - energy_decay).alias("energy"))
+        else:
+            # Apply only energy decay
+            updates.append((pl.col("energy") - energy_decay).alias("energy"))
+
         if mating_success_update is not None:
             updates.append(mating_success_update)
         else:
@@ -374,7 +389,7 @@ class LoveAgents(AgentSetPolars):
             return self.agents["effective_preference"].to_numpy().astype(np.uint8)
 
     # ── Vectorised sub‑routines ────────────────────────────────────────────
-    def _courtship(self) -> tuple[pl.DataFrame | None, pl.Expr | None]:
+    def _courtship(self) -> tuple[pl.DataFrame | None, pl.Expr | None, pl.Expr | None]:
         """
         OPTIMIZED courtship with 4x speedup from eliminating NumPy↔Polars conversions.
 
@@ -398,12 +413,12 @@ class LoveAgents(AgentSetPolars):
 
         Returns
         -------
-        tuple[pl.DataFrame | None, pl.Expr | None]
-            (offspring_dataframe, mating_success_update_expression)
+        tuple[pl.DataFrame | None, pl.Expr | None, pl.Expr | None]
+            (offspring_dataframe, mating_success_update_expression, energy_cost_update_expression)
         """
         n = len(self)
         if n < 2:
-            return None, None
+            return None, None, None
 
         partners = np.random.permutation(n)
         genomes_self = self.agents["genome"].to_numpy().astype(np.uint32)
@@ -437,6 +452,10 @@ class LoveAgents(AgentSetPolars):
         # NEW EFFICIENT APPROACH (IMPLEMENTED):
         # Single Polars DataFrame pipeline - zero conversions in hot path
 
+        # Get parent energy for parental investment calculation
+        energy_self = self.agents["energy"].to_numpy().astype(np.float32)
+        energy_partner = energy_self[partners]
+
         # Create single DataFrame for vectorized mating operations
         mating_df = pl.DataFrame(
             {
@@ -446,6 +465,8 @@ class LoveAgents(AgentSetPolars):
                 "disp_partner": disp_partner.astype(np.uint32),
                 "pref_partner": pref_partner.astype(np.uint32),
                 "thr_partner": thr_partner.astype(np.uint32),
+                "energy_self": energy_self,
+                "energy_partner": energy_partner,
             }
         )
 
@@ -536,19 +557,31 @@ class LoveAgents(AgentSetPolars):
         # Extract acceptance results
         accepted = mating_results.get_column("accepted").to_numpy()
         if not accepted.any():
-            # Return reset mating success to 0
-            return None, pl.lit(0, dtype=pl.UInt16).alias("mating_success")
+            # Return reset mating success to 0 and no energy cost
+            return None, pl.lit(0, dtype=pl.UInt16).alias("mating_success"), None
 
         idx = np.where(accepted)[0]
         partner_idx = partners[idx]
         parents_a = genomes_self[idx]
         parents_b = genomes_partner[idx]
 
+        # Calculate offspring energy using parental investment
+        # Each parent contributes 25% of their energy to offspring
+        parent_energy_contribution = 0.25
+        energy_parent_a = energy_self[idx]
+        energy_parent_b = energy_partner[idx]
+
         # Calculate mating success updates (don't modify DataFrame directly)
         mating_success = np.zeros(n, dtype=np.uint16)
         np.add.at(mating_success, idx, 1)
         np.add.at(mating_success, partner_idx, 1)
         mating_success_update = pl.lit(mating_success, dtype=pl.UInt16).alias("mating_success")
+
+        # Calculate energy cost for parents (subtract the energy they contributed to offspring)
+        energy_cost = np.zeros(n, dtype=np.float32)
+        np.subtract.at(energy_cost, idx, parent_energy_contribution * energy_parent_a)
+        np.subtract.at(energy_cost, partner_idx, parent_energy_contribution * energy_parent_b)
+        energy_cost_update = pl.col("energy") + pl.lit(energy_cost, dtype=pl.Float32)
 
         # Apply genetic parameters if available
         mutation_rate = self.model.config.genetic.mutation_variance
@@ -564,11 +597,16 @@ class LoveAgents(AgentSetPolars):
             if rows.size:
                 offspring_genomes[rows] ^= np.left_shift(np.uint32(1), bits.astype(np.uint32))
 
+        # Calculate offspring initial energy from parental investment
+        offspring_initial_energy = (
+            parent_energy_contribution * energy_parent_a + parent_energy_contribution * energy_parent_b
+        )
+
         # Prepare offspring data - ensure all columns from parent DataFrame are included
         # to avoid shape mismatch when adding to agent set
         offspring_data = {
             "genome": pl.Series(offspring_genomes, dtype=pl.UInt32),
-            "energy": pl.Series([10.0] * len(idx), dtype=pl.Float32),
+            "energy": pl.Series(offspring_initial_energy, dtype=pl.Float32),
             "age": pl.Series([0] * len(idx), dtype=pl.UInt16),
             "mating_success": pl.Series([0] * len(idx), dtype=pl.UInt16),
         }
@@ -689,7 +727,7 @@ class LoveAgents(AgentSetPolars):
                     continue
 
         offspring_df = pl.DataFrame(offspring_data)
-        return offspring_df, mating_success_update
+        return offspring_df, mating_success_update, energy_cost_update.alias("energy")
 
     def _get_cultural_learning_updates(self) -> list[pl.Expr]:
         """
