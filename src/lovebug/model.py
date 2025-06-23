@@ -483,6 +483,16 @@ class LoveAgentsRefactored(AgentSetPolars):
         """Create offspring through genetic recombination of unlinked genes."""
         idx = np.where(accepted)[0]
         partner_idx = partners[idx]
+
+        # Minimum energy gate: both parents must have sufficient energy to reproduce
+        E_MIN = 1.0  # Minimum energy threshold (≥ one day's metabolism)
+        parent_energy_a = self.agents["energy"].to_numpy()[idx]
+        parent_energy_b = self.agents["energy"].to_numpy()[partner_idx]
+        viable = (parent_energy_a > E_MIN) & (parent_energy_b > E_MIN)
+
+        # Filter to only viable parents
+        idx = idx[viable]
+        partner_idx = partner_idx[viable]
         n_offspring = len(idx)
 
         if n_offspring == 0:
@@ -551,6 +561,29 @@ class LoveAgentsRefactored(AgentSetPolars):
         parent_a_investment = parent_energy_a * parental_contribution_rate
         parent_b_investment = parent_energy_b * parental_contribution_rate
         offspring_energy = parent_a_investment + parent_b_investment
+
+        # Juvenile start-up debit: subtract fixed cost for yolk/early mortality
+        juvenile_cost = 0.5
+        offspring_energy = offspring_energy - juvenile_cost
+
+        # Filter out offspring with insufficient energy to survive
+        viable_offspring = offspring_energy > 0
+        if not viable_offspring.any():
+            return pl.DataFrame()
+
+        # Apply viability filter to all offspring attributes
+        idx = idx[viable_offspring]
+        partner_idx = partner_idx[viable_offspring]
+        offspring_display = offspring_display[viable_offspring]
+        offspring_preference = offspring_preference[viable_offspring]
+        offspring_threshold = offspring_threshold[viable_offspring]
+        offspring_foraging = offspring_foraging[viable_offspring]
+        parent_energy_a = parent_energy_a[viable_offspring]
+        parent_energy_b = parent_energy_b[viable_offspring]
+        parent_a_investment = parent_a_investment[viable_offspring]
+        parent_b_investment = parent_b_investment[viable_offspring]
+        offspring_energy = offspring_energy[viable_offspring]
+        n_offspring = len(idx)
 
         # Create offspring DataFrame
         offspring_data = {
