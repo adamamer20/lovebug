@@ -342,15 +342,37 @@ class LoveAgentsRefactored(AgentSetPolars):
         # B. Courtship
         offspring_df = self._courtship_and_reproduction()
 
-        # Deduct energy cost of reproduction from parents
-        if offspring_df is not None and "parent_a_idx" in offspring_df.columns:
-            parent_costs = offspring_df.group_by("parent_a_idx").agg(
+        # Deduct energy cost of reproduction from BOTH parents
+        if (
+            offspring_df is not None
+            and "parent_a_idx" in offspring_df.columns
+            and "parent_b_idx" in offspring_df.columns
+        ):
+            # Aggregate costs for parent A
+            parent_a_costs = offspring_df.group_by("parent_a_idx").agg(
                 (pl.col("parent_a_investment").sum()).alias("total_cost")
             )
 
-            # Use vectorized join and update, but apply through AgentSetPolars
+            # Aggregate costs for parent B
+            parent_b_costs = offspring_df.group_by("parent_b_idx").agg(
+                (pl.col("parent_b_investment").sum()).alias("total_cost")
+            )
+
+            # Combine all parent costs
+            all_parent_costs = (
+                pl.concat(
+                    [
+                        parent_a_costs.rename({"parent_a_idx": "parent_id"}),
+                        parent_b_costs.rename({"parent_b_idx": "parent_id"}),
+                    ]
+                )
+                .group_by("parent_id")
+                .agg(pl.col("total_cost").sum())
+            )
+
+            # Update energy for all parents in a single operation
             updated_agents_df = (
-                self.agents.join(parent_costs, left_on="unique_id", right_on="parent_a_idx", how="left")
+                self.agents.join(all_parent_costs, left_on="unique_id", right_on="parent_id", how="left")
                 .with_columns((pl.col("energy") - pl.col("total_cost").fill_null(0.0)).alias("energy"))
                 .drop("total_cost")
             )
@@ -361,7 +383,9 @@ class LoveAgentsRefactored(AgentSetPolars):
         # C. Add offspring to population using += operator
         if offspring_df is not None and len(offspring_df) > 0:
             # Remove parent tracking columns before adding offspring
-            clean_offspring_df = offspring_df.drop(["parent_a_idx", "parent_a_investment"])
+            clean_offspring_df = offspring_df.drop(
+                ["parent_a_idx", "parent_a_investment", "parent_b_idx", "parent_b_investment"]
+            )
             # Use += operator to properly add offspring to AgentSetPolars
             self += clean_offspring_df
 
@@ -522,7 +546,7 @@ class LoveAgentsRefactored(AgentSetPolars):
         # Calculate offspring energy from parental investment
         parent_energy_a = self.agents["energy"].to_numpy()[idx]
         parent_energy_b = self.agents["energy"].to_numpy()[partner_idx]
-        parental_contribution_rate = 0.25  # Each parent contributes 25% of their energy
+        parental_contribution_rate = 0.6  # Each parent contributes 60% of their energy
 
         parent_a_investment = parent_energy_a * parental_contribution_rate
         parent_b_investment = parent_energy_b * parental_contribution_rate
@@ -530,9 +554,11 @@ class LoveAgentsRefactored(AgentSetPolars):
 
         # Create offspring DataFrame
         offspring_data = {
-            # Track parent index and investment for energy deduction
+            # Track BOTH parent indices and investments for energy deduction
             "parent_a_idx": pl.Series(self.agents["unique_id"].to_numpy()[idx], dtype=pl.UInt64),
             "parent_a_investment": pl.Series(parent_a_investment, dtype=pl.Float32),
+            "parent_b_idx": pl.Series(self.agents["unique_id"].to_numpy()[partner_idx], dtype=pl.UInt64),
+            "parent_b_investment": pl.Series(parent_b_investment, dtype=pl.Float32),
             # --- Offspring genes and initial state ---
             "gene_display": pl.Series(offspring_display, dtype=pl.UInt16),
             "gene_preference": pl.Series(offspring_preference, dtype=pl.UInt16),
