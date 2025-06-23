@@ -456,14 +456,21 @@ class LoveAgents(AgentSetPolars):
         energy_self = self.agents["energy"].to_numpy().astype(np.float32)
         energy_partner = energy_self[partners]
 
+        # CRITICAL BUG FIX: Expand 8-bit preferences to 16-bit patterns
+        # The get_effective_pref() method returns 8-bit values (0-255) but display traits are 16-bit.
+        # Without expansion, preferences are zero-padded, causing massive mismatch in similarity calculations.
+        # We expand by repeating the 8-bit pattern: 0xAB becomes 0xABAB
+        pref_self_expanded = pref_self.astype(np.uint32) | (pref_self.astype(np.uint32) << 8)
+        pref_partner_expanded = pref_partner.astype(np.uint32) | (pref_partner.astype(np.uint32) << 8)
+
         # Create single DataFrame for vectorized mating operations
         mating_df = pl.DataFrame(
             {
                 "disp_self": disp_self.astype(np.uint32),
-                "pref_self": pref_self.astype(np.uint32),
+                "pref_self": pref_self_expanded,
                 "thr_self": thr_self.astype(np.uint32),
                 "disp_partner": disp_partner.astype(np.uint32),
-                "pref_partner": pref_partner.astype(np.uint32),
+                "pref_partner": pref_partner_expanded,
                 "thr_partner": thr_partner.astype(np.uint32),
                 "energy_self": energy_self,
                 "energy_partner": energy_partner,
@@ -979,7 +986,7 @@ class LoveModel(ModelDF):
         df = self.agents._agentsets[0].agents
 
         # Basic metrics
-        metrics = {
+        metrics: dict[str, Any] = {
             "step": self.step_count,
             "population_size": len(df),
         }
@@ -997,14 +1004,22 @@ class LoveModel(ModelDF):
 
         # Genetic metrics
         if self.config.layer.genetic_enabled:
+            # Genetic preferences
             gene_pref = ((df["genome"] & PREF_MASK) // (1 << PREF_SHIFT)).cast(pl.UInt32)
             gene_pref_mean = gene_pref.mean()
             gene_pref_var = gene_pref.var()
+
+            # Genetic display traits - count set bits in display portion
+            display_traits = (df["genome"] & DISPLAY_MASK).cast(pl.UInt32).bitwise_count_ones()
+            display_mean = display_traits.mean()
+            display_var = display_traits.var()
 
             metrics.update(
                 {
                     "mean_genetic_preference": float(gene_pref_mean) if gene_pref_mean is not None else 0.0,
                     "var_genetic_preference": float(gene_pref_var) if gene_pref_var is not None else 0.0,
+                    "mean_genetic_display_trait": float(display_mean) if display_mean is not None else 0.0,
+                    "var_genetic_display_trait": float(display_var) if display_var is not None else 0.0,
                 }
             )
 
@@ -1014,12 +1029,29 @@ class LoveModel(ModelDF):
             culture_pref_mean = culture_pref.mean()
             culture_pref_var = culture_pref.var()
 
+            # Calculate Shannon diversity of cultural preferences
+            shannon_diversity = 0.0
+            try:
+                pref_counts = df.get_column("pref_culture").value_counts()
+                if len(pref_counts) > 0:
+                    counts = pref_counts.get_column("counts").to_numpy()
+                    total = counts.sum()
+                    if total > 0:
+                        proportions = counts / total
+                        # Filter out zero proportions to avoid log(0)
+                        proportions = proportions[proportions > 0]
+                        if len(proportions) > 0:
+                            shannon_diversity = -np.sum(proportions * np.log2(proportions))
+            except Exception:
+                shannon_diversity = 0.0
+
             metrics.update(
                 {
                     "mean_cultural_preference": float(culture_pref_mean) if culture_pref_mean is not None else 0.0,
                     "var_cultural_preference": float(culture_pref_var) if culture_pref_var is not None else 0.0,
                     "cultural_learning_events": self._cultural_learning_events,
                     "cultural_innovation_events": self._cultural_innovation_events,
+                    "cultural_shannon_diversity": float(shannon_diversity),
                 }
             )
 
@@ -1036,12 +1068,23 @@ class LoveModel(ModelDF):
                     }
                 )
 
-            # Gene-culture distance
+            # Gene-culture distance and correlation
             if self.config.layer.genetic_enabled:
                 gene = ((df["genome"] & PREF_MASK) // (1 << PREF_SHIFT)).cast(pl.UInt32)
                 culture = df["pref_culture"].cast(pl.UInt32)
                 dist = ((gene ^ culture) & 0xFF).bitwise_count_ones().mean()
                 metrics["gene_culture_distance"] = float(dist) if dist is not None else 0.0
+
+                # Gene-culture correlation using DataFrame select
+                gene_numeric = gene.cast(pl.Float32)
+                culture_numeric = culture.cast(pl.Float32)
+                if len(gene_numeric) > 1:
+                    # Create a temporary DataFrame to compute correlation
+                    temp_df = pl.DataFrame({"gene": gene_numeric, "culture": culture_numeric})
+                    corr_result = temp_df.select(pl.corr("gene", "culture")).item()
+                    metrics["gene_culture_correlation"] = float(corr_result) if corr_result is not None else 0.0
+                else:
+                    metrics["gene_culture_correlation"] = 0.0
 
         # Combined model metrics
         if self.config.layer.is_combined() and "effective_preference" in df.columns:
