@@ -59,12 +59,9 @@ class WitteReplication:
         return LoveBugConfig(
             name="witte_cultural_transmission",
             genetic=GeneticParams(
-                mutation_rate=0.001,  # Minimal genetic change for population stability
-                crossover_rate=0.1,  # Minimal genetic recombination for diversity
-                max_age=self.n_generations,  # Live long enough for experiment
-                energy_decay=0.005,  # Very slow aging to allow cultural transmission
-                energy_replenishment_rate=0.15,  # Higher sustainable energy
-                carrying_capacity=self.population_size,
+                mutation_rate=0.005,  # Small but non-zero to prevent genetic drift issues
+                crossover_rate=0.3,  # Modest recombination to maintain diversity
+                heritability=0.1,  # Low heritability - focus on cultural transmission
             ),
             cultural=CulturalParams(
                 learning_rate=0.3,  # Key parameter for cultural learning
@@ -77,7 +74,7 @@ class WitteReplication:
                 memory_decay_rate=0.01,
                 local_learning_radius=5,
                 memory_update_strength=1.0,
-                learning_strategy="conformist",  # Conformist transmission
+                learning_strategy="conformist",  # Conformist transmission for better spread
             ),
             layer=LayerConfig(
                 genetic_enabled=True,
@@ -87,7 +84,10 @@ class WitteReplication:
             ),
             simulation=SimulationParams(
                 population_size=self.population_size,
-                steps=self.n_generations,
+                num_steps=self.n_generations,
+                energy_replenishment_rate=100.0,  # Very high energy gain to prevent extinction
+                energy_decay=5.0,  # Lower energy loss
+                density_dependence=0.0005,  # Lighter density regulation
                 seed=self.seed,
             ),
         )

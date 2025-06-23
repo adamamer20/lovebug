@@ -137,6 +137,24 @@ class RoddReplication:
 
         logger.info("Tracking trait evolution under biased preference")
 
+        # Record initial state before any evolution
+        agents_df = model.get_agent_dataframe()
+        if len(agents_df) > 0:
+            display_traits = agents_df["gene_display"].to_numpy()
+            preferences = agents_df["gene_preference"].to_numpy()
+
+            evolution_history.append(
+                {
+                    "generation": -1,  # Initial state before evolution
+                    "mean_display_trait": np.mean(display_traits),
+                    "var_display_trait": np.var(display_traits),
+                    "mean_preference": np.mean(preferences),
+                    "trait_pref_correlation": 0.0,
+                    "distance_from_bias": abs(np.mean(display_traits) - bias_preference),
+                    "population_size": len(agents_df),
+                }
+            )
+
         for generation in range(self.n_generations):
             model.step()
 
@@ -146,7 +164,7 @@ class RoddReplication:
 
                 if len(agents_df) > 0:
                     # Extract display traits and preferences
-                    display_traits = agents_df["gene_display_trait"].to_numpy()
+                    display_traits = agents_df["gene_display"].to_numpy()
                     preferences = agents_df["gene_preference"].to_numpy()
 
                     # Calculate statistics
@@ -183,10 +201,14 @@ class RoddReplication:
 
         # Analyze results
         if evolution_history:
-            initial_distance = evolution_history[0]["distance_from_bias"]
-            final_distance = evolution_history[-1]["distance_from_bias"]
-            initial_trait = evolution_history[0]["mean_display_trait"]
-            final_trait = evolution_history[-1]["mean_display_trait"]
+            # Find initial measurement (generation -1 or 0)
+            initial_record = next((h for h in evolution_history if h["generation"] in [-1, 0]), evolution_history[0])
+            final_record = evolution_history[-1]
+
+            initial_distance = initial_record["distance_from_bias"]
+            final_distance = final_record["distance_from_bias"]
+            initial_trait = initial_record["mean_display_trait"]
+            final_trait = final_record["mean_display_trait"]
 
             # Check if trait evolved toward bias
             trait_convergence = initial_distance - final_distance

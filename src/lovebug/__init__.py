@@ -2,6 +2,7 @@
 LoveBug: An agent‑based model (ABM) of sexual selection and mating‑preference co‑evolution, built with Mesa‑Frames + Polars.
 """
 
+import os
 from importlib import metadata as _metadata
 
 # Import unified configuration classes
@@ -19,14 +20,17 @@ from .config import (
 from .layer2 import CulturalLayer
 
 # Import the enhanced LoveModel as the primary interface
-from .model import LoveAgents, LoveModel, LoveModelRefactored
+from .model import LoveModelRefactored
+
+# For backward compatibility, alias the refactored model as LoveModel
+LoveModel = LoveModelRefactored
+
 
 __all__ = [
     "__version__",
     # Enhanced primary interface
     "LoveModel",
     "LoveModelRefactored",
-    "LoveAgents",
     # Unified configuration system
     "LoveBugConfig",
     "GeneticParams",
@@ -46,7 +50,6 @@ except _metadata.PackageNotFoundError:
     __version__ = "0.0.0+dev"
 
 # -- Development-only runtime type-checking ------------------------------
-import os
 
 if os.getenv("DEV_TYPECHECK", "0") == "1":
     try:

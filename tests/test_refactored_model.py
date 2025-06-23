@@ -48,28 +48,29 @@ class TestRefactoredModel:
 
         # Check that agents DataFrame has the correct columns
         agent_columns = model.get_agent_dataframe().columns
+        # Core columns that should always be present
         expected_columns = [
             "unique_id",
             "age",
             "energy",
-            "gene_display_trait",
+            "gene_display",
             "gene_preference",
+            "gene_threshold",
             "gene_foraging_efficiency",
-            "cultural_display_trait",
-            "cultural_preference",
+            "mating_success",
         ]
 
         for col in expected_columns:
             assert col in agent_columns, f"Missing column: {col}"
 
         # Verify genes are truly independent (16-bit values)
-        agents_df = model.agents.get_agents_as_DF()
-        assert agents_df["gene_display_trait"].max() <= 65535  # 2^16 - 1
+        agents_df = model.get_agent_dataframe()
+        assert agents_df["gene_display"].max() <= 65535  # 2^16 - 1
         assert agents_df["gene_preference"].max() <= 65535
         assert agents_df["gene_foraging_efficiency"].max() <= 65535
 
         # Verify they can vary independently
-        display_variance = agents_df["gene_display_trait"].var()
+        display_variance = agents_df["gene_display"].var()
         preference_variance = agents_df["gene_preference"].var()
         foraging_variance = agents_df["gene_foraging_efficiency"].var()
 
@@ -82,7 +83,7 @@ class TestRefactoredModel:
         model = LoveModelRefactored(config=self.config)
 
         # Get initial energy levels
-        initial_df = model.agents.get_agents_as_DF()
+        initial_df = model.get_agent_dataframe()
         initial_energies = initial_df["energy"].to_numpy()
         initial_foraging = initial_df["gene_foraging_efficiency"].to_numpy()
 
@@ -90,7 +91,7 @@ class TestRefactoredModel:
         model.step()
 
         # Get post-step energy levels
-        final_df = model.agents.get_agents_as_DF()
+        final_df = model.get_agent_dataframe()
         final_energies = final_df["energy"].to_numpy()
 
         # Energy should change based on foraging efficiency and density
