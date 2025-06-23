@@ -243,6 +243,10 @@ class ValidatedPaperRunner:
     def run_lk_validation_scenarios(self) -> list[LoveBugConfig]:
         """
         Generate validated Lande-Kirkpatrick validation scenarios using unified config.
+        Each scenario tests specific theoretical predictions:
+        - Stasis: No genetic correlation (genetic_correlation=0.0)
+        - Runaway: Strong genetic correlation, no preference cost
+        - Costly Choice: Strong genetic correlation with preference cost
 
         Returns
         -------
@@ -260,115 +264,66 @@ class ValidatedPaperRunner:
         scenarios = []
 
         for rep in range(self.config.replications_per_condition):
-            # Stasis scenario
+            common_simulation = SimulationParams(
+                population_size=base_population,
+                steps=self.config.n_generations,
+                carrying_capacity=base_population * 2,
+            )
+
+            # --- STASIS SCENARIO ---
+            # Key: No genetic correlation between trait and preference
             scenarios.append(
                 LoveBugConfig(
                     name=f"lk_stasis_rep{rep}",
+                    simulation=common_simulation.model_copy(update={"seed": rep}),
                     genetic=GeneticParams(
-                        h2_trait=0.5,
-                        h2_preference=0.5,
+                        genetic_correlation=0.0,  # Critical: No correlation = stasis
+                        selection_strength=0.3,  # Strong natural selection prevents drift
+                        preference_cost=0.0,  # No cost to being choosy
+                        h2_trait=0.3,
+                        h2_preference=0.2,
                         mutation_rate=0.01,
                         crossover_rate=0.7,
-                        population_size=base_population,
-                        elitism=1,
-                        energy_decay=0.01,
-                        mutation_variance=0.01,
-                        max_age=100,
-                        carrying_capacity=base_population,
                     ),
-                    cultural=CulturalParams(
-                        learning_rate=0.05,
-                        innovation_rate=0.01,
-                        network_type="scale_free",
-                        network_connectivity=1.0,
-                        cultural_memory_size=5,
-                        memory_decay_rate=0.01,
-                        horizontal_transmission_rate=0.1,
-                        oblique_transmission_rate=0.1,
-                        local_learning_radius=5,
-                        memory_update_strength=1.0,
-                    ),
-                    blending=LayerBlendingParams(blend_mode="weighted", blend_weight=1.0),
-                    perceptual=PerceptualParams(),
-                    simulation=SimulationParams(
-                        population_size=base_population,
-                        steps=self.config.n_generations,
-                        seed=rep,
-                    ),
+                    cultural=CulturalParams(enabled=False),  # Genetic-only
                 )
             )
-            # Runaway scenario
+
+            # --- RUNAWAY SCENARIO ---
+            # Key: Strong genetic correlation, no preference cost
             scenarios.append(
                 LoveBugConfig(
                     name=f"lk_runaway_rep{rep}",
+                    simulation=common_simulation.model_copy(update={"seed": rep + 1000}),
                     genetic=GeneticParams(
-                        h2_trait=0.5,
-                        h2_preference=0.5,
+                        genetic_correlation=0.3,  # Critical: Strong correlation = runaway
+                        selection_strength=0.05,  # Weak natural selection lets sexual selection dominate
+                        preference_cost=0.0,  # No cost to being choosy
+                        h2_trait=0.6,
+                        h2_preference=0.7,
                         mutation_rate=0.01,
                         crossover_rate=0.7,
-                        population_size=base_population,
-                        elitism=1,
-                        energy_decay=0.01,
-                        mutation_variance=0.01,
-                        max_age=100,
-                        carrying_capacity=base_population,
                     ),
-                    cultural=CulturalParams(
-                        learning_rate=0.05,
-                        innovation_rate=0.01,
-                        network_type="scale_free",
-                        network_connectivity=1.0,
-                        cultural_memory_size=5,
-                        memory_decay_rate=0.01,
-                        horizontal_transmission_rate=0.1,
-                        oblique_transmission_rate=0.1,
-                        local_learning_radius=5,
-                        memory_update_strength=1.0,
-                    ),
-                    blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.7),
-                    perceptual=PerceptualParams(),
-                    simulation=SimulationParams(
-                        population_size=base_population,
-                        steps=self.config.n_generations,
-                        seed=rep + 2000,
-                    ),
+                    cultural=CulturalParams(enabled=False),  # Genetic-only
                 )
             )
-            # Costly choice scenario
+
+            # --- COSTLY CHOICE SCENARIO ---
+            # Key: Same as runaway but with high preference cost
             scenarios.append(
                 LoveBugConfig(
                     name=f"lk_costly_choice_rep{rep}",
+                    simulation=common_simulation.model_copy(update={"seed": rep + 2000}),
                     genetic=GeneticParams(
-                        h2_trait=0.5,
-                        h2_preference=0.5,
+                        genetic_correlation=0.3,  # Strong correlation like runaway
+                        selection_strength=0.05,  # Weak natural selection like runaway
+                        preference_cost=0.15,  # Critical: High cost counteracts runaway
+                        h2_trait=0.6,
+                        h2_preference=0.7,
                         mutation_rate=0.01,
                         crossover_rate=0.7,
-                        population_size=base_population,
-                        elitism=1,
-                        energy_decay=0.01,
-                        mutation_variance=0.01,
-                        max_age=100,
-                        carrying_capacity=base_population,
                     ),
-                    cultural=CulturalParams(
-                        learning_rate=0.05,
-                        innovation_rate=0.05,
-                        network_type="scale_free",
-                        network_connectivity=1.0,
-                        cultural_memory_size=5,
-                        memory_decay_rate=0.01,
-                        horizontal_transmission_rate=0.1,
-                        oblique_transmission_rate=0.1,
-                        local_learning_radius=5,
-                        memory_update_strength=1.0,
-                    ),
-                    blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
-                    perceptual=PerceptualParams(),
-                    simulation=SimulationParams(
-                        population_size=base_population,
-                        steps=self.config.n_generations,
-                        seed=rep + 2000,
-                    ),
+                    cultural=CulturalParams(enabled=False),  # Genetic-only
                 )
             )
 
