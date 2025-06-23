@@ -36,6 +36,9 @@ class GeneticParams(BaseModel):
     energy_replenishment_rate: float = Field(
         0.01, ge=0.0, description="Per-generation energy replenishment rate (>= 0)."
     )
+    parental_investment_rate: float = Field(
+        0.6, ge=0.0, le=1.0, description="Fraction of a parent's energy invested in each offspring (0-1)."
+    )
 
     @model_validator(mode="after")
     def check_rates(self) -> "GeneticParams":

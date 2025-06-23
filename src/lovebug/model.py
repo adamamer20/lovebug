@@ -546,7 +546,7 @@ class LoveAgentsRefactored(AgentSetPolars):
         # Calculate offspring energy from parental investment
         parent_energy_a = self.agents["energy"].to_numpy()[idx]
         parent_energy_b = self.agents["energy"].to_numpy()[partner_idx]
-        parental_contribution_rate = 0.6  # Each parent contributes 60% of their energy
+        parental_contribution_rate = self.config.genetic.parental_investment_rate
 
         parent_a_investment = parent_energy_a * parental_contribution_rate
         parent_b_investment = parent_energy_b * parental_contribution_rate
