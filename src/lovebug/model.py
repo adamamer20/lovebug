@@ -347,19 +347,23 @@ class LoveAgentsRefactored(AgentSetPolars):
             parent_costs = offspring_df.group_by("parent_a_idx").agg(
                 (pl.col("parent_a_investment").sum()).alias("total_cost")
             )
-            self.agents = (
+
+            # Use vectorized join and update, but apply through AgentSetPolars
+            updated_agents_df = (
                 self.agents.join(parent_costs, left_on="unique_id", right_on="parent_a_idx", how="left")
                 .with_columns((pl.col("energy") - pl.col("total_cost").fill_null(0.0)).alias("energy"))
                 .drop("total_cost")
             )
 
-        # C. Add offspring to population (no artificial culling)
+            # Update energy column using the vectorized result
+            self["energy"] = updated_agents_df["energy"]
+
+        # C. Add offspring to population using += operator
         if offspring_df is not None and len(offspring_df) > 0:
-            # Combine current population with offspring
-            combined_df = pl.concat(
-                [self.agents, offspring_df.drop(["parent_a_idx", "parent_a_investment"])], how="diagonal"
-            )
-            self.agents = combined_df
+            # Remove parent tracking columns before adding offspring
+            clean_offspring_df = offspring_df.drop(["parent_a_idx", "parent_a_investment"])
+            # Use += operator to properly add offspring to AgentSetPolars
+            self += clean_offspring_df
 
         # Reset mating success counters
         n = len(self.agents)
