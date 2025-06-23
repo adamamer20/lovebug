@@ -19,12 +19,13 @@ from .config import (
 from .layer2 import CulturalLayer
 
 # Import the enhanced LoveModel as the primary interface
-from .unified_mesa_model import LoveAgents, LoveModel
+from .model import LoveAgents, LoveModel, LoveModelRefactored
 
 __all__ = [
     "__version__",
     # Enhanced primary interface
     "LoveModel",
+    "LoveModelRefactored",
     "LoveAgents",
     # Unified configuration system
     "LoveBugConfig",

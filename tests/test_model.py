@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from lovebug.unified_mesa_model import LoveModel
+from lovebug.model import LoveModelRefactored as LoveModel
 
 
 class TestLoveModelBasics:

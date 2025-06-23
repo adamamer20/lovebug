@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 import polars as pl
 
-from ..unified_mesa_model import LoveModel
+from ..model import LoveModelRefactored as LoveModel
 
 
 class DataCollector:

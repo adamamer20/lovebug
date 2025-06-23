@@ -41,7 +41,7 @@ with app.setup:
         PerceptualParams,
         SimulationParams,
     )
-    from lovebug.unified_mesa_model import LoveModel
+    from lovebug.model import LoveModelRefactored as LoveModel
 
     # Configure logging
     logging.basicConfig(level=logging.INFO)

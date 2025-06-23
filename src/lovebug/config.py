@@ -72,6 +72,9 @@ class CulturalParams(BaseModel):
     )
     local_learning_radius: PositiveInt = Field(5, description="Radius for local cultural learning.")
     memory_update_strength: float = Field(1.0, ge=0.0, le=1.0, description="Strength of memory updates [0, 1].")
+    learning_strategy: Literal["conformist", "success-biased", "condition-dependent", "age-biased"] = Field(
+        "conformist", description="Social learning strategy for the entire population."
+    )
 
     @model_validator(mode="after")
     def check_rates(self) -> "CulturalParams":

@@ -27,7 +27,7 @@ from lovebug.config import (
     LoveBugConfig,
     SimulationParams,
 )
-from lovebug.unified_mesa_model import LoveModel
+from lovebug.model import LoveModelRefactored as LoveModel
 
 # ============================================================================
 # Pytest Configuration

@@ -15,7 +15,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from lovebug.unified_mesa_model import LoveModel
+from lovebug.model import LoveModelRefactored as LoveModel
 from lovebug.visualization.core import ChartFactory, VisualizationEngine
 from lovebug.visualization.data import DataCollector, DataLoader
 

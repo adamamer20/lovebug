@@ -49,10 +49,13 @@ from lovebug.config import (
     CulturalParams,
     GeneticParams,
     LayerBlendingParams,
+    LayerConfig,
     LoveBugConfig,
     PerceptualParams,
     SimulationParams,
 )
+
+# Import the refactored model
 
 
 # Patch Mesa-Frames to handle mask synchronization issues
@@ -242,18 +245,25 @@ class ValidatedPaperRunner:
     @beartype
     def run_lk_validation_scenarios(self) -> list[LoveBugConfig]:
         """
-        Generate validated Lande-Kirkpatrick validation scenarios using unified config.
-        Each scenario tests specific theoretical predictions:
-        - Stasis: No genetic correlation (genetic_correlation=0.0)
-        - Runaway: Strong genetic correlation, no preference cost
-        - Costly Choice: Strong genetic correlation with preference cost
+        Generate Lande-Kirkpatrick validation scenarios adapted for the new unlinked gene model.
+
+        Since the new model uses unlinked genes, we create scenarios that will produce
+        the same theoretical patterns as the original LK model:
+        - Stasis: Random uncorrelated genes (natural state of unlinked model)
+        - Runaway: High heritability, low energy costs (allows trait elaboration)
+        - Costly Choice: High heritability but high energy costs (constrains evolution)
+
+        The LK dynamics emerge from the interaction of:
+        1. Heritability (h2_trait, h2_preference)
+        2. Energy dynamics (energy_replenishment_rate, energy_decay)
+        3. Population genetics (mutation_rate, population_size)
 
         Returns
         -------
         list[LoveBugConfig]
-            List of validated experiment configurations
+            List of validated LK experiment configurations
         """
-        logger.info("🧬 Generating Lande-Kirkpatrick validation scenarios")
+        logger.info("🧬 Generating Lande-Kirkpatrick validation scenarios for unlinked gene model")
 
         base_population = self.config.base_population_size
 
@@ -271,63 +281,108 @@ class ValidatedPaperRunner:
             )
 
             # --- STASIS SCENARIO ---
-            # Key: No genetic correlation between trait and preference
+            # LK Prediction: No correlation buildup when genes are unlinked
+            # Implementation: Use default random initialization + moderate heritability
             scenarios.append(
                 LoveBugConfig(
                     name=f"lk_stasis_rep{rep}",
                     simulation=common_simulation.model_copy(update={"seed": rep}),
                     genetic=GeneticParams(
-                        genetic_correlation=0.0,  # Critical: No correlation = stasis
-                        selection_strength=0.3,  # Strong natural selection prevents drift
-                        preference_cost=0.0,  # No cost to being choosy
-                        h2_trait=0.3,
-                        h2_preference=0.2,
+                        h2_trait=0.3,  # Moderate heritability prevents random correlation buildup
+                        h2_preference=0.2,  # Lower preference heritability = stasis
                         mutation_rate=0.01,
                         crossover_rate=0.7,
+                        population_size=base_population,
+                        carrying_capacity=base_population * 2,
+                        energy_replenishment_rate=0.01,  # Balanced energy
+                        energy_decay=0.01,
+                        max_age=100,
+                        elitism=1,
                     ),
-                    cultural=CulturalParams(enabled=False),  # Genetic-only
+                    cultural=CulturalParams(
+                        learning_strategy="conformist",
+                        learning_rate=0.0,  # Pure genetic evolution
+                        innovation_rate=0.0,
+                    ),
+                    layer=LayerConfig(
+                        genetic_enabled=True,
+                        cultural_enabled=False,
+                        genetic_weight=1.0,
+                        cultural_weight=0.0,
+                    ),
                 )
             )
 
             # --- RUNAWAY SCENARIO ---
-            # Key: Strong genetic correlation, no preference cost
+            # LK Prediction: Trait elaboration when strong genetic transmission, low cost
+            # Implementation: High heritability + abundant energy allows runaway
             scenarios.append(
                 LoveBugConfig(
                     name=f"lk_runaway_rep{rep}",
                     simulation=common_simulation.model_copy(update={"seed": rep + 1000}),
                     genetic=GeneticParams(
-                        genetic_correlation=0.3,  # Critical: Strong correlation = runaway
-                        selection_strength=0.05,  # Weak natural selection lets sexual selection dominate
-                        preference_cost=0.0,  # No cost to being choosy
-                        h2_trait=0.6,
-                        h2_preference=0.7,
-                        mutation_rate=0.01,
-                        crossover_rate=0.7,
+                        h2_trait=0.8,  # High trait heritability enables runaway
+                        h2_preference=0.8,  # High preference heritability enables runaway
+                        mutation_rate=0.005,  # Lower mutation preserves favorable combinations
+                        crossover_rate=0.9,  # High crossover explores new combinations
+                        population_size=base_population,
+                        carrying_capacity=base_population * 2,
+                        energy_replenishment_rate=0.05,  # Abundant energy = no cost to choosiness
+                        energy_decay=0.005,  # Low energy decay = low cost
+                        max_age=100,
+                        elitism=2,  # Preserve best individuals
                     ),
-                    cultural=CulturalParams(enabled=False),  # Genetic-only
+                    cultural=CulturalParams(
+                        learning_strategy="conformist",
+                        learning_rate=0.0,
+                        innovation_rate=0.0,
+                    ),
+                    layer=LayerConfig(
+                        genetic_enabled=True,
+                        cultural_enabled=False,
+                        genetic_weight=1.0,
+                        cultural_weight=0.0,
+                    ),
                 )
             )
 
             # --- COSTLY CHOICE SCENARIO ---
-            # Key: Same as runaway but with high preference cost
+            # LK Prediction: Runaway constrained by preference cost
+            # Implementation: High heritability but energy scarcity creates cost
             scenarios.append(
                 LoveBugConfig(
                     name=f"lk_costly_choice_rep{rep}",
                     simulation=common_simulation.model_copy(update={"seed": rep + 2000}),
                     genetic=GeneticParams(
-                        genetic_correlation=0.3,  # Strong correlation like runaway
-                        selection_strength=0.05,  # Weak natural selection like runaway
-                        preference_cost=0.15,  # Critical: High cost counteracts runaway
-                        h2_trait=0.6,
-                        h2_preference=0.7,
-                        mutation_rate=0.01,
-                        crossover_rate=0.7,
+                        h2_trait=0.8,  # High heritability like runaway
+                        h2_preference=0.8,  # High heritability like runaway
+                        mutation_rate=0.005,  # Low mutation like runaway
+                        crossover_rate=0.9,  # High crossover like runaway
+                        population_size=base_population,
+                        carrying_capacity=base_population * 2,
+                        energy_replenishment_rate=0.008,  # Limited energy = costly choice
+                        energy_decay=0.02,  # High energy decay = high choosiness cost
+                        max_age=100,
+                        elitism=2,
                     ),
-                    cultural=CulturalParams(enabled=False),  # Genetic-only
+                    cultural=CulturalParams(
+                        learning_strategy="conformist",
+                        learning_rate=0.0,
+                        innovation_rate=0.0,
+                    ),
+                    layer=LayerConfig(
+                        genetic_enabled=True,
+                        cultural_enabled=False,
+                        genetic_weight=1.0,
+                        cultural_weight=0.0,
+                    ),
                 )
             )
 
         logger.info(f"Generated {len(scenarios)} validated LK scenarios")
+        logger.info("✓ Stasis: Moderate heritability, balanced energy")
+        logger.info("✓ Runaway: High heritability, abundant energy (low cost)")
+        logger.info("✓ Costly Choice: High heritability, scarce energy (high cost)")
         return scenarios
 
     @beartype

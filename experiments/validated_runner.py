@@ -28,7 +28,7 @@ from experiments.models import (
     ExperimentMetadata,
 )
 from lovebug.config import LoveBugConfig
-from lovebug.unified_mesa_model import LoveModel
+from lovebug.model import LoveModelRefactored
 
 __all__ = ["run_validated_experiment", "ValidatedExperimentRunner"]
 
@@ -70,7 +70,7 @@ def run_validated_experiment(config: LoveBugConfig) -> dict[str, Any]:
         logger.debug(f"Configuration: {config.model_dump_json(indent=2)}")
 
         # Create and run model
-        model = LoveModel(config=config)
+        model = LoveModelRefactored(config=config)
 
         # Use simulation parameters for steps and replications
         n_steps = config.simulation.steps

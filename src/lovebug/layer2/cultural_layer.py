@@ -24,7 +24,7 @@ from .learning_algorithms import (
 from .network import NetworkTopology, SocialNetwork
 
 if TYPE_CHECKING:
-    from lovebug.unified_mesa_model import LoveAgents
+    from lovebug.model import LoveAgentsRefactored as LoveAgents
 
 __all__ = ["CulturalLayer"]
 

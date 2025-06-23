@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
-Witte Cultural Transmission Replication
+Witte Cultural Transmission Replication (Adapted for Refactored Model)
 
-This script replicates experiments showing that a socially learned preference
+This script replicates the core mechanism: a socially learned preference
 can establish itself and persist in a population through cultural transmission.
+
+Note: Adapted for refactored model using the cultural learning system.
 
 Reference: Witte, K., & Ryan, M. J. (2002). Mate choice copying in the sailfin
 molly, Poecilia latipinna, in the wild. Animal Behaviour, 63, 943-949.
-
-Key Mechanism: Cultural transmission can maintain novel preferences in a
-population even when they are not genetically favored.
 """
 
 from __future__ import annotations
@@ -25,21 +24,25 @@ import polars as pl
 # Add project paths
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
+from lovebug import LoveModelRefactored
 from lovebug.config import (
     CulturalParams,
     GeneticParams,
-    LayerBlendingParams,
+    LayerConfig,
     LoveBugConfig,
-    PerceptualParams,
     SimulationParams,
 )
-from lovebug.unified_mesa_model import LoveModel
 
 logger = logging.getLogger(__name__)
 
 
 class WitteReplication:
-    """Replicates Witte's cultural transmission persistence experiment."""
+    """
+    Replicates Witte's cultural transmission persistence experiment.
+
+    Adapted for refactored model with built-in cultural learning system.
+    Tests persistence of novel preferences through social transmission.
+    """
 
     def __init__(self, population_size: int = 100, n_generations: int = 200, seed: int = 42):
         self.population_size = population_size
@@ -51,39 +54,37 @@ class WitteReplication:
         """
         Create configuration for Witte replication.
 
-        Pure cultural evolution to test persistence of socially learned traits.
+        High cultural transmission to test persistence of socially learned traits.
         """
         return LoveBugConfig(
             name="witte_cultural_transmission",
             genetic=GeneticParams(
-                h2_trait=0.0,  # No genetic influence on traits
-                h2_preference=0.0,  # No genetic influence on preferences
-                mutation_rate=0.0,  # No genetic mutation
-                crossover_rate=0.0,  # No genetic recombination
-                population_size=self.population_size,
-                elitism=1,
-                energy_decay=0.01,  # Slow aging to allow cultural transmission
-                mutation_variance=0.0,
+                mutation_rate=0.001,  # Minimal genetic change for population stability
+                crossover_rate=0.1,  # Minimal genetic recombination for diversity
                 max_age=self.n_generations,  # Live long enough for experiment
+                energy_decay=0.005,  # Very slow aging to allow cultural transmission
+                energy_replenishment_rate=0.15,  # Higher sustainable energy
                 carrying_capacity=self.population_size,
             ),
             cultural=CulturalParams(
-                learning_rate=0.3,  # Moderate cultural learning
+                learning_rate=0.3,  # Key parameter for cultural learning
+                horizontal_transmission_rate=0.3,  # Key parameter for transmission
+                oblique_transmission_rate=0.1,
                 innovation_rate=0.001,  # Very low innovation - test persistence
                 network_type="small_world",  # Realistic social network
                 network_connectivity=0.8,
                 cultural_memory_size=5,
-                memory_decay_rate=0.01,  # Slow memory decay
-                horizontal_transmission_rate=0.3,  # Key parameter for transmission
-                oblique_transmission_rate=0.1,  # Some cross-generational transmission
-                local_learning_radius=10,
-                memory_update_strength=0.5,
+                memory_decay_rate=0.01,
+                local_learning_radius=5,
+                memory_update_strength=1.0,
+                learning_strategy="conformist",  # Conformist transmission
             ),
-            blending=LayerBlendingParams(
-                blend_mode="weighted",
-                blend_weight=0.0,  # Pure cultural evolution
+            layer=LayerConfig(
+                genetic_enabled=True,
+                cultural_enabled=True,
+                genetic_weight=0.0,  # Pure cultural evolution
+                cultural_weight=1.0,
             ),
-            perceptual=PerceptualParams(),
             simulation=SimulationParams(
                 population_size=self.population_size,
                 steps=self.n_generations,
@@ -102,19 +103,21 @@ class WitteReplication:
         logger.info("🐟 Starting Witte cultural transmission replication")
 
         config = self.create_experimental_config()
-        model = LoveModel(config=config)
+        model = LoveModelRefactored(config=config)
 
         # Initialize with uniform baseline preference
-        baseline_preference = 128  # Middle value (bit pattern: 10000000)
-        novel_preference = 200  # Novel preference (bit pattern: 11001000)
+        baseline_preference = 32768  # Mid-range 16-bit value
+        novel_preference = 52000  # Novel preference value
 
         logger.info(f"Baseline preference: {baseline_preference}")
         logger.info(f"Novel preference: {novel_preference}")
 
         # Set initial cultural preferences to baseline
-        agents_data = model.agents._agents
-        if "pref_culture" in agents_data.columns:
-            model.agents._agents = agents_data.with_columns(pl.lit(baseline_preference).alias("pref_culture"))
+        current_df = model.get_agent_dataframe()
+        baseline_prefs = np.full(len(current_df), baseline_preference, dtype=np.uint16)
+
+        updated_df = current_df.with_columns(pl.Series("cultural_preference", baseline_prefs, dtype=pl.UInt16))
+        model.agents._agentsets[0].agents = updated_df
 
         # Track preferences over time
         preference_history = []
@@ -125,22 +128,24 @@ class WitteReplication:
             model.step()
 
             # Record current preference distribution
-            current_agents = model.agents._agents
-            if "pref_culture" in current_agents.columns:
-                prefs = current_agents["pref_culture"].to_list()
+            current_agents = model.get_agent_dataframe()
+            if "cultural_preference" in current_agents.columns:
+                prefs = current_agents["cultural_preference"].to_numpy()
+                novel_frequency = np.sum(np.abs(prefs - novel_preference) < 1000) / len(prefs)
                 preference_history.append(
                     {
                         "generation": generation,
                         "phase": "baseline",
-                        "novel_frequency": sum(1 for p in prefs if abs(p - novel_preference) < 10) / len(prefs),
-                        "mean_preference": np.mean(prefs),
-                        "preference_variance": np.var(prefs),
+                        "novel_frequency": novel_frequency,
+                        "mean_preference": float(np.mean(prefs)),
+                        "preference_variance": float(np.var(prefs)),
+                        "population_size": len(prefs),
                     }
                 )
 
         # Step 2: Introduce novel preference in 5% of population
         logger.info("Phase 2: Introducing novel preference")
-        current_agents = model.agents._agents
+        current_agents = model.get_agent_dataframe()
         n_innovators = max(1, int(0.05 * len(current_agents)))  # 5% of population
 
         # Randomly select innovators
@@ -148,12 +153,12 @@ class WitteReplication:
         innovator_indices = np.random.choice(len(current_agents), size=n_innovators, replace=False)
 
         # Update preferences for innovators
-        if "pref_culture" in current_agents.columns:
-            updated_prefs = current_agents["pref_culture"].to_list()
-            for idx in innovator_indices:
-                updated_prefs[idx] = novel_preference
+        if "cultural_preference" in current_agents.columns:
+            updated_prefs = current_agents["cultural_preference"].to_numpy().copy()
+            updated_prefs[innovator_indices] = novel_preference
 
-            model.agents._agents = current_agents.with_columns(pl.Series("pref_culture", updated_prefs))
+            updated_df = current_agents.with_columns(pl.Series("cultural_preference", updated_prefs, dtype=pl.UInt16))
+            model.agents._agentsets[0].agents = updated_df
 
         logger.info(f"Introduced novel preference to {n_innovators} individuals")
 
@@ -163,59 +168,70 @@ class WitteReplication:
             model.step()
 
             # Record current preference distribution
-            current_agents = model.agents._agents
-            if "pref_culture" in current_agents.columns:
-                prefs = current_agents["pref_culture"].to_list()
-                novel_frequency = sum(1 for p in prefs if abs(p - novel_preference) < 10) / len(prefs)
+            current_agents = model.get_agent_dataframe()
+            if "cultural_preference" in current_agents.columns:
+                prefs = current_agents["cultural_preference"].to_numpy()
+                novel_frequency = np.sum(np.abs(prefs - novel_preference) < 1000) / len(prefs)
 
                 preference_history.append(
                     {
                         "generation": generation,
                         "phase": "transmission",
                         "novel_frequency": novel_frequency,
-                        "mean_preference": np.mean(prefs),
-                        "preference_variance": np.var(prefs),
+                        "mean_preference": float(np.mean(prefs)),
+                        "preference_variance": float(np.var(prefs)),
+                        "population_size": len(prefs),
                     }
                 )
 
                 # Log progress at key points
                 if generation % 50 == 0 or generation == self.n_generations - 1:
-                    logger.info(f"Generation {generation}: Novel preference frequency = {novel_frequency:.3f}")
+                    logger.info(
+                        f"Generation {generation}: Novel preference frequency = {novel_frequency:.3f}, Population = {len(prefs)}"
+                    )
 
         # Analyze results
-        final_frequency = preference_history[-1]["novel_frequency"]
-        max_frequency = max(h["novel_frequency"] for h in preference_history if h["phase"] == "transmission")
+        if preference_history:
+            final_frequency = preference_history[-1]["novel_frequency"]
+            transmission_history = [h for h in preference_history if h["phase"] == "transmission"]
+            max_frequency = max(h["novel_frequency"] for h in transmission_history) if transmission_history else 0
 
-        # Determine if preference persisted
-        persistence_threshold = 0.01  # Must maintain at least 1% frequency
-        final_persistent = final_frequency > persistence_threshold
+            # Determine if preference persisted
+            persistence_threshold = 0.01  # Must maintain at least 1% frequency
+            final_persistent = final_frequency > persistence_threshold
 
-        # Determine if preference spread
-        spread_threshold = 0.1  # Must reach at least 10% at some point
-        max_spread = max_frequency > spread_threshold
+            # Determine if preference spread
+            spread_threshold = 0.1  # Must reach at least 10% at some point
+            max_spread = max_frequency > spread_threshold
 
-        # Compile results
-        results = {
-            "experiment": "witte_cultural_transmission",
-            "population_size": self.population_size,
-            "n_generations": self.n_generations,
-            "baseline_preference": baseline_preference,
-            "novel_preference": novel_preference,
-            "n_innovators": n_innovators,
-            "initial_frequency": n_innovators / self.population_size,
-            "final_frequency": final_frequency,
-            "max_frequency": max_frequency,
-            "persistent": final_persistent,
-            "spread": max_spread,
-            "success": final_persistent and max_spread,
-            "preference_history": preference_history,
-        }
+            # Compile results
+            results = {
+                "experiment": "witte_cultural_transmission",
+                "population_size": self.population_size,
+                "n_generations": self.n_generations,
+                "baseline_preference": baseline_preference,
+                "novel_preference": novel_preference,
+                "n_innovators": n_innovators,
+                "initial_frequency": n_innovators / self.population_size,
+                "final_frequency": final_frequency,
+                "max_frequency": max_frequency,
+                "persistent": final_persistent,
+                "spread": max_spread,
+                "success": final_persistent and max_spread,
+                "preference_history": preference_history,
+            }
+        else:
+            results = {
+                "experiment": "witte_cultural_transmission",
+                "error": "No preference data collected",
+                "success": False,
+            }
 
-        logger.info(f"Final novel preference frequency: {final_frequency:.3f}")
-        logger.info(f"Maximum frequency reached: {max_frequency:.3f}")
-        logger.info(f"Preference persistent: {final_persistent}")
-        logger.info(f"Preference spread: {max_spread}")
-        logger.info(f"Experiment success: {results['success']}")
+        logger.info(f"Final novel preference frequency: {results.get('final_frequency', 0):.3f}")
+        logger.info(f"Maximum frequency reached: {results.get('max_frequency', 0):.3f}")
+        logger.info(f"Preference persistent: {results.get('persistent', False)}")
+        logger.info(f"Preference spread: {results.get('spread', False)}")
+        logger.info(f"Experiment success: {results.get('success', False)}")
 
         self.results = results
         return results
@@ -225,9 +241,12 @@ class WitteReplication:
         if not self.results:
             return "No results available - run experiment first"
 
+        if "error" in self.results:
+            return f"Experiment failed: {self.results['error']}"
+
         summary = f"""
-Witte Cultural Transmission Replication Results
-==============================================
+Witte Cultural Transmission Replication Results (Adapted)
+=========================================================
 
 Population size: {self.results["population_size"]}
 Generations: {self.results["n_generations"]}
@@ -255,25 +274,36 @@ Interpretation:
         try:
             import matplotlib.pyplot as plt
 
-            if not self.results or not self.results["preference_history"]:
+            if not self.results or not self.results.get("preference_history"):
                 print("No data to plot")
                 return
 
             history = self.results["preference_history"]
             generations = [h["generation"] for h in history]
             frequencies = [h["novel_frequency"] for h in history]
+            populations = [h["population_size"] for h in history]
 
-            plt.figure(figsize=(10, 6))
-            plt.plot(generations, frequencies, "b-", linewidth=2, label="Novel preference frequency")
-            plt.axhline(y=0.05, color="r", linestyle="--", alpha=0.7, label="5% threshold")
-            plt.axhline(y=0.1, color="orange", linestyle="--", alpha=0.7, label="10% spread threshold")
-            plt.axvline(x=5, color="gray", linestyle=":", alpha=0.7, label="Introduction point")
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
 
-            plt.xlabel("Generation")
-            plt.ylabel("Novel preference frequency")
-            plt.title("Witte Cultural Transmission Dynamics")
-            plt.legend()
-            plt.grid(True, alpha=0.3)
+            # Plot frequency dynamics
+            ax1.plot(generations, frequencies, "b-", linewidth=2, label="Novel preference frequency")
+            ax1.axhline(y=0.05, color="r", linestyle="--", alpha=0.7, label="5% threshold")
+            ax1.axhline(y=0.1, color="orange", linestyle="--", alpha=0.7, label="10% spread threshold")
+            ax1.axvline(x=5, color="gray", linestyle=":", alpha=0.7, label="Introduction point")
+            ax1.set_xlabel("Generation")
+            ax1.set_ylabel("Novel preference frequency")
+            ax1.set_title("Witte Cultural Transmission Dynamics")
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+
+            # Plot population dynamics
+            ax2.plot(generations, populations, "purple", linewidth=2, label="Population size")
+            ax2.set_xlabel("Generation")
+            ax2.set_ylabel("Population size")
+            ax2.set_title("Population Dynamics")
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+
             plt.tight_layout()
             plt.show()
 

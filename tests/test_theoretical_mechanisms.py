@@ -12,7 +12,7 @@ from typing import Literal
 import pytest
 
 from lovebug.config import LoveBugConfig
-from lovebug.unified_mesa_model import LoveModel
+from lovebug.model import LoveModelRefactored as LoveModel
 
 
 class TestPerceptualConstraints:
