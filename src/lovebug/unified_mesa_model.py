@@ -39,11 +39,6 @@ DEFAULT_ENERGY_DECAY = 0.2
 DEFAULT_MAX_AGE = 100
 
 
-def _bit_count_u32(values: np.ndarray) -> np.ndarray:
-    """Return the number of set bits for each 32-bit integer."""
-    return pl.Series(values.astype(np.uint32), dtype=pl.UInt32).bitwise_count_ones().to_numpy()
-
-
 def hamming_similarity(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     """
     Return similarity (16 – Hamming distance) for lower 16 bits.
@@ -1181,17 +1176,28 @@ class LoveModel(ModelDF):
 
     def _summarize_layer_interactions(self) -> dict[str, Any]:
         """Summarize interactions between genetic and cultural layers."""
-        if not self.history:
+        if not self.history or not self.config.layer.is_combined():
             return {}
 
-        correlations = [h.get("gene_culture_correlation", 0.0) for h in self.history]
-        distances = [h.get("gene_culture_distance", 0.0) for h in self.history]
+        # Extract the per-step metrics from the history
+        correlations = [h.get("gene_culture_correlation", 0.0) for h in self.history if "gene_culture_correlation" in h]
+        distances = [h.get("gene_culture_distance", 0.0) for h in self.history if "gene_culture_distance" in h]
+
+        if not correlations:  # check if list is empty
+            return {"error": "No gene_culture_correlation data found in history."}
 
         return {
-            "final_gene_culture_correlation": correlations[-1] if correlations else 0.0,
-            "max_correlation": max(correlations) if correlations else 0.0,
-            "mean_gene_culture_distance": np.mean(distances) if distances else 0.0,
+            # --- Final State Metrics ---
+            "final_gene_culture_correlation": correlations[-1],
             "final_gene_culture_distance": distances[-1] if distances else 0.0,
+            # --- Trajectory Summary Metrics ---
+            "mean_gene_culture_correlation": np.mean(correlations),
+            "mean_gene_culture_distance": np.mean(distances) if distances else 0.0,
+            "max_gene_culture_correlation": max(correlations),
+            "min_gene_culture_correlation": min(correlations),
+            "max_abs_gene_culture_correlation": max(abs(c) for c in correlations),
+            "time_to_max_correlation": int(np.argmax(np.abs(correlations))) if correlations else None,
+            # --- Input Parameter Summary ---
             "interaction_strength": self.config.layer.genetic_weight * self.config.layer.cultural_weight,
         }
 
