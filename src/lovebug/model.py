@@ -73,7 +73,7 @@ class LoveAgentsRefactored(AgentSetPolars):
         # Initialize unlinked genes
         gene_display = np.random.randint(0, 2**16, size=n, dtype=np.uint16)
         gene_preference = np.random.randint(0, 2**16, size=n, dtype=np.uint16)
-        gene_threshold = np.random.randint(0, 2**8, size=n, dtype=np.uint8)
+        gene_threshold = np.random.randint(0, 2**4, size=n, dtype=np.uint8)  # 4-bit value (0-15)
         gene_foraging_efficiency = np.random.randint(0, 2**8, size=n, dtype=np.uint8)
 
         # Initialize with stable age distribution
@@ -486,10 +486,10 @@ class LoveAgentsRefactored(AgentSetPolars):
                     mutate_preference, offspring_preference ^ mutation_masks, offspring_preference
                 )
 
-            # Threshold gene mutations (8-bit)
+            # Threshold gene mutations (4-bit to match similarity scale)
             mutate_threshold = np.random.random(n_offspring) < mutation_rate
             if mutate_threshold.any():
-                bit_positions = np.random.randint(0, 8, size=n_offspring)
+                bit_positions = np.random.randint(0, 4, size=n_offspring)
                 mutation_masks = np.uint8(1) << bit_positions
                 offspring_threshold = np.where(
                     mutate_threshold, offspring_threshold ^ mutation_masks, offspring_threshold
