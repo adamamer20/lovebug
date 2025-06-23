@@ -108,17 +108,17 @@ class ValidatedPaperConfig:
     run_validation: bool = True
     run_empirical: bool = True
     run_lhs: bool = True
-    lhs_samples: int = 200
+    lhs_samples: int = 100
     replications_per_condition: int = 10
-    n_generations: int = 5000
+    n_generations: int = 3000
     max_duration_hours: float = 24.0
 
     # Population size configurations
-    base_population_size: int = 2000  # Standard population for validation/cultural/combined
-    lhs_population_size: int = 2000  # Population for LHS exploration experiments
+    base_population_size: int = 1500  # Standard population for validation/cultural/combined
+    lhs_population_size: int = 1500  # Population for LHS exploration experiments
     dugatkin_population_size: int = 20  # Dugatkin replication population
     witte_population_size: int = 100  # Witte replication population
-    rodd_population_size: int = 2000  # Rodd replication population
+    rodd_population_size: int = 1500  # Rodd replication population
 
     # Default energy parameters following literature-aligned rule of thumb
     default_energy_decay: float = 0.012
@@ -972,9 +972,9 @@ def run_validated_paper_experiments(
     run_validation: bool = True,
     run_empirical: bool = False,
     run_lhs: bool = False,
-    lhs_samples: int = 200,
+    lhs_samples: int = 100,
     replications: int = 10,
-    generations: int = 5000,
+    generations: int = 3000,
 ) -> dict[str, Any]:
     """
     Run validated paper experiments with Pydantic configuration system.
@@ -1046,9 +1046,9 @@ Features of the validated system:
     parser.add_argument("--no-validation", action="store_true", help="Skip Phase 1 validation scenarios")
     parser.add_argument("--run-empirical", action="store_true", help="Run empirical literature replications")
     parser.add_argument("--run-lhs", action="store_true", help="Run Phase 2 Latin Hypercube Sampling exploration")
-    parser.add_argument("--lhs-samples", type=int, default=200, help="Number of LHS parameter combinations")
+    parser.add_argument("--lhs-samples", type=int, default=100, help="Number of LHS parameter combinations")
     parser.add_argument("--replications", type=int, default=10, help="Number of replications per condition")
-    parser.add_argument("--generations", type=int, default=5000, help="Number of generations per simulation")
+    parser.add_argument("--generations", type=int, default=3000, help="Number of generations per simulation")
 
     args = parser.parse_args()
 
