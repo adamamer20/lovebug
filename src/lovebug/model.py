@@ -76,6 +76,9 @@ class LoveAgentsRefactored(AgentSetPolars):
         gene_threshold = np.random.randint(0, 2**4, size=n, dtype=np.uint8)  # 4-bit value (0-15)
         gene_foraging_efficiency = np.random.randint(0, 2**8, size=n, dtype=np.uint8)
 
+        # Initialize sex differentiation (0 = female, 1 = male)
+        sex = np.random.randint(0, 2, size=n, dtype=np.uint8)
+
         # Initialize with stable age distribution
         max_age = self.config.genetic.max_age
         ages = np.random.randint(0, max_age, size=n, dtype=np.uint16)
@@ -89,6 +92,7 @@ class LoveAgentsRefactored(AgentSetPolars):
 
         # Create base dataframe with genetic traits
         df_data = {
+            "sex": pl.Series(sex, dtype=pl.UInt8),
             "gene_display": pl.Series(gene_display, dtype=pl.UInt16),
             "gene_preference": pl.Series(gene_preference, dtype=pl.UInt16),
             "gene_threshold": pl.Series(gene_threshold, dtype=pl.UInt8),
@@ -174,9 +178,20 @@ class LoveAgentsRefactored(AgentSetPolars):
         if current_population > 0:
             # Density-dependent energy influx
             base_energy_per_agent = (carrying_capacity * energy_replenishment_rate) / current_population
+
             # Individual energy gain scaled by foraging efficiency
-            foraging_multiplier = self.agents["gene_foraging_efficiency"].cast(pl.Float32) / 255.0
-            energy_gain = base_energy_per_agent * (0.5 + foraging_multiplier)  # 0.5-1.5x base rate
+            foraging_efficiency = self.agents["gene_foraging_efficiency"].cast(pl.Float32) / 255.0
+
+            # Display-survival trade-off: higher display traits reduce foraging efficiency
+            display_cost_scalar = 0.2  # Scale factor for display cost
+            display_bits = self.agents["gene_display"]
+            # Count number of set bits as proxy for display elaboration
+            display_cost = display_bits.bitwise_count_ones().cast(pl.Float32) / 16.0 * display_cost_scalar
+
+            # Effective foraging efficiency reduced by display cost
+            effective_foraging = (foraging_efficiency - display_cost).clip(0.1, 1.0)  # Keep minimum 0.1
+
+            energy_gain = base_energy_per_agent * (0.5 + effective_foraging)  # 0.5-1.5x base rate
         else:
             energy_gain = pl.lit(0.0, dtype=pl.Float32)
 
@@ -389,7 +404,20 @@ class LoveAgentsRefactored(AgentSetPolars):
             # Use += operator to properly add offspring to AgentSetPolars
             self += clean_offspring_df
 
-        # Reset mating success counters
+        # Update mating success counters for accepted matings before reset
+        if offspring_df is not None and len(offspring_df) > 0:
+            # Mark females who successfully mated
+            parent_females = offspring_df.filter(pl.col("parent_a_idx").is_not_null())["parent_a_idx"].unique()
+            parent_indices = (
+                self.agents.with_row_index("idx").filter(pl.col("unique_id").is_in(parent_females))["idx"].to_numpy()
+            )
+
+            if len(parent_indices) > 0:
+                current_success = self.agents["mating_success"].to_numpy().copy()
+                current_success[parent_indices] += 1
+                self["mating_success"] = pl.Series(current_success, dtype=pl.UInt16)
+
+        # Reset mating success counters for next timestep
         n = len(self.agents)
         if n > 0:
             self["mating_success"] = pl.Series([0] * n, dtype=pl.UInt16)
@@ -425,24 +453,62 @@ class LoveAgentsRefactored(AgentSetPolars):
         if n < 2:
             return None
 
-        # Random pairing
-        partners = np.random.permutation(n)
+        # Get sex data
+        sex_data = self.agents["sex"].to_numpy()
 
-        # Get genetic traits
-        gene_display_self = self.agents["gene_display"].to_numpy()
-        gene_display_partner = gene_display_self[partners]
-        gene_threshold_self = self.agents["gene_threshold"].to_numpy()
-        gene_threshold_partner = gene_threshold_self[partners]
+        # Separate males and females
+        male_indices = np.where(sex_data == 1)[0]
+        female_indices = np.where(sex_data == 0)[0]
 
-        # Get effective preferences
+        n_males = len(male_indices)
+        n_females = len(female_indices)
+
+        # Ensure we have both sexes
+        if n_males == 0 or n_females == 0:
+            return None
+
+        # Create cross-sex pairings: each male paired with a female
+        # Use the smaller of the two populations to determine number of pairs
+        n_pairs = min(n_males, n_females)
+
+        # Randomly permute and pair
+        shuffled_males = np.random.permutation(male_indices)[:n_pairs]
+        shuffled_females = np.random.permutation(female_indices)[:n_pairs]
+
+        # Create partner mapping for the full population
+        partners = np.full(n, -1, dtype=np.int32)  # -1 indicates no partner
+
+        # Assign partners (males get female partners, females get male partners)
+        partners[shuffled_males] = shuffled_females
+        partners[shuffled_females] = shuffled_males
+
+        # Filter to only those with valid partners
+        valid_pairs = partners >= 0
+        if not valid_pairs.any():
+            return None
+
+        # Update arrays to only include valid pairs
+        valid_indices = np.where(valid_pairs)[0]
+        partners = partners[valid_indices]
+        n_valid = len(valid_indices)
+
+        # Get genetic traits for valid pairs only
+        gene_display_self = self.agents["gene_display"].to_numpy()[valid_indices]
+        gene_display_partner = self.agents["gene_display"].to_numpy()[partners]
+        gene_threshold_self = self.agents["gene_threshold"].to_numpy()[valid_indices]
+        sex_self = self.agents["sex"].to_numpy()[valid_indices]
+        sex_partner = self.agents["sex"].to_numpy()[partners]
+
+        # Get effective preferences for valid pairs only
         if self.config.layer.is_combined():
-            effective_pref_self = self.agents["effective_preference"].to_numpy()
+            effective_pref_self = self.agents["effective_preference"].to_numpy()[valid_indices]
+            effective_pref_partner = self.agents["effective_preference"].to_numpy()[partners]
         elif self.config.layer.is_cultural_only():
-            effective_pref_self = self.agents["cultural_preference"].to_numpy()
+            effective_pref_self = self.agents["cultural_preference"].to_numpy()[valid_indices]
+            effective_pref_partner = self.agents["cultural_preference"].to_numpy()[partners]
         else:
-            effective_pref_self = self.agents["gene_preference"].to_numpy()
-
-        effective_pref_partner = effective_pref_self[partners]
+            effective_pref_self = self.agents["gene_preference"].to_numpy()[valid_indices]
+            effective_pref_partner = self.agents["gene_preference"].to_numpy()[partners]
 
         # Standardized 16-bit Hamming similarity calculation using Polars-native operations
         sim_self = hamming_similarity_16bit_polars(
@@ -457,8 +523,8 @@ class LoveAgentsRefactored(AgentSetPolars):
         theta_detect = self.config.layer.theta_detect
 
         if sigma_perception > 0:
-            noise_self = np.random.normal(0, sigma_perception, size=n)
-            noise_partner = np.random.normal(0, sigma_perception, size=n)
+            noise_self = np.random.normal(0, sigma_perception, size=n_valid)
+            noise_partner = np.random.normal(0, sigma_perception, size=n_valid)
             sim_self = sim_self + noise_self
             sim_partner = sim_partner + noise_partner
 
@@ -466,23 +532,46 @@ class LoveAgentsRefactored(AgentSetPolars):
         sim_self = np.where(sim_self >= theta_detect, sim_self, 0.0)
         sim_partner = np.where(sim_partner >= theta_detect, sim_partner, 0.0)
 
-        # Acceptance based on thresholds
-        accept_self = sim_self >= gene_threshold_self
-        accept_partner = sim_partner >= gene_threshold_partner
+        # Implement female-only choice: males always accept, females choose
+        male_accepts = np.ones(n_valid, dtype=bool)  # Males always accept
+        female_accepts = sim_self >= gene_threshold_self  # Females choose based on threshold
 
-        # Mutual acceptance required
-        accepted = accept_self & accept_partner
+        # Apply acceptance based on sex: if self is male, use male_accepts; if female, use female_accepts
+        accept_self = np.where(sex_self == 1, male_accepts, female_accepts)
+        accept_partner = np.where(sex_partner == 1, male_accepts, female_accepts)
+
+        # Apply mating cap: each female can only mate once per timestep
+        current_mating_success = self.agents["mating_success"].to_numpy()[valid_indices]
+        already_mated = current_mating_success > 0
+        can_mate = ~already_mated
+
+        # Only females that haven't mated yet can participate
+        female_can_mate = np.where(sex_self == 0, can_mate, True)  # Females limited, males unrestricted
+
+        # Apply search/assessment energy cost to females before acceptance
+        search_cost = 0.01  # Small cost for courtship assessment
+        female_indices = valid_indices[sex_self == 0]  # Get female indices
+
+        if len(female_indices) > 0:
+            # Deduct search cost from females who participated in courtship
+            current_energy = self.agents["energy"].to_numpy().copy()
+            current_energy[female_indices] -= search_cost
+            self["energy"] = pl.Series(current_energy, dtype=pl.Float32)
+
+        # Mutual acceptance required (but now asymmetric) with mating constraints
+        accepted = accept_self & accept_partner & female_can_mate
 
         if not accepted.any():
             return None
 
         # Create offspring through genetic recombination
-        return self._create_offspring(partners, accepted)
+        return self._create_offspring(valid_indices, partners, accepted)
 
-    def _create_offspring(self, partners: np.ndarray, accepted: np.ndarray) -> pl.DataFrame:
+    def _create_offspring(self, valid_indices: np.ndarray, partners: np.ndarray, accepted: np.ndarray) -> pl.DataFrame:
         """Create offspring through genetic recombination of unlinked genes."""
-        idx = np.where(accepted)[0]
-        partner_idx = partners[idx]
+        accepted_mask = np.where(accepted)[0]
+        idx = valid_indices[accepted_mask]
+        partner_idx = partners[accepted_mask]
 
         # Minimum energy gate: both parents must have sufficient energy to reproduce
         E_MIN = 1.0  # Minimum energy threshold (≥ one day's metabolism)
@@ -567,7 +656,18 @@ class LoveAgentsRefactored(AgentSetPolars):
         offspring_energy = offspring_energy - juvenile_cost
 
         # Filter out offspring with insufficient energy to survive
-        viable_offspring = offspring_energy > 0
+        energy_viable = offspring_energy > 0
+
+        # Apply density-dependent juvenile survival
+        current_population = len(self.agents)
+        carrying_capacity = self.config.genetic.carrying_capacity
+        density_survival_rate = max(0.0, 1.0 - (current_population / carrying_capacity))
+
+        # Random survival based on density
+        density_survivors = np.random.random(n_offspring) < density_survival_rate
+
+        # Combine energy and density constraints
+        viable_offspring = energy_viable & density_survivors
         if not viable_offspring.any():
             return pl.DataFrame()
 
@@ -601,6 +701,10 @@ class LoveAgentsRefactored(AgentSetPolars):
             "age": pl.Series([0] * n_offspring, dtype=pl.UInt16),
             "mating_success": pl.Series([0] * n_offspring, dtype=pl.UInt16),
         }
+
+        # Initialize offspring sex (50/50 split)
+        offspring_sex = np.random.randint(0, 2, size=n_offspring, dtype=np.uint8)
+        offspring_data["sex"] = pl.Series(offspring_sex, dtype=pl.UInt8)
 
         # Add cultural traits for offspring if cultural layer enabled
         if self.config.layer.cultural_enabled:
