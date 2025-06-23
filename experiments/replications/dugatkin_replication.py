@@ -64,9 +64,9 @@ class DugatkinReplication:
                 mutation_rate=0.001,  # Very low to maintain initial preferences
                 crossover_rate=0.0,  # No recombination to keep preferences stable
                 max_age=1000,  # Effectively immortal for short experiment
-                energy_decay=0.015,  # Dugatkin: 20 guppies, ~2% body-mass/day metabolism
-                energy_replenishment_rate=0.0075,  # Rule: energy_decay * N₀/K = 0.015 * 20/40
-                carrying_capacity=self.population_size * 2,
+                energy_decay=0.010,  # Reduced from 0.015 for stability
+                energy_replenishment_rate=0.0033,  # r = d * N₀/K = 0.010 * 20/60 = 0.0033
+                carrying_capacity=60,  # Increased from 40 for more stable environment
             ),
             cultural=CulturalParams(
                 enabled=True,

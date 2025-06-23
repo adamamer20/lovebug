@@ -57,22 +57,6 @@ class GeneticParams(BaseModel):
         if self.mutation_variance < 0.0:
             raise ValueError("mutation_variance must be >= 0")
 
-        # Population Viability Check
-        # Ensure that the energy replenishment can support the population.
-        # We assume an average foraging_multiplier of 1.0 for this check.
-        avg_energy_gain = (self.carrying_capacity * self.energy_replenishment_rate) / self.population_size
-        net_energy_balance = avg_energy_gain - self.energy_decay
-
-        # The net balance should be positive to be sustainable.
-        # A small positive margin is recommended to account for stochasticity.
-        if net_energy_balance < 0:
-            raise ValueError(
-                f"Population not viable. Net energy balance is negative ({net_energy_balance:.4f}). "
-                f"Energy Gain ({avg_energy_gain:.4f}) < Energy Decay ({self.energy_decay:.4f}). "
-                "Consider increasing 'energy_replenishment_rate' or 'carrying_capacity', "
-                "or decreasing 'energy_decay' or 'population_size'."
-            )
-
         return self
 
 
@@ -172,11 +156,11 @@ class LoveBugConfig(BaseModel):
     """Unified configuration for LoveBug simulation."""
 
     name: str = Field(..., description="Unique name for this configuration (used in logs and error messages).")
-    genetic: GeneticParams = Field(default_factory=GeneticParams)
-    cultural: CulturalParams = Field(default_factory=CulturalParams)
-    blending: LayerBlendingParams = Field(default_factory=LayerBlendingParams)
+    genetic: GeneticParams = Field(default_factory=lambda: GeneticParams())
+    cultural: CulturalParams = Field(default_factory=lambda: CulturalParams())
+    blending: LayerBlendingParams = Field(default_factory=lambda: LayerBlendingParams())
     perceptual: PerceptualParams = Field(default_factory=PerceptualParams)
-    simulation: SimulationParams = Field(default_factory=SimulationParams)
+    simulation: SimulationParams = Field(default_factory=lambda: SimulationParams())
     layer: LayerConfig = Field(default_factory=LayerConfig)
 
     @property

@@ -64,7 +64,7 @@ class WitteReplication:
                 h2_trait=0.1,  # Low heritability - focus on cultural transmission
                 h2_preference=0.1,
                 energy_decay=0.012,  # Witte: Zebra finch aviary densities
-                energy_replenishment_rate=0.008,  # Rule: energy_decay * N₀/K = 0.012 * 100/150
+                energy_replenishment_rate=0.008,  # r = d * N₀/K = 0.012 * 100/150 = 0.008
                 carrying_capacity=self.population_size + 50,  # K = 150
             ),
             cultural=CulturalParams(
