@@ -110,13 +110,27 @@ class ValidatedPaperConfig:
     n_generations: int = 5000
     max_duration_hours: float = 24.0
 
+    # Population size configurations
+    base_population_size: int = 2000  # Standard population for validation/cultural/combined
+    lhs_population_size: int = 2000  # Population for LHS exploration experiments
+    dugatkin_population_size: int = 20  # Dugatkin replication population
+    witte_population_size: int = 100  # Witte replication population
+    rodd_population_size: int = 2000  # Rodd replication population
+
     def __post_init__(self) -> None:
         if self.quick_test:
             # Reduced scope for testing with safe parameters
-            self.replications_per_condition = 3
-            self.lhs_samples = 20
-            self.n_generations = 60
+            self.replications_per_condition = 2
+            self.lhs_samples = 3
+            self.n_generations = 50
             self.max_duration_hours = 1.0
+
+            # Reduced population sizes for quick testing
+            self.base_population_size = 200
+            self.lhs_population_size = 500  # Smaller but still reasonable for LHS
+            self.dugatkin_population_size = 15
+            self.witte_population_size = 50
+            self.rodd_population_size = 200
 
 
 class ValidatedPaperRunner:
@@ -192,25 +206,25 @@ class ValidatedPaperRunner:
 
             # Run Dugatkin mate-choice copying replication
             logger.info("🐠 Running Dugatkin mate-choice copying replication")
-            dugatkin = DugatkinReplication(population_size=20, seed=42)
+            dugatkin = DugatkinReplication(population_size=self.config.dugatkin_population_size, seed=42)
             dugatkin_result = dugatkin.run_experiment()
             replication_results.append(dugatkin_result)
             logger.info(f"Dugatkin replication {'SUCCESS' if dugatkin_result.get('success', False) else 'FAILED'}")
 
             # Run Witte cultural transmission replication
             logger.info("🐟 Running Witte cultural transmission replication")
-            pop_size = 100 if not self.config.quick_test else 50
-            generations = 200 if not self.config.quick_test else 50
-            witte = WitteReplication(population_size=pop_size, n_generations=generations, seed=42)
+            witte = WitteReplication(
+                population_size=self.config.witte_population_size, n_generations=self.config.n_generations, seed=42
+            )
             witte_result = witte.run_experiment()
             replication_results.append(witte_result)
             logger.info(f"Witte replication {'SUCCESS' if witte_result.get('success', False) else 'FAILED'}")
 
             # Run Rodd sensory bias replication
             logger.info("🐠 Running Rodd sensory bias replication")
-            pop_size = 2000 if not self.config.quick_test else 200
-            generations = 500 if not self.config.quick_test else 100
-            rodd = RoddReplication(population_size=pop_size, n_generations=generations, seed=42)
+            rodd = RoddReplication(
+                population_size=self.config.rodd_population_size, n_generations=self.config.n_generations, seed=42
+            )
             rodd_result = rodd.run_experiment()
             replication_results.append(rodd_result)
             logger.info(f"Rodd replication {'SUCCESS' if rodd_result.get('success', False) else 'FAILED'}")
@@ -237,7 +251,7 @@ class ValidatedPaperRunner:
         """
         logger.info("🧬 Generating Lande-Kirkpatrick validation scenarios")
 
-        base_population = 2000 if not self.config.quick_test else 200
+        base_population = self.config.base_population_size
 
         logger.info(
             f"LK validation - population: {base_population}, generations: {self.config.n_generations}, replications: {self.config.replications_per_condition}"
@@ -376,7 +390,7 @@ class ValidatedPaperRunner:
         param_ranges = {
             "mutation_rate": (0.001, 0.05),
             "crossover_rate": (0.5, 1.0),
-            "population_size": (100, 2000),
+            "population_size": (100, self.config.lhs_population_size),
             "elitism": (1, 5),
         }
 
@@ -422,7 +436,7 @@ class ValidatedPaperRunner:
                 blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
                 perceptual=PerceptualParams(),
                 simulation=SimulationParams(
-                    population_size=2000,
+                    population_size=self.config.lhs_population_size,
                     steps=self.config.n_generations,
                     seed=i,
                 ),
@@ -444,7 +458,7 @@ class ValidatedPaperRunner:
         """
         logger.info("🎭 Generating cultural evolution experiments")
 
-        base_population = 2000 if not self.config.quick_test else 200
+        base_population = self.config.base_population_size
 
         configurations = []
 
@@ -505,7 +519,7 @@ class ValidatedPaperRunner:
         """
         logger.info("🧬🎭 Generating combined evolution experiments")
 
-        base_population = 2000 if not self.config.quick_test else 200
+        base_population = self.config.base_population_size
 
         configurations = []
 
@@ -600,12 +614,12 @@ class ValidatedPaperRunner:
                     h2_preference=0.5,
                     mutation_rate=0.01,
                     crossover_rate=0.7,
-                    population_size=2000,
+                    population_size=self.config.lhs_population_size,
                     elitism=1,
                     energy_decay=0.01,
                     mutation_variance=0.01,
                     max_age=100,
-                    carrying_capacity=2000,
+                    carrying_capacity=self.config.lhs_population_size,
                 ),
                 cultural=CulturalParams(
                     learning_rate=float(param_dict["learning_rate"]),
@@ -622,7 +636,7 @@ class ValidatedPaperRunner:
                 blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
                 perceptual=PerceptualParams(),
                 simulation=SimulationParams(
-                    population_size=int(param_dict["population_size"]),
+                    population_size=self.config.lhs_population_size,
                     steps=self.config.n_generations,
                     seed=i,
                 ),
@@ -672,12 +686,12 @@ class ValidatedPaperRunner:
                     h2_preference=0.5,
                     mutation_rate=float(param_dict["mutation_rate"]),
                     crossover_rate=float(param_dict["crossover_rate"]),
-                    population_size=2000,
+                    population_size=self.config.lhs_population_size,
                     elitism=1,
                     energy_decay=0.01,
                     mutation_variance=0.01,
                     max_age=100,
-                    carrying_capacity=2000,
+                    carrying_capacity=self.config.lhs_population_size,
                 ),
                 cultural=CulturalParams(
                     learning_rate=float(param_dict["learning_rate"]),
@@ -697,7 +711,7 @@ class ValidatedPaperRunner:
                 ),
                 perceptual=PerceptualParams(),
                 simulation=SimulationParams(
-                    population_size=int(param_dict["population_size"]),
+                    population_size=self.config.lhs_population_size,
                     steps=self.config.n_generations,
                     seed=i,
                 ),
@@ -790,16 +804,15 @@ class ValidatedPaperRunner:
                 json.dump(empirical_results, f, indent=2, default=str)
             logger.info(f"📚 Empirical replication results saved: {empirical_file}")
 
-            # Cultural experiments (if not quick test)
-            if not self.config.quick_test:
-                cultural_configs = self.run_cultural_experiments()
-                cultural_results = self.execute_experiments(cultural_configs)
-                self.all_results.extend(cultural_results)
+            # Cultural experiments
+            cultural_configs = self.run_cultural_experiments()
+            cultural_results = self.execute_experiments(cultural_configs)
+            self.all_results.extend(cultural_results)
 
-                # Combined experiments
-                combined_configs = self.run_combined_experiments()
-                combined_results = self.execute_experiments(combined_configs)
-                self.all_results.extend(combined_results)
+            # Combined experiments
+            combined_configs = self.run_combined_experiments()
+            combined_results = self.execute_experiments(combined_configs)
+            self.all_results.extend(combined_results)
 
         # Phase 2: LHS exploration
         if self.config.run_lhs:
@@ -811,15 +824,14 @@ class ValidatedPaperRunner:
             self.all_results.extend(lhs_results)
 
             # Cultural-only LHS exploration
-            if not self.config.quick_test:
-                cultural_lhs_configs = self.run_cultural_lhs_exploration()
-                cultural_lhs_results = self.execute_experiments(cultural_lhs_configs)
-                self.all_results.extend(cultural_lhs_results)
+            cultural_lhs_configs = self.run_cultural_lhs_exploration()
+            cultural_lhs_results = self.execute_experiments(cultural_lhs_configs)
+            self.all_results.extend(cultural_lhs_results)
 
-                # Combined genetic+cultural LHS exploration
-                combined_lhs_configs = self.run_combined_lhs_exploration()
-                combined_lhs_results = self.execute_experiments(combined_lhs_configs)
-                self.all_results.extend(combined_lhs_results)
+            # Combined genetic+cultural LHS exploration
+            combined_lhs_configs = self.run_combined_lhs_exploration()
+            combined_lhs_results = self.execute_experiments(combined_lhs_configs)
+            self.all_results.extend(combined_lhs_results)
 
         # Generate summary
         summary = self._generate_summary()

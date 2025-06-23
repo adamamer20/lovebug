@@ -168,6 +168,10 @@ class ValidatedExperimentRunner:
         self.base_output_dir = Path(base_output_dir)
         self.base_output_dir.mkdir(parents=True, exist_ok=True)
 
+        # Track experiment statistics
+        self.experiments_run = 0
+        self.experiments_failed = 0
+
         logger.info(f"ValidatedExperimentRunner initialized with output dir: {self.base_output_dir}")
 
     @beartype
@@ -188,6 +192,11 @@ class ValidatedExperimentRunner:
             Experiment results
         """
         results = run_validated_experiment(config)
+
+        # Track statistics
+        self.experiments_run += 1
+        if not results.get("success", False):
+            self.experiments_failed += 1
 
         if save_results and results.get("success", False):
             self._save_results(results)
@@ -252,9 +261,16 @@ class ValidatedExperimentRunner:
         dict[str, Any]
             Runner statistics
         """
+        success_rate = 0.0
+        if self.experiments_run > 0:
+            success_rate = (self.experiments_run - self.experiments_failed) / self.experiments_run
+
         return {
             "output_directory": str(self.base_output_dir),
             "runner_type": "ValidatedExperimentRunner",
+            "experiments_run": self.experiments_run,
+            "experiments_failed": self.experiments_failed,
+            "success_rate": success_rate,
         }
 
     def _save_results(self, results: dict[str, Any]) -> None:
