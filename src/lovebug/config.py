@@ -65,8 +65,7 @@ class GeneticParams(BaseModel):
 
         # The net balance should be positive to be sustainable.
         # A small positive margin is recommended to account for stochasticity.
-        viability_margin = 0.001
-        if net_energy_balance < viability_margin:
+        if net_energy_balance < 0:
             raise ValueError(
                 f"Population not viable. Net energy balance is negative ({net_energy_balance:.4f}). "
                 f"Energy Gain ({avg_energy_gain:.4f}) < Energy Decay ({self.energy_decay:.4f}). "
