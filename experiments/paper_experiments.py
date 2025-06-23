@@ -360,8 +360,8 @@ class ValidatedPaperRunner:
                         crossover_rate=0.9,  # High crossover like runaway
                         population_size=base_population,
                         carrying_capacity=base_population * 2,
-                        energy_replenishment_rate=0.008,  # Limited energy = costly choice
-                        energy_decay=0.02,  # High energy decay = high choosiness cost
+                        energy_replenishment_rate=0.012,  # Limited energy, but sustainable
+                        energy_decay=0.02,  # High energy decay makes it a costly choice
                         max_age=100,
                         elitism=2,
                     ),

@@ -51,6 +51,24 @@ class GeneticParams(BaseModel):
             raise ValueError("energy_decay must be >= 0")
         if self.mutation_variance < 0.0:
             raise ValueError("mutation_variance must be >= 0")
+
+        # Population Viability Check
+        # Ensure that the energy replenishment can support the population.
+        # We assume an average foraging_multiplier of 1.0 for this check.
+        avg_energy_gain = (self.carrying_capacity * self.energy_replenishment_rate) / self.population_size
+        net_energy_balance = avg_energy_gain - self.energy_decay
+
+        # The net balance should be positive to be sustainable.
+        # A small positive margin is recommended to account for stochasticity.
+        viability_margin = 0.001
+        if net_energy_balance < viability_margin:
+            raise ValueError(
+                f"Population not viable. Net energy balance is negative ({net_energy_balance:.4f}). "
+                f"Energy Gain ({avg_energy_gain:.4f}) < Energy Decay ({self.energy_decay:.4f}). "
+                "Consider increasing 'energy_replenishment_rate' or 'carrying_capacity', "
+                "or decreasing 'energy_decay' or 'population_size'."
+            )
+
         return self
 
 
