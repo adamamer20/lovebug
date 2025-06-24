@@ -26,6 +26,7 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: check-added-large-files
+        exclude: ^paper/figures/
 
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.1
