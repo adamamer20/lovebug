@@ -71,7 +71,7 @@ class RoddReplication:
                 mutation_variance=0.02,  # Higher variance for trait exploration
                 max_age=100,  # Longer lifespan for selection
                 carrying_capacity=self.population_size * 2,  # K = 2000 for stability
-                energy_replenishment_rate=0.004,  # r = d * N₀/K = 0.008 * 1000/2000 = 0.004
+                energy_replenishment_rate=0.0084,  # Fixed: energy balance ratio = 0.05
                 parental_investment_rate=0.5,
                 energy_min_mating=0.8,
                 juvenile_cost=0.4,

@@ -70,7 +70,7 @@ class DugatkinReplication:
                 mutation_variance=0.01,
                 max_age=1000,  # Effectively immortal for short experiment
                 carrying_capacity=60,  # Increased from 40 for more stable environment
-                energy_replenishment_rate=0.0033,  # r = d * N₀/K = 0.010 * 20/60 = 0.0033
+                energy_replenishment_rate=0.0105,  # Fixed: energy balance ratio = 0.05
                 parental_investment_rate=0.6,
                 energy_min_mating=1.0,
                 juvenile_cost=0.5,
@@ -193,8 +193,10 @@ class DugatkinReplication:
 
         # Check if observer copied toward target preference
         observer_final_cultural = final_cultural_prefs[observer_idx]
-        initial_distance = abs(observer_cultural_pref - target_preference)
-        final_distance = abs(observer_final_cultural - target_preference)
+
+        # Handle potential overflow by using np.abs with float64 casting
+        initial_distance = np.abs(float(observer_cultural_pref) - float(target_preference))
+        final_distance = np.abs(float(observer_final_cultural) - float(target_preference))
         preference_shift = initial_distance - final_distance
 
         # Calculate population-level preference shift toward target

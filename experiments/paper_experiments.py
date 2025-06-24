@@ -183,8 +183,8 @@ class ValidatedPaperRunner:
         self.output_dir = Path(config.output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize validated experiment runner
-        self.runner = ValidatedExperimentRunner()
+        # Initialize validated experiment runner with paper data output directory
+        self.runner = ValidatedExperimentRunner(base_output_dir=self.output_dir)
 
         # Experiment tracking
         self.start_time = time.time()
@@ -969,6 +969,10 @@ class ValidatedPaperRunner:
                 lk_results = self.execute_experiments(lk_configs)
                 self.all_results.extend(lk_results)
 
+                # Save LK-specific summary
+                if lk_results:
+                    self._save_lk_summary(lk_results)
+
         # Empirical Replications (can run independently)
         if self.config.run_empirical:
             logger.info("📚 Running empirical literature replications")
@@ -1054,6 +1058,61 @@ class ValidatedPaperRunner:
         }
 
         return summary
+
+    def _save_lk_summary(self, lk_results: list[Any]) -> None:
+        """Save LK-specific summary results."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # Process LK results by scenario type
+        scenarios = {"stasis": [], "runaway": [], "costly_choice": []}
+
+        for result in lk_results:
+            if hasattr(result, "model_dump"):
+                result_dict = result.model_dump()
+            elif hasattr(result, "__dict__"):
+                result_dict = result.__dict__
+            else:
+                continue
+
+            metadata = result_dict.get("metadata", {})
+            name = metadata.get("name", "")
+
+            if "lk_stasis" in name:
+                scenarios["stasis"].append(result_dict)
+            elif "lk_runaway" in name:
+                scenarios["runaway"].append(result_dict)
+            elif "lk_costly_choice" in name:
+                scenarios["costly_choice"].append(result_dict)
+
+        lk_summary = {
+            "experiment_type": "lande_kirkpatrick_validation",
+            "timestamp": timestamp,
+            "total_experiments": len(lk_results),
+            "scenarios": {
+                "stasis": {
+                    "count": len(scenarios["stasis"]),
+                    "description": "Moderate heritability, balanced energy - should show stasis",
+                    "results": scenarios["stasis"],
+                },
+                "runaway": {
+                    "count": len(scenarios["runaway"]),
+                    "description": "High heritability, abundant energy - should show runaway",
+                    "results": scenarios["runaway"],
+                },
+                "costly_choice": {
+                    "count": len(scenarios["costly_choice"]),
+                    "description": "High heritability, scarce energy - should show constrained evolution",
+                    "results": scenarios["costly_choice"],
+                },
+            },
+        }
+
+        # Save LK summary
+        lk_file = self.output_dir / f"lk_validation_summary_{timestamp}.json"
+        with open(lk_file, "w") as f:
+            json.dump(lk_summary, f, indent=2, default=str)
+
+        logger.info(f"🧬 LK validation summary saved: {lk_file}")
 
     def _save_results(self, summary: dict[str, Any]) -> None:
         """Save experimental results and summary."""

@@ -168,11 +168,17 @@ class ValidatedExperimentRunner:
         self.base_output_dir = Path(base_output_dir)
         self.base_output_dir.mkdir(parents=True, exist_ok=True)
 
+        # Create timestamped subdirectory for this session
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.session_dir = self.base_output_dir / f"session_{timestamp}"
+        self.session_dir.mkdir(parents=True, exist_ok=True)
+
         # Track experiment statistics
         self.experiments_run = 0
         self.experiments_failed = 0
 
         logger.info(f"ValidatedExperimentRunner initialized with output dir: {self.base_output_dir}")
+        logger.info(f"Session results will be saved to: {self.session_dir}")
 
     @beartype
     def run_experiment(self, config: LoveBugConfig, save_results: bool = True) -> dict[str, Any]:
@@ -278,12 +284,14 @@ class ValidatedExperimentRunner:
         try:
             metadata = results.get("metadata", {})
             experiment_id = metadata.get("experiment_id", "unknown")
-            experiment_name = metadata.get("experiment_name", "unnamed")
+            experiment_name = metadata.get("name", metadata.get("experiment_name", "unnamed"))
 
-            # Create safe filename
+            # Create safe filename with proper experiment name
             safe_name = "".join(c for c in experiment_name if c.isalnum() or c in ("-", "_"))
+            if safe_name == "unnamed" or not safe_name:
+                safe_name = f"experiment_{experiment_id}"
             filename = f"{safe_name}_{experiment_id}.json"
-            filepath = self.base_output_dir / filename
+            filepath = self.session_dir / filename
 
             import json
 

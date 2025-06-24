@@ -68,7 +68,7 @@ class WitteReplication:
                 mutation_variance=0.01,
                 max_age=200,  # Longer lifespan for cultural transmission
                 carrying_capacity=self.population_size * 3,  # K = 300 for stability
-                energy_replenishment_rate=0.0027,  # r = d * N₀/K = 0.008 * 100/300 = 0.0027
+                energy_replenishment_rate=0.0084,  # Fixed: energy balance ratio = 0.05
                 parental_investment_rate=0.4,  # Reduced investment for more reproduction
                 energy_min_mating=0.5,  # Lower mating threshold
                 juvenile_cost=0.3,  # Lower juvenile cost for population growth
@@ -143,9 +143,13 @@ class WitteReplication:
 
             # Record current preference distribution
             current_agents = model.get_agent_dataframe()
-            if "cultural_preference" in current_agents.columns:
+            if "cultural_preference" in current_agents.columns and len(current_agents) > 0:
                 prefs = current_agents["cultural_preference"].to_numpy()
-                novel_frequency = np.sum(np.abs(prefs - novel_preference) < 1000) / len(prefs)
+                # Avoid division by zero and handle empty arrays
+                if len(prefs) > 0:
+                    novel_frequency = np.sum(np.abs(prefs.astype(float) - float(novel_preference)) < 1000) / len(prefs)
+                else:
+                    novel_frequency = 0.0
                 preference_history.append(
                     {
                         "generation": generation,
@@ -183,9 +187,13 @@ class WitteReplication:
 
             # Record current preference distribution
             current_agents = model.get_agent_dataframe()
-            if "cultural_preference" in current_agents.columns:
+            if "cultural_preference" in current_agents.columns and len(current_agents) > 0:
                 prefs = current_agents["cultural_preference"].to_numpy()
-                novel_frequency = np.sum(np.abs(prefs - novel_preference) < 1000) / len(prefs)
+                # Avoid division by zero and handle empty arrays
+                if len(prefs) > 0:
+                    novel_frequency = np.sum(np.abs(prefs.astype(float) - float(novel_preference)) < 1000) / len(prefs)
+                else:
+                    novel_frequency = 0.0
 
                 preference_history.append(
                     {
