@@ -2,11 +2,10 @@
 
 [![CI](https://github.com/adamamer20/lovebug/workflows/CI/badge.svg)](https://github.com/adamamer20/lovebug/actions/workflows/ci.yml)
 [![Documentation](https://github.com/adamamer20/lovebug/workflows/Documentation/badge.svg)](https://adamamer20.github.io/lovebug/)
-[![PyPI version](https://badge.fury.io/py/lovebug.svg)](https://badge.fury.io/py/lovebug)
 [![Python versions](https://img.shields.io/pypi/pyversions/lovebug.svg)](https://pypi.org/project/lovebug/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**A high-performance agent-based model for studying sexual selection and cultural-genetic coevolution. Built with Mesa-Frames and Polars for vectorized operations on large populations (100k+ individuals).**
+**A high-performance agent-based model for studying sexual selection and cultural-genetic coevolution. Built with Mesa-Frames and Polars for vectorized operations on large populations (10k+ individuals).**
 
 ---
 
@@ -50,10 +49,6 @@ The model addresses fundamental questions in sexual selection and cultural evolu
 ### Installation
 
 ```bash
-# For general use
-pip install lovebug
-
-# For development and research
 git clone https://github.com/adamamer20/lovebug.git
 cd lovebug
 uv sync --all-extras
@@ -200,13 +195,9 @@ export POLARS_MAX_THREADS=10 RAYON_NUM_THREADS=10
 
 ### Primary Resources
 * **[Research Paper](paper/paper.qmd)** - Complete scientific methodology and findings
-* **[API Documentation](https://adamamer20.github.io/lovebug/)** - Full technical reference
-* **[CLAUDE.md](CLAUDE.md)** - Development guidelines and architecture notes
 
 ### Examples & Tutorials
-* **[Lande-Kirkpatrick Notebook](notebooks/Lande-Kirkpatrick.py)** - Classic sexual selection model
-* **[Cultural Learning Demo](notebooks/Layer2-Social-Learning.py)** - Social transmission mechanisms
-* **[Replication Scripts](experiments/replications/)** - Literature reproduction code
+((Coming Soon)
 
 ### Development Commands
 ```bash
@@ -226,26 +217,6 @@ make docs
 
 ---
 
-## 🎯 Research Applications
-
-LoveBug is designed for studying:
-
-### Sexual Selection Theory
-- **Fisher-Lande-Kirkpatrick mechanisms**: Runaway evolution and genetic correlation
-- **Sensory bias hypothesis**: Pre-existing biases driving trait evolution
-- **Direct vs. indirect benefits**: Mate choice evolution under different selection pressures
-
-### Cultural Evolution
-- **Gene-culture coevolution**: Interactions between genetic and cultural inheritance
-- **Social learning strategies**: When and why different learning rules evolve
-- **Cultural transmission dynamics**: Network effects on preference spread
-
-### Population Genetics
-- **Finite population effects**: Drift-selection balance in realistic population sizes
-- **Linkage disequilibrium**: Emergence of trait-preference correlation without genetic linkage
-- **Metapopulation dynamics**: Spatial structure effects on evolution
-
----
 
 ## 🤝 Contributing
 
@@ -290,7 +261,6 @@ If you use LoveBug in academic work, please cite:
 ## 🔗 Links & Support
 
 * **[Documentation](https://adamamer20.github.io/lovebug/)** - Complete documentation site
-* **[PyPI Package](https://pypi.org/project/lovebug/)** - Official package releases
 * **[GitHub Repository](https://github.com/adamamer20/lovebug)** - Source code and development
 * **[Issue Tracker](https://github.com/adamamer20/lovebug/issues)** - Bug reports and feature requests
 
