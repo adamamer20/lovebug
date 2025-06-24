@@ -1190,6 +1190,8 @@ class ValidatedPaperRunner:
                 result_dict = result.model_dump()
             elif hasattr(result, "__dict__"):
                 result_dict = result.__dict__
+            elif isinstance(result, dict):
+                result_dict = result
             else:
                 continue
 
