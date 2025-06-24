@@ -105,9 +105,9 @@ flowchart TD
     A[Population Initialization] --> B[Agent Lifecycle]
     B --> C{Step Execution}
 
-    C --> D[1. Ecology Phase]
-    C --> E[2. Cultural Phase]
-    C --> F[3. Mating Phase]
+    C --> D[1 - Ecology Phase]
+    C --> E[2 - Cultural Phase]
+    C --> F[3- Mating Phase]
 
     D --> D1[Energy Acquisition]
     D --> D2[Metabolism & Aging]
