@@ -182,10 +182,16 @@ class ValidatedPaperRunner:
 
     def __init__(self, config: ValidatedPaperConfig):
         self.config = config
-        self.output_dir = Path(config.output_dir)
+        base_output_dir = Path(config.output_dir)
+        base_output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create timestamped session directory for this experiment run
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.session_timestamp = timestamp
+        self.output_dir = base_output_dir / f"session_{timestamp}"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize validated experiment runner with paper data output directory
+        # Initialize validated experiment runner with session output directory
         self.runner = ValidatedExperimentRunner(base_output_dir=self.output_dir)
 
         # Initialize replication validator
@@ -231,8 +237,7 @@ class ValidatedPaperRunner:
 
     def _setup_logging(self) -> None:
         """Setup comprehensive logging for paper experiments."""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file = self.output_dir / f"validated_paper_experiments_{timestamp}.log"
+        log_file = self.output_dir / "validated_paper_experiments.log"
 
         logging.basicConfig(
             level=logging.INFO,
@@ -1006,8 +1011,7 @@ class ValidatedPaperRunner:
         self.validation_reports.append(report)
 
         # Save individual validation report
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_file = self.output_dir / f"validation_{group_name}_{timestamp}.txt"
+        report_file = self.output_dir / f"validation_{group_name}.txt"
         with open(report_file, "w") as f:
             f.write(report)
 
@@ -1090,8 +1094,7 @@ class ValidatedPaperRunner:
             logger.info("📚 Running empirical literature replications")
             empirical_results = self.run_empirical_replications()
             # Save empirical results separately since they have different structure
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            empirical_file = self.output_dir / f"empirical_replications_{timestamp}.json"
+            empirical_file = self.output_dir / "empirical_replications.json"
             with open(empirical_file, "w") as f:
                 json.dump(empirical_results, f, indent=2, default=str)
             logger.info(f"📚 Empirical replication results saved: {empirical_file}")
@@ -1224,7 +1227,7 @@ class ValidatedPaperRunner:
         }
 
         # Save LK summary
-        lk_file = self.output_dir / f"lk_validation_summary_{timestamp}.json"
+        lk_file = self.output_dir / "lk_validation_summary.json"
         with open(lk_file, "w") as f:
             json.dump(lk_summary, f, indent=2, default=str)
 
@@ -1232,10 +1235,9 @@ class ValidatedPaperRunner:
 
     def _save_results(self, summary: dict[str, Any]) -> None:
         """Save experimental results and summary."""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         # Save main summary
-        summary_file = self.output_dir / f"validated_paper_summary_{timestamp}.json"
+        summary_file = self.output_dir / "validated_paper_summary.json"
         with open(summary_file, "w") as f:
             json.dump(summary, f, indent=2, default=str)
 
@@ -1243,7 +1245,7 @@ class ValidatedPaperRunner:
 
         # Save detailed results (if any)
         if self.all_results:
-            results_file = self.output_dir / f"detailed_results_{timestamp}.json"
+            results_file = self.output_dir / "detailed_results.json"
             serializable_results = []
 
             for result in self.all_results:
@@ -1266,7 +1268,7 @@ class ValidatedPaperRunner:
 
         # Save consolidated validation reports
         if self.validation_reports:
-            validation_file = self.output_dir / f"consolidated_validation_reports_{timestamp}.txt"
+            validation_file = self.output_dir / "consolidated_validation_reports.txt"
             with open(validation_file, "w") as f:
                 f.write("=" * 80 + "\n")
                 f.write("CONSOLIDATED REPLICATION VALIDATION REPORTS\n")
