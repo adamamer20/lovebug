@@ -873,14 +873,18 @@ class ValidatedPaperRunner:
     def execute_experiments(self, configurations: list[Any]) -> list[Any]:
         if not configurations:
             return []
+
         results = []
         num_jobs = self.config.num_parallel_jobs
         if num_jobs <= 0:
             num_jobs = 1
+
         total_threads = int(os.environ.get("POLARS_MAX_THREADS", os.cpu_count() or 1))
         threads_per_worker = max(1, total_threads // num_jobs)
         logger.info(f"Starting parallel execution with {num_jobs} jobs. Each worker gets {threads_per_worker} threads.")
+
         worker_func = partial(_run_single_experiment_worker, threads_per_worker=threads_per_worker)
+
         progress = Progress(
             TextColumn("[bold blue]{task.description}"),
             BarColumn(),
@@ -889,21 +893,44 @@ class ValidatedPaperRunner:
             TimeRemainingColumn(),
             console=console,
         )
+
         with progress:
             task = progress.add_task("Running experiments", total=len(configurations))
+
             with concurrent.futures.ProcessPoolExecutor(max_workers=num_jobs) as executor:
-                future_results = executor.map(worker_func, configurations)
-                for result in future_results:
-                    if isinstance(result, dict) and "error" in result:
-                        failed_name = result.get("failed_config_name", "Unknown")
-                        error_msg = result["error"]
-                        logger.error(f"❌ Failed: {failed_name} - {error_msg}")
+                # A robust pattern: Map the future object back to its original config.
+                # This prevents any confusion about which result belongs to which experiment.
+                future_to_config = {executor.submit(worker_func, config): config for config in configurations}
+
+                for future in concurrent.futures.as_completed(future_to_config):
+                    # Get the original configuration for this completed future
+                    config = future_to_config[future]
+                    try:
+                        # Get the result from the worker
+                        result = future.result()
+
+                        # The worker returns a dict ONLY on failure.
+                        if isinstance(result, dict) and "error" in result:
+                            # Log the error using the config name we already have.
+                            logger.error(f"❌ Failed: {config.name} - {result['error']}")
+                            self.failed_experiments += 1
+                        else:
+                            # SUCCESS: The result is an object. Add it to the list.
+                            # Do not log here. The progress bar is the live feedback.
+                            results.append(result)
+                            self.completed_experiments += 1
+
+                    except Exception as e:
+                        # This catches errors if the worker process itself crashed badly.
+                        logger.error(f"❌ Worker for {config.name} crashed: {e}")
                         self.failed_experiments += 1
-                    else:
-                        results.append(result)
-                        self.completed_experiments += 1
-                        logger.info(f"✅ Completed: {result.config.name}")
-                    progress.advance(task)
+                    finally:
+                        # This ALWAYS runs, ensuring the progress bar advances.
+                        progress.advance(task)
+
+        logger.info(
+            f"Finished processing batch. Completed: {self.completed_experiments}, Failed: {self.failed_experiments}"
+        )
         return results
 
     @beartype
