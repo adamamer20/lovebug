@@ -168,9 +168,9 @@ class ValidatedExperimentRunner:
         self.base_output_dir = Path(base_output_dir)
         self.base_output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create timestamped subdirectory for this session
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.session_dir = self.base_output_dir / f"session_{timestamp}"
+        # Use the provided base output directory as session directory
+        # (caller is responsible for creating timestamped directories if needed)
+        self.session_dir = self.base_output_dir
         self.session_dir.mkdir(parents=True, exist_ok=True)
 
         # Track experiment statistics
