@@ -940,30 +940,50 @@ class ValidatedPaperRunner:
                 # This prevents any confusion about which result belongs to which experiment.
                 future_to_config = {executor.submit(worker_func, config): config for config in configurations}
 
-                for future in concurrent.futures.as_completed(future_to_config):
-                    # Get the original configuration for this completed future
-                    config = future_to_config[future]
-                    try:
-                        # Get the result from the worker
-                        result = future.result()
+                # Calculate timeout in seconds from max_duration_hours
+                timeout_seconds = self.config.max_duration_hours * 3600
 
-                        # The worker returns a dict ONLY on failure.
-                        if isinstance(result, dict) and "error" in result:
-                            # Log the error using the config name we already have.
-                            logger.error(f"❌ Failed: {config.name} - {result['error']}")
+                try:
+                    for future in concurrent.futures.as_completed(future_to_config, timeout=timeout_seconds):
+                        # Get the original configuration for this completed future
+                        config = future_to_config[future]
+                        try:
+                            # Get the result from the worker with timeout
+                            result = future.result(timeout=600)  # 10 minute timeout per experiment
+
+                            # The worker returns a dict ONLY on failure.
+                            if isinstance(result, dict) and "error" in result:
+                                # Log the error using the config name we already have.
+                                logger.error(f"❌ Failed: {config.name} - {result['error']}")
+                                self.failed_experiments += 1
+                            else:
+                                # SUCCESS: The result is an object. Add it to the list.
+                                # Do not log here. The progress bar is the live feedback.
+                                results.append(result)
+                                self.completed_experiments += 1
+
+                        except concurrent.futures.TimeoutError:
+                            # This catches individual experiment timeouts
+                            logger.error(f"❌ Timeout: {config.name} exceeded 10 minute limit")
                             self.failed_experiments += 1
-                        else:
-                            # SUCCESS: The result is an object. Add it to the list.
-                            # Do not log here. The progress bar is the live feedback.
-                            results.append(result)
-                            self.completed_experiments += 1
+                        except Exception as e:
+                            # This catches errors if the worker process itself crashed badly.
+                            logger.error(f"❌ Worker for {config.name} crashed: {e}")
+                            self.failed_experiments += 1
+                        finally:
+                            # This ALWAYS runs, ensuring the progress bar advances.
+                            progress.advance(task)
 
-                    except Exception as e:
-                        # This catches errors if the worker process itself crashed badly.
-                        logger.error(f"❌ Worker for {config.name} crashed: {e}")
+                except concurrent.futures.TimeoutError:
+                    # Global timeout exceeded - mark remaining experiments as failed
+                    remaining_futures = [f for f in future_to_config.keys() if not f.done()]
+                    logger.error(
+                        f"❌ Global timeout exceeded ({self.config.max_duration_hours}h). {len(remaining_futures)} experiments still running."
+                    )
+                    for future in remaining_futures:
+                        config = future_to_config[future]
+                        logger.error(f"❌ Cancelled: {config.name}")
                         self.failed_experiments += 1
-                    finally:
-                        # This ALWAYS runs, ensuring the progress bar advances.
                         progress.advance(task)
 
         logger.info(
