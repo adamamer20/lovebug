@@ -98,38 +98,166 @@ uv run python experiments/paper_experiments.py --run-lhs --lhs-samples 100
 
 ## 🧬 Model Architecture
 
+### System Overview
+
+```mermaid
+flowchart TD
+    A[Population Initialization] --> B[Agent Lifecycle]
+    B --> C{Step Execution}
+
+    C --> D[1. Ecology Phase]
+    C --> E[2. Cultural Phase]
+    C --> F[3. Mating Phase]
+
+    D --> D1[Energy Acquisition]
+    D --> D2[Metabolism & Aging]
+    D --> D3[Survival Filtering]
+
+    E --> E1[Cultural Innovation]
+    E --> E2[Social Learning]
+    E --> E3[Network Effects]
+
+    F --> F1[Preference Blending]
+    F --> F2[Courtship Assessment]
+    F --> F3[Mutual Acceptance]
+    F --> F4[Genetic Recombination]
+
+    D3 --> G[Population Update]
+    E3 --> G
+    F4 --> G
+
+    G --> H{Continue?}
+    H -->|Yes| C
+    H -->|No| I[Results Collection]
+
+    subgraph "Agent Data Structure"
+        J[Genetic Traits]
+        K[Cultural Traits]
+        L[State Variables]
+
+        J --> J1[gene_display: UInt16]
+        J --> J2[gene_preference: UInt16]
+        J --> J3[gene_threshold: UInt8]
+        J --> J4[gene_foraging_efficiency: UInt8]
+
+        K --> K1[cultural_preference: UInt16]
+        K --> K2[social_network_neighbors: List]
+        K --> K3[effective_preference: UInt16]
+
+        L --> L1[energy: Float32]
+        L --> L2[age: UInt16]
+        L --> L3[sex: UInt8]
+        L --> L4[mating_success: UInt16]
+    end
+```
+
 ### Agent Representation
 
-Agents are defined by heritable genetic traits and dynamic cultural states:
+The model implements an **unlinked multi-gene architecture** where agents possess separate, independently assorting genetic loci:
 
-| Component | Description | Encoding |
-|-----------|-------------|----------|
-| **Display Trait** | Ornamental features visible to others | Bits 0-15 of 32-bit genome |
-| **Mate Preference** | Attraction to specific display patterns | Bits 16-23 of 32-bit genome |
-| **Choosiness Threshold** | Behavioral selectivity in mate choice | Bits 24-31 of 32-bit genome |
-| **Foraging Efficiency** | Survival-related trait | Independent genetic locus |
-| **Cultural Memory** | Learned preferences from social observation | Non-heritable state variable |
+| Component | Type | Bits | Description |
+|-----------|------|------|-------------|
+| **Display Trait** | `gene_display` | 16-bit UInt16 | Ornamental features visible to potential mates |
+| **Mate Preference** | `gene_preference` | 16-bit UInt16 | Innate attraction pattern for mate assessment |
+| **Choosiness Threshold** | `gene_threshold` | 4-bit UInt8 | Behavioral selectivity in mate acceptance |
+| **Foraging Efficiency** | `gene_foraging_efficiency` | 8-bit UInt8 | Survival-related foraging capability |
+| **Cultural Preference** | `cultural_preference` | 16-bit UInt16 | Learned mate preference from social observation |
+| **Effective Preference** | `effective_preference` | 16-bit UInt16 | Blended genetic-cultural preference (combined models) |
 
-### Evolutionary Layers
+### Three-Phase Simulation Cycle
 
-#### Layer 1: Genetic Evolution
-- **Inheritance**: Independent assortment of unlinked loci
-- **Selection**: Natural selection on foraging + sexual selection on display/preference
-- **Mutation**: Per-bit mutation with configurable rates and effect sizes
-- **Population regulation**: Density-dependent resource competition
+#### Phase 1: Ecology & Natural Selection
 
-#### Layer 2: Cultural Evolution
-- **Social learning**: Agents observe and copy successful individuals
-- **Cultural transmission**: Horizontal, oblique, and vertical learning modes
-- **Network structure**: Small-world, scale-free, or random social networks
-- **Memory dynamics**: Finite cultural memory with decay and updating
+```python
+# Density-dependent energy acquisition
+density_factor = max(0.1, 1.0 - (current_pop / carrying_capacity) ** 2)
+energy_gain = base_energy * density_factor * foraging_efficiency
 
-### Mate Choice Process
+# Display-survival trade-off
+display_cost = display_bits.count() / 16.0 * display_cost_scalar
+effective_foraging = (foraging_efficiency - display_cost).clip(0.1, 1.0)
 
-1. **Preference formation**: Blend genetic and cultural preferences based on layer weights
-2. **Partner assessment**: Evaluate potential mates through noisy perceptual channel
-3. **Mutual choice**: Mating occurs only if both partners exceed acceptance thresholds
-4. **Reproduction**: Genetic crossover with mutation produces offspring
+# Survival filtering
+survivors = agents.filter((age < max_age) & (energy > 0))
+```
+
+#### Phase 2: Cultural Evolution (if enabled)
+
+```python
+# Cultural innovation
+if random() < innovation_rate:
+    cultural_preference = random_16bit_pattern()
+
+# Social learning strategies
+if learning_strategy == "conformist":
+    new_preference = mode(neighbor_preferences)
+elif learning_strategy == "success-biased":
+    new_preference = preference_of_most_successful_neighbor()
+```
+
+#### Phase 3: Mating & Reproduction
+
+```python
+# Preference blending (combined models)
+effective_preference = (genetic_weight * gene_preference +
+                       cultural_weight * cultural_preference)
+
+# Hamming similarity-based mate assessment
+similarity = 16 - bitcount(display_partner ⊕ effective_preference_self)
+acceptance_prob = sigmoid(steepness * (similarity - threshold))
+
+# Genetic recombination (unlinked inheritance)
+offspring_display = random_choice(parent_a_display, parent_b_display)
+offspring_preference = random_choice(parent_a_preference, parent_b_preference)
+```
+
+### Layer Configuration System
+
+The model supports four evolutionary regimes through `LayerConfig`:
+
+| Mode | Genetic Enabled | Cultural Enabled | Description |
+|------|-----------------|------------------|-------------|
+| **Genetic-only** | ✓ | ✗ | Pure Fisher-Lande-Kirkpatrick dynamics |
+| **Cultural-only** | ✗ | ✓ | Social learning without genetic evolution |
+| **Combined** | ✓ | ✓ | Synergistic genetic-cultural coevolution |
+| **Validation** | ✓ | ✗ | Testing/comparison baseline |
+
+### Performance Optimizations
+
+#### Vectorized Operations
+
+- **Polars DataFrames**: All agent data stored in columnar format for vectorized operations
+- **Hamming similarity**: Native Rust-optimized `bitwise_count_ones()` function
+- **Batch mutations**: Vectorized bit-flipping across entire population
+- **Network operations**: Fully vectorized social network neighbor retrieval
+
+#### Memory Efficiency
+
+- **Bit-packed genomes**: Multiple traits encoded in single integers
+- **Lazy evaluation**: Polars expressions evaluated only when needed
+- **Zero-copy operations**: In-place DataFrame modifications where possible
+
+### Biological Realism Features
+
+#### Population Regulation
+
+- **Carrying capacity**: Density-dependent resource competition
+- **Energy system**: Metabolic costs, foraging efficiency, parental investment
+- **Age structure**: Natural mortality and maximum lifespan limits
+- **Juvenile costs**: Start-up energy requirements for offspring survival
+
+#### Perceptual Constraints
+
+- **Sensory noise**: Gaussian noise in mate assessment (`sigma_perception`)
+- **Detection thresholds**: Minimum similarity for mate recognition (`theta_detect`)
+- **Sigmoid acceptance**: Probabilistic mate choice with configurable steepness
+
+#### Social Learning Mechanisms
+
+- **Network topologies**: Small-world, scale-free, random network structures
+- **Learning strategies**: Conformist, success-biased, condition-dependent, age-biased
+- **Cultural innovation**: Spontaneous generation of novel preferences
+- **Memory dynamics**: Cultural preference updating and decay
 
 ---
 
