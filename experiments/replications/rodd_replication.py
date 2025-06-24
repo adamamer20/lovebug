@@ -100,6 +100,7 @@ class RoddReplication:
                 cultural_weight=0.0,
                 sigma_perception=0.0,
                 theta_detect=0.0,
+                sigmoid_steepness=1.5,
             ),
             simulation=SimulationParams(
                 population_size=self.population_size,

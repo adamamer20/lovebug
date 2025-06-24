@@ -373,6 +373,7 @@ class ValidatedPaperRunner:
                         cultural_weight=0.0,
                         sigma_perception=0.0,
                         theta_detect=0.0,
+                        sigmoid_steepness=1.5,
                     ),
                 )
             )
@@ -423,6 +424,7 @@ class ValidatedPaperRunner:
                         cultural_weight=0.0,
                         sigma_perception=0.0,
                         theta_detect=0.0,
+                        sigmoid_steepness=1.5,
                     ),
                 )
             )
@@ -473,6 +475,7 @@ class ValidatedPaperRunner:
                         cultural_weight=0.0,
                         sigma_perception=0.0,
                         theta_detect=0.0,
+                        sigmoid_steepness=1.5,
                     ),
                 )
             )
@@ -631,6 +634,7 @@ class ValidatedPaperRunner:
                             cultural_weight=0.8,
                             sigma_perception=0.0,
                             theta_detect=0.0,
+                            sigmoid_steepness=1.5,
                         ),
                         simulation=SimulationParams(
                             population_size=self.config.lhs_population_size,
@@ -712,6 +716,7 @@ class ValidatedPaperRunner:
                         cultural_weight=cultural_weight,
                         sigma_perception=0.0,
                         theta_detect=0.0,
+                        sigmoid_steepness=1.5,
                     ),
                     simulation=SimulationParams(
                         population_size=self.config.lhs_population_size,

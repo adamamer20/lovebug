@@ -34,8 +34,17 @@ class ParameterHelper:
 
     @staticmethod
     def calculate_energy_balance_ratio(energy_replenishment_rate: float, energy_decay: float) -> float:
-        """Calculate daily net energy balance ratio."""
+        """Calculate daily net energy balance ratio (raw, without density effects)."""
         return (energy_replenishment_rate - energy_decay) / energy_decay
+
+    @staticmethod
+    def calculate_effective_energy_balance_ratio(
+        energy_replenishment_rate: float, energy_decay: float, current_pop: int, carrying_capacity: int
+    ) -> float:
+        """Calculate effective energy balance ratio accounting for current density."""
+        density_factor = max(0.1, 1.0 - (current_pop / carrying_capacity) ** 2)
+        effective_replenishment = energy_replenishment_rate * density_factor
+        return (effective_replenishment - energy_decay) / energy_decay
 
     @staticmethod
     def calculate_female_choosiness_ratio(mean_gene_threshold: float) -> float:
@@ -84,9 +93,13 @@ class ParameterHelper:
         return target_ratio / (mean_expected_bits / 16.0)
 
     @staticmethod
-    def check_parameter_health(config) -> dict[str, float]:
+    def check_parameter_health(config, actual_thresholds=None) -> dict[str, float]:
         """
         Check key parameter ratios for biological plausibility.
+
+        Args:
+            config: Model configuration
+            actual_thresholds: Optional array of actual population thresholds for accurate choosiness calculation
 
         Returns a dict of key ratios that should be monitored.
         """
@@ -94,8 +107,14 @@ class ParameterHelper:
             config.genetic.energy_replenishment_rate, config.genetic.energy_decay
         )
 
-        # Use default threshold of 12 if not specified
-        choosiness = ParameterHelper.calculate_female_choosiness_ratio(12.0)
+        # Use actual population mean if provided, otherwise estimate from 4-bit range
+        if actual_thresholds is not None:
+            mean_threshold = float(np.mean(actual_thresholds))
+        else:
+            # Default estimate for 4-bit threshold: uniform 0-15 → mean ≈ 7.5
+            mean_threshold = 7.5
+
+        choosiness = ParameterHelper.calculate_female_choosiness_ratio(mean_threshold)
 
         # Estimate display cost using scalar and assuming 8 average bits
         display_cost = ParameterHelper.calculate_display_cost_ratio(config.genetic.display_cost_scalar, 8.0)
@@ -603,9 +622,7 @@ class LoveAgentsRefactored(AgentSetPolars):
         # Get genetic traits for valid pairs only
         gene_display_self = self.agents["gene_display"].to_numpy()[valid_indices]
         gene_display_partner = self.agents["gene_display"].to_numpy()[valid_partners]
-        gene_threshold_self = self.agents["gene_threshold"].to_numpy()[valid_indices]
         sex_self = self.agents["sex"].to_numpy()[valid_indices]
-        sex_partner = self.agents["sex"].to_numpy()[valid_partners]
 
         # Get effective preferences for valid pairs only
         if self.config.layer.is_combined():
@@ -640,19 +657,37 @@ class LoveAgentsRefactored(AgentSetPolars):
         sim_self = np.where(sim_self >= theta_detect, sim_self, 0.0)
         sim_partner = np.where(sim_partner >= theta_detect, sim_partner, 0.0)
 
-        # Implement female-only choice: males always accept, females choose
-        male_accepts = np.ones(n_valid, dtype=bool)  # Males always accept
+        # Compute probabilistic acceptance per individual (not per pair)
+        # This ensures each female evaluates males based on her own threshold
 
         # Probabilistic female choice using sigmoid function for stronger selection gradients
         # P(accept) = sigmoid(k * (similarity - threshold))
-        k = 1.5  # Steepness parameter - can be made configurable later
-        logit_acceptance = k * (sim_self - gene_threshold_self)
-        acceptance_probability = 1.0 / (1.0 + np.exp(-logit_acceptance))
-        female_accepts = np.random.random(n_valid) < acceptance_probability
+        k = self.config.layer.sigmoid_steepness
 
-        # Apply acceptance based on sex: if self is male, use male_accepts; if female, use female_accepts
-        accept_self = np.where(sex_self == 1, male_accepts, female_accepts)
-        accept_partner = np.where(sex_partner == 1, male_accepts, female_accepts)
+        # Get full population data for individual acceptance computation
+        full_sex = self.agents["sex"].to_numpy()
+        full_thresholds = self.agents["gene_threshold"].to_numpy()
+
+        # Build similarity arrays for each individual's perspective
+        # Each individual needs to know how similar their partner appears to them
+        full_similarities = np.zeros(len(self.agents))
+        full_similarities[valid_indices] = sim_self  # How partner appears to self
+        full_similarities[valid_partners] = sim_partner  # How self appears to partner
+
+        # Compute acceptance probability for each individual
+        is_female = full_sex == 0
+        logit_acceptance = k * (full_similarities - full_thresholds)
+        female_prob = 1.0 / (1.0 + np.exp(-logit_acceptance))
+
+        # Set acceptance probability: males always accept (1.0), females use sigmoid
+        accept_prob = np.where(is_female, female_prob, 1.0)
+
+        # Draw independent acceptance decisions for each individual
+        individual_accepts = np.random.random(len(self.agents)) < accept_prob
+
+        # Extract acceptance decisions for the paired individuals
+        accept_self = individual_accepts[valid_indices]
+        accept_partner = individual_accepts[valid_partners]
 
         # Apply mating cap: each female can only mate once per timestep
         current_mating_success = self.agents["mating_success"].to_numpy()[valid_indices]
@@ -678,16 +713,23 @@ class LoveAgentsRefactored(AgentSetPolars):
         if not accepted.any():
             return None
 
-        # Calculate and log selection differential for males
+        # Calculate and log selection differential for males (avoiding double-counting)
         # This measures the actual selection gradient that drives evolution
-        male_mask = sex_self == 1
-        if male_mask.any():
-            all_males = gene_display_self[male_mask]
-            accepted_males = gene_display_self[male_mask & accepted]
+        # Only count each pair once by keeping pairs where valid_indices < valid_partners
+        unique_pair_mask = valid_indices < valid_partners
 
-            if len(accepted_males) > 0:
-                mean_all_males = float(np.mean(all_males))
-                mean_accepted_males = float(np.mean(accepted_males))
+        male_mask = sex_self == 1
+        unique_males_mask = male_mask & unique_pair_mask
+
+        if unique_males_mask.any():
+            # All males who participated in unique pairs
+            all_unique_males = gene_display_self[unique_males_mask]
+            # Males who were accepted in unique pairs
+            accepted_unique_males = gene_display_self[unique_males_mask & accepted]
+
+            if len(accepted_unique_males) > 0 and len(all_unique_males) > 0:
+                mean_all_males = float(np.mean(all_unique_males))
+                mean_accepted_males = float(np.mean(accepted_unique_males))
                 selection_differential = mean_accepted_males - mean_all_males
 
                 # Store selection differential in model for logging
@@ -986,15 +1028,43 @@ class LoveModelRefactored(ModelDF):
 
     def _check_parameter_health(self) -> None:
         """Check parameter ratios and warn about potential issues."""
-        ratios = ParameterHelper.check_parameter_health(self.config)
+        # Get actual population thresholds for accurate choosiness calculation
+        actual_thresholds = None
+        current_pop = len(self.agents)
+        if current_pop > 0:
+            actual_thresholds = self.get_agent_dataframe()["gene_threshold"].to_numpy()
+
+        ratios = ParameterHelper.check_parameter_health(self.config, actual_thresholds)
+
+        # Also calculate effective energy balance at current density
+        if current_pop > 0:
+            effective_energy_ratio = ParameterHelper.calculate_effective_energy_balance_ratio(
+                self.config.genetic.energy_replenishment_rate,
+                self.config.genetic.energy_decay,
+                current_pop,
+                self.config.genetic.carrying_capacity,
+            )
+            ratios["effective_energy_balance_ratio"] = effective_energy_ratio
 
         warnings = []
 
-        # Check energy balance
-        if ratios["energy_balance_ratio"] < 0.01:
-            warnings.append(f"Energy balance ratio {ratios['energy_balance_ratio']:.3f} may cause population crashes")
-        elif ratios["energy_balance_ratio"] > 0.2:
-            warnings.append(f"Energy balance ratio {ratios['energy_balance_ratio']:.3f} may cause explosive growth")
+        # Check energy balance (use effective ratio if available, otherwise raw ratio)
+        energy_ratio_key = (
+            "effective_energy_balance_ratio" if "effective_energy_balance_ratio" in ratios else "energy_balance_ratio"
+        )
+        energy_ratio = ratios[energy_ratio_key]
+
+        if energy_ratio < 0.01:
+            warnings.append(f"Energy balance ratio {energy_ratio:.3f} may cause population crashes")
+        elif energy_ratio > 0.2:
+            warnings.append(f"Energy balance ratio {energy_ratio:.3f} may cause explosive growth")
+
+        # Report both raw and effective ratios if different
+        if "effective_energy_balance_ratio" in ratios:
+            raw_ratio = ratios["energy_balance_ratio"]
+            effective_ratio = ratios["effective_energy_balance_ratio"]
+            if abs(raw_ratio - effective_ratio) > 0.05:
+                logger.info(f"Energy balance: raw={raw_ratio:.3f}, effective@N={current_pop}={effective_ratio:.3f}")
 
         # Check female choosiness
         if ratios["female_choosiness_ratio"] < 0.5:

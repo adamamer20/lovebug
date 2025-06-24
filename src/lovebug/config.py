@@ -87,6 +87,9 @@ class LayerConfig(BaseModel):
     cultural_weight: float = Field(0.5, ge=0.0, le=1.0, description="Weight for cultural contribution (0-1).")
     sigma_perception: float = Field(0.0, ge=0.0, description="Perceptual noise level (>= 0).")
     theta_detect: float = Field(0.0, ge=0.0, description="Detection threshold (>= 0).")
+    sigmoid_steepness: float = Field(
+        1.5, ge=0.1, le=10.0, description="Steepness of sigmoid acceptance function (0.1-10)."
+    )
 
     @model_validator(mode="after")
     def validate_weights(self) -> "LayerConfig":

@@ -87,7 +87,7 @@ class WitteReplication:
                 oblique_transmission_rate=0.3,  # More intergenerational transmission
                 local_learning_radius=10,  # Larger learning radius
                 memory_update_strength=1.0,
-                learning_strategy="frequency-biased",  # More effective for spread
+                learning_strategy="success-biased",  # More effective for spread
             ),
             layer=LayerConfig(
                 genetic_enabled=True,
@@ -97,6 +97,7 @@ class WitteReplication:
                 cultural_weight=1.0,
                 sigma_perception=0.0,
                 theta_detect=0.0,
+                sigmoid_steepness=1.5,
             ),
             simulation=SimulationParams(
                 population_size=self.population_size,
