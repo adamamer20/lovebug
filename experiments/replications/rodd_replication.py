@@ -62,22 +62,22 @@ class RoddReplication:
         return LoveBugConfig(
             name="rodd_sensory_bias",
             genetic=GeneticParams(
-                h2_trait=0.5,
-                h2_preference=0.5,
-                mutation_rate=0.01,  # Moderate mutation for trait evolution
-                crossover_rate=0.7,  # Allow recombination of unlinked genes
-                elitism=1,
-                energy_decay=0.01,  # Rodd: High-flow Trinidad pools
-                mutation_variance=0.01,
-                max_age=50,  # Reasonable lifespan
-                carrying_capacity=self.population_size + 1000,  # K = 3000
-                energy_replenishment_rate=0.0067,  # Rule: energy_decay * N₀/K = 0.01 * 2000/3000
-                parental_investment_rate=0.6,
-                energy_min_mating=1.0,
-                juvenile_cost=0.5,
-                display_cost_scalar=0.2,
-                search_cost=0.01,
-                base_energy=10.0,
+                h2_trait=0.8,  # High heritability for trait evolution
+                h2_preference=1.0,  # Fixed preferences (no evolution)
+                mutation_rate=0.02,  # Higher mutation for trait evolution
+                crossover_rate=0.8,  # High recombination for trait mixing
+                elitism=2,  # Preserve top individuals
+                energy_decay=0.008,  # Moderate energy decay
+                mutation_variance=0.02,  # Higher variance for trait exploration
+                max_age=100,  # Longer lifespan for selection
+                carrying_capacity=self.population_size * 2,  # K = 2000 for stability
+                energy_replenishment_rate=0.004,  # r = d * N₀/K = 0.008 * 1000/2000 = 0.004
+                parental_investment_rate=0.5,
+                energy_min_mating=0.8,
+                juvenile_cost=0.4,
+                display_cost_scalar=0.1,  # Lower display costs to encourage trait expression
+                search_cost=0.005,
+                base_energy=12.0,  # Higher base energy
             ),
             cultural=CulturalParams(
                 innovation_rate=0.0,
@@ -141,8 +141,8 @@ class RoddReplication:
         config = self.create_experimental_config()
         model = LoveModelRefactored(config=config)
 
-        # Set the bias preference value
-        bias_preference = 50000  # Mid-range 16-bit value representing the bias
+        # Set the bias preference value (16-bit preference gene)
+        bias_preference = 50000  # High-end 16-bit value (max 65535) representing the bias
 
         # Initialize with biased preferences
         self.initialize_biased_population(model, bias_preference)

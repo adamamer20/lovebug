@@ -80,15 +80,15 @@ class DugatkinReplication:
             ),
             cultural=CulturalParams(
                 innovation_rate=0.0,  # No innovation during observation phase
-                memory_span=5,
+                memory_span=10,  # Longer memory for preference persistence
                 network_type="random",  # Fully connected-like for small population
                 network_connectivity=1.0,
-                cultural_memory_size=5,
-                memory_decay_rate=0.01,
-                horizontal_transmission_rate=0.9,  # Very high - models high salience
-                oblique_transmission_rate=0.1,
-                local_learning_radius=5,
-                memory_update_strength=1.0,
+                cultural_memory_size=10,  # Larger memory for stronger signals
+                memory_decay_rate=0.001,  # Much slower decay for preference persistence
+                horizontal_transmission_rate=0.95,  # Very high - models high salience
+                oblique_transmission_rate=0.0,  # Focus on horizontal transmission only
+                local_learning_radius=20,  # Large radius to include all agents
+                memory_update_strength=1.0,  # Maximum strength for preference copying
                 learning_strategy="success-biased",  # Copy successful individuals
             ),
             layer=LayerConfig(

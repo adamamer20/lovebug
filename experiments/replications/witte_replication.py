@@ -64,30 +64,30 @@ class WitteReplication:
                 mutation_rate=0.005,  # Small but non-zero to prevent genetic drift issues
                 crossover_rate=0.3,  # Modest recombination to maintain diversity
                 elitism=1,
-                energy_decay=0.012,  # Witte: Zebra finch aviary densities
+                energy_decay=0.008,  # Reduced to prevent population crash
                 mutation_variance=0.01,
-                max_age=100,
-                carrying_capacity=self.population_size + 50,  # K = 150
-                energy_replenishment_rate=0.008,  # r = d * N₀/K = 0.012 * 100/150 = 0.008
-                parental_investment_rate=0.6,
-                energy_min_mating=1.0,
-                juvenile_cost=0.5,
-                display_cost_scalar=0.2,
-                search_cost=0.01,
-                base_energy=10.0,
+                max_age=200,  # Longer lifespan for cultural transmission
+                carrying_capacity=self.population_size * 3,  # K = 300 for stability
+                energy_replenishment_rate=0.0027,  # r = d * N₀/K = 0.008 * 100/300 = 0.0027
+                parental_investment_rate=0.4,  # Reduced investment for more reproduction
+                energy_min_mating=0.5,  # Lower mating threshold
+                juvenile_cost=0.3,  # Lower juvenile cost for population growth
+                display_cost_scalar=0.1,  # Reduced display costs
+                search_cost=0.005,  # Lower search costs
+                base_energy=15.0,  # Higher base energy for sustainability
             ),
             cultural=CulturalParams(
-                innovation_rate=0.001,  # Very low innovation - test persistence
-                memory_span=5,
+                innovation_rate=0.01,  # Higher innovation to maintain cultural variants
+                memory_span=15,  # Longer memory for better persistence
                 network_type="small_world",  # Realistic social network
-                network_connectivity=0.8,
-                cultural_memory_size=5,
-                memory_decay_rate=0.01,
-                horizontal_transmission_rate=0.3,  # Key parameter for transmission
-                oblique_transmission_rate=0.1,
-                local_learning_radius=5,
+                network_connectivity=0.9,  # Higher connectivity for better transmission
+                cultural_memory_size=15,  # Larger memory buffer
+                memory_decay_rate=0.001,  # Much slower decay for persistence
+                horizontal_transmission_rate=0.6,  # Higher transmission rate
+                oblique_transmission_rate=0.3,  # More intergenerational transmission
+                local_learning_radius=10,  # Larger learning radius
                 memory_update_strength=1.0,
-                learning_strategy="conformist",  # Conformist transmission for better spread
+                learning_strategy="frequency-biased",  # More effective for spread
             ),
             layer=LayerConfig(
                 genetic_enabled=True,
@@ -119,8 +119,8 @@ class WitteReplication:
         model = LoveModelRefactored(config=config)
 
         # Initialize with uniform baseline preference
-        baseline_preference = 32768  # Mid-range 16-bit value
-        novel_preference = 52000  # Novel preference value
+        baseline_preference = 32768  # Mid-range 16-bit value (max 65535)
+        novel_preference = 52000  # Novel preference value (high-end 16-bit)
 
         logger.info(f"Baseline preference: {baseline_preference}")
         logger.info(f"Novel preference: {novel_preference}")

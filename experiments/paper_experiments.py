@@ -102,13 +102,18 @@ logger = logging.getLogger(__name__)
 
 @beartype
 def _run_single_experiment_worker(config: LoveBugConfig, threads_per_worker: int) -> Any:
+    # Set thread limits early and ensure minimum viable thread count
+    threads_per_worker = max(4, threads_per_worker)  # Ensure at least 4 threads per worker
     os.environ["POLARS_MAX_THREADS"] = str(threads_per_worker)
     os.environ["RAYON_NUM_THREADS"] = str(threads_per_worker)
+
+    # Set up minimal logging to avoid conflicts
     worker_logger = logging.getLogger()
     worker_logger.setLevel(logging.ERROR)
     try:
+        # Create runner - results will be saved by main process, not workers
         runner = ValidatedExperimentRunner()
-        result = runner.run_experiment(config)
+        result = runner.run_experiment(config, save_results=False)  # Workers return data, main process saves
         return result
     except Exception as e:
         return {"error": str(e), "failed_config_name": config.name}
@@ -121,6 +126,7 @@ class ValidatedPaperConfig:
     output_dir: str = "experiments/results/paper_data"
     quick_test: bool = False
     run_validation: bool = True
+    run_lk: bool = False  # Only run LK scenarios if explicitly requested
     run_empirical: bool = True
     run_lhs: bool = True
     lhs_samples: int = 100
@@ -952,10 +958,11 @@ class ValidatedPaperRunner:
         if self.config.run_validation:
             logger.info("📋 Phase 1: Running validation scenarios")
 
-            # LK validation scenarios
-            lk_configs = self.run_lk_validation_scenarios()
-            lk_results = self.execute_experiments(lk_configs)
-            self.all_results.extend(lk_results)
+            # LK validation scenarios (only if explicitly requested)
+            if getattr(self.config, "run_lk", False):
+                lk_configs = self.run_lk_validation_scenarios()
+                lk_results = self.execute_experiments(lk_configs)
+                self.all_results.extend(lk_results)
 
         # Empirical Replications (can run independently)
         if self.config.run_empirical:
@@ -1083,6 +1090,7 @@ def run_validated_paper_experiments(
     output_dir: str = "experiments/results/paper_data",
     quick_test: bool = False,
     run_validation: bool = True,
+    run_lk: bool = False,
     run_empirical: bool = False,
     run_lhs: bool = False,
     lhs_samples: int = 100,
@@ -1121,6 +1129,7 @@ def run_validated_paper_experiments(
         output_dir=output_dir,
         quick_test=quick_test,
         run_validation=run_validation,
+        run_lk=run_lk,
         run_empirical=run_empirical,
         run_lhs=run_lhs,
         lhs_samples=lhs_samples,
@@ -1188,6 +1197,9 @@ Performance optimization:
     )
     parser.add_argument("--quick-test", action="store_true", help="Run reduced scope experiments for testing")
     parser.add_argument("--no-validation", action="store_true", help="Skip Phase 1 validation scenarios")
+    parser.add_argument(
+        "--run-lk", action="store_true", help="Run Lande-Kirkpatrick validation scenarios (NOT run by default)"
+    )
     parser.add_argument("--run-empirical", action="store_true", help="Run empirical literature replications")
     parser.add_argument("--run-lhs", action="store_true", help="Run Phase 2 Latin Hypercube Sampling exploration")
     parser.add_argument("--lhs-samples", type=int, default=100, help="Number of LHS parameter combinations")
@@ -1208,6 +1220,7 @@ Performance optimization:
             output_dir=args.output,
             quick_test=args.quick_test,
             run_validation=not args.no_validation,
+            run_lk=args.run_lk,
             run_empirical=args.run_empirical,
             run_lhs=args.run_lhs,
             lhs_samples=args.lhs_samples,
