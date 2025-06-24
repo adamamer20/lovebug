@@ -108,7 +108,7 @@ class LoveAgentsRefactored(AgentSetPolars):
                 np.random.randint(0, 2**16, size=n, dtype=np.uint16), dtype=pl.UInt16
             )
             df_data["cultural_innovation_count"] = pl.Series([0] * n, dtype=pl.UInt16)
-            df_data["social_network_neighbors"] = pl.Series([[] for _ in range(n)], dtype=pl.List(pl.Int32))
+            df_data["social_network_neighbors"] = pl.Series([[] for _ in range(n)], dtype=pl.List(pl.UInt32))
 
         # Add effective preference for combined models
         if self.config.layer.is_combined():
@@ -122,6 +122,10 @@ class LoveAgentsRefactored(AgentSetPolars):
             self._initialize_social_network()
 
         logger.debug(f"Initialized {n} refactored agents with unlinked genes")
+        # Log dtypes for debugging Int32/UInt32 mismatch
+        logger.info(
+            f"social_network_neighbors dtype: {self.agents['social_network_neighbors'].dtype if 'social_network_neighbors' in self.agents.columns else 'N/A'}"
+        )
 
     def _initialize_social_network(self) -> None:
         """Initialize social network for cultural transmission."""
@@ -140,7 +144,11 @@ class LoveAgentsRefactored(AgentSetPolars):
             neighbors = self.social_network.get_neighbors(i, max_neighbors=10)
             neighbors_data.append(neighbors)
 
-        self["social_network_neighbors"] = pl.Series(neighbors_data, dtype=pl.List(pl.Int32))
+        self["social_network_neighbors"] = pl.Series(neighbors_data, dtype=pl.List(pl.UInt32))
+        # Log neighbor dtype for debugging
+        logger.info(
+            f"Assigned neighbors dtype: {type(neighbors_data[0][0]) if neighbors_data and neighbors_data[0] else 'Empty'}"
+        )
 
     def step(self) -> None:
         """
@@ -267,7 +275,16 @@ class LoveAgentsRefactored(AgentSetPolars):
             )
 
             if len(isolated_learners) > 0:
-                self_connections = pl.DataFrame({"learner_id": isolated_learners, "neighbor_id": isolated_learners})
+                self_connections = pl.DataFrame(
+                    {"learner_id": isolated_learners.cast(pl.UInt32), "neighbor_id": isolated_learners.cast(pl.UInt32)}
+                )
+                # Ensure both DataFrames have Int64 columns for concatenation
+                learner_neighbor_df = learner_neighbor_df.with_columns(
+                    [pl.col("learner_id").cast(pl.Int64), pl.col("neighbor_id").cast(pl.Int64)]
+                )
+                self_connections = self_connections.with_columns(
+                    [pl.col("learner_id").cast(pl.Int64), pl.col("neighbor_id").cast(pl.Int64)]
+                )
                 learner_neighbor_df = pl.concat([learner_neighbor_df, self_connections], how="diagonal")
         else:
             # Random neighborhood fallback using vectorized operations
@@ -724,7 +741,7 @@ class LoveAgentsRefactored(AgentSetPolars):
             offspring_data["cultural_preference"] = pl.Series(offspring_cultural, dtype=pl.UInt16)
             offspring_data["cultural_innovation_count"] = pl.Series([0] * n_offspring, dtype=pl.UInt16)
             offspring_data["social_network_neighbors"] = pl.Series(
-                [[] for _ in range(n_offspring)], dtype=pl.List(pl.Int32)
+                [[] for _ in range(n_offspring)], dtype=pl.List(pl.UInt32)
             )
 
         # Add effective preference for combined models
