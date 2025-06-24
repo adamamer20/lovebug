@@ -15,15 +15,15 @@ RUN apt-get update && apt-get install -y \
 
 # Install latest Quarto CLI dynamically
 RUN QUARTO_TAG=$(curl -s https://api.github.com/repos/quarto-dev/quarto-cli/releases/latest \
-                   | grep -Po '"tag_name": "\K.*?(?=")') \
- && VERSION=${QUARTO_TAG#v} \
- && curl -LsSf https://github.com/quarto-dev/quarto-cli/releases/download/${QUARTO_TAG}/quarto-${VERSION}-linux-amd64.tar.gz \
-      -o quarto.tar.gz \
- && mkdir -p /usr/local/quarto \
- && tar -xzf quarto.tar.gz -C /usr/local/quarto --strip-components=1 \
- && ln -s /usr/local/quarto/bin/quarto /usr/local/bin/quarto \
- && rm quarto.tar.gz \
- && quarto --version
+    | grep -Po '"tag_name": "\K.*?(?=")') \
+    && VERSION=${QUARTO_TAG#v} \
+    && curl -LsSf https://github.com/quarto-dev/quarto-cli/releases/download/${QUARTO_TAG}/quarto-${VERSION}-linux-amd64.tar.gz \
+    -o quarto.tar.gz \
+    && mkdir -p /usr/local/quarto \
+    && tar -xzf quarto.tar.gz -C /usr/local/quarto --strip-components=1 \
+    && ln -s /usr/local/quarto/bin/quarto /usr/local/bin/quarto \
+    && rm quarto.tar.gz \
+    && quarto --version
 
 # Install uv from source
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -88,12 +88,12 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/debian/gpg \
-         | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
     && echo \
-     "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-     https://download.docker.com/linux/debian \
-     $(lsb_release -cs) stable" \
-      > /etc/apt/sources.list.d/docker.list \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+    https://download.docker.com/linux/debian \
+    $(lsb_release -cs) stable" \
+    > /etc/apt/sources.list.d/docker.list \
     && apt-get update \
     && apt-get install -y docker-ce-cli \
     && rm -rf /var/lib/apt/lists/*
@@ -123,6 +123,8 @@ RUN groupadd -g 999 docker \
 
 USER dev
 WORKDIR /workspace
+
+RUN sudo apt-get update && sudo apt-get install -y npm
 
 # Tell npm to install global packages into the dev home directory
 ENV NPM_CONFIG_PREFIX=/home/dev/.local
