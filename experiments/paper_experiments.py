@@ -47,6 +47,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import the unified configuration models
+from experiments.replication_validator import ReplicationValidator, ValidationConfig
 from experiments.validated_runner import ValidatedExperimentRunner
 from lovebug.config import (
     CulturalParams,
@@ -133,6 +134,7 @@ class ValidatedPaperConfig:
     replications_per_condition: int = 10
     n_generations: int = 3000
     max_duration_hours: float = 24.0
+    strict_validation: bool = False
 
     # Parallelism
     num_parallel_jobs: int = 1
@@ -186,11 +188,28 @@ class ValidatedPaperRunner:
         # Initialize validated experiment runner with paper data output directory
         self.runner = ValidatedExperimentRunner(base_output_dir=self.output_dir)
 
+        # Initialize replication validator
+        if config.strict_validation:
+            min_success_rate = 0.9 if not config.quick_test else 0.7
+            warning_success_rate = 0.95 if not config.quick_test else 0.8
+        else:
+            min_success_rate = 0.7 if not config.quick_test else 0.5
+            warning_success_rate = 0.8 if not config.quick_test else 0.6
+
+        validation_config = ValidationConfig(
+            min_replications=max(3, config.replications_per_condition // 2),
+            confidence_level=0.95,
+            min_success_rate=min_success_rate,
+            warning_success_rate=warning_success_rate,
+        )
+        self.validator = ReplicationValidator(validation_config)
+
         # Experiment tracking
         self.start_time = time.time()
         self.completed_experiments = 0
         self.failed_experiments = 0
         self.all_results: list[Any] = []
+        self.validation_reports: list[str] = []  # Store validation reports
 
         # Setup logging
         self._setup_logging()
@@ -201,6 +220,9 @@ class ValidatedPaperRunner:
         logger.info(f"Phase 1 validation: {self.config.run_validation}")
         logger.info(f"Empirical replications: {self.config.run_empirical}")
         logger.info(f"Phase 2 LHS exploration: {self.config.run_lhs}")
+        logger.info(
+            f"Replication validation: min_success_rate={validation_config.min_success_rate:.1%} (strict={config.strict_validation})"
+        )
 
         if self.config.quick_test:
             logger.info(
@@ -945,6 +967,96 @@ class ValidatedPaperRunner:
         return results
 
     @beartype
+    def validate_experiment_group(self, results: list[Any], group_name: str) -> None:
+        """
+        Validate a group of replicated experiments and save validation report.
+
+        Parameters
+        ----------
+        results : list[Any]
+            Results from replicated experiments
+        group_name : str
+            Name of the experiment group for validation
+        """
+        if not results:
+            logger.warning(f"No results to validate for group: {group_name}")
+            return
+
+        logger.info(f"🔍 Validating {len(results)} replications for {group_name}")
+
+        # Perform validation
+        validation_result = self.validator.validate_replications(results, group_name)
+
+        # Generate report
+        report = self.validator.generate_report(validation_result)
+
+        # Log key findings
+        if validation_result.is_valid:
+            logger.info(f"✅ {group_name}: VALID - Success rate: {validation_result.success_rate:.2%}")
+        else:
+            logger.error(f"❌ {group_name}: INVALID - Success rate: {validation_result.success_rate:.2%}")
+            for error in validation_result.validation_errors:
+                logger.error(f"   Error: {error}")
+
+        if validation_result.validation_warnings:
+            for warning in validation_result.validation_warnings:
+                logger.warning(f"   Warning: {warning}")
+
+        # Store report for later saving
+        self.validation_reports.append(report)
+
+        # Save individual validation report
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_file = self.output_dir / f"validation_{group_name}_{timestamp}.txt"
+        with open(report_file, "w") as f:
+            f.write(report)
+
+        logger.info(f"📋 Validation report saved: {report_file}")
+
+        # Log statistical summary
+        if validation_result.means:
+            logger.info(f"📊 Statistical summary for {group_name}:")
+            for metric, mean_val in validation_result.means.items():
+                std_val = validation_result.std_devs.get(metric, 0.0)
+                ci_low, ci_high = validation_result.confidence_intervals.get(metric, (mean_val, mean_val))
+                logger.info(f"   {metric}: {mean_val:.4f} ± {std_val:.4f} (95% CI: [{ci_low:.4f}, {ci_high:.4f}])")
+
+    @beartype
+    def execute_experiments_with_validation(self, configurations: list[Any], group_name: str) -> list[Any]:
+        """
+        Execute experiments and perform validation on the results.
+
+        Parameters
+        ----------
+        configurations : list[Any]
+            Experiment configurations to run
+        group_name : str
+            Name of the experiment group for validation
+
+        Returns
+        -------
+        list[Any]
+            Experiment results
+        """
+        if not configurations:
+            return []
+
+        logger.info(f"🚀 Running {len(configurations)} experiments for {group_name}")
+
+        # Execute experiments
+        results = self.execute_experiments(configurations)
+
+        # Validate results if we have enough replications
+        if results and len(results) >= self.validator.config.min_replications:
+            self.validate_experiment_group(results, group_name)
+        else:
+            logger.warning(
+                f"⚠️  Insufficient results for validation: {len(results)} < {self.validator.config.min_replications}"
+            )
+
+        return results
+
+    @beartype
     def run_comprehensive_experiments(self) -> dict[str, Any]:
         """
         Run comprehensive validated paper experiments.
@@ -966,7 +1078,7 @@ class ValidatedPaperRunner:
             # LK validation scenarios (only if explicitly requested)
             if getattr(self.config, "run_lk", False):
                 lk_configs = self.run_lk_validation_scenarios()
-                lk_results = self.execute_experiments(lk_configs)
+                lk_results = self.execute_experiments_with_validation(lk_configs, "lande_kirkpatrick_validation")
                 self.all_results.extend(lk_results)
 
                 # Save LK-specific summary
@@ -986,12 +1098,12 @@ class ValidatedPaperRunner:
 
             # Cultural experiments
             cultural_configs = self.run_cultural_experiments()
-            cultural_results = self.execute_experiments(cultural_configs)
+            cultural_results = self.execute_experiments_with_validation(cultural_configs, "cultural_evolution")
             self.all_results.extend(cultural_results)
 
             # Combined experiments
             combined_configs = self.run_combined_experiments()
-            combined_results = self.execute_experiments(combined_configs)
+            combined_results = self.execute_experiments_with_validation(combined_configs, "combined_evolution")
             self.all_results.extend(combined_results)
 
         # Phase 2: LHS exploration
@@ -1000,17 +1112,21 @@ class ValidatedPaperRunner:
 
             # Genetic-only LHS exploration
             lhs_configs = self.run_lhs_parameter_exploration()
-            lhs_results = self.execute_experiments(lhs_configs)
+            lhs_results = self.execute_experiments_with_validation(lhs_configs, "genetic_lhs_exploration")
             self.all_results.extend(lhs_results)
 
             # Cultural-only LHS exploration
             cultural_lhs_configs = self.run_cultural_lhs_exploration()
-            cultural_lhs_results = self.execute_experiments(cultural_lhs_configs)
+            cultural_lhs_results = self.execute_experiments_with_validation(
+                cultural_lhs_configs, "cultural_lhs_exploration"
+            )
             self.all_results.extend(cultural_lhs_results)
 
             # Combined genetic+cultural LHS exploration
             combined_lhs_configs = self.run_combined_lhs_exploration()
-            combined_lhs_results = self.execute_experiments(combined_lhs_configs)
+            combined_lhs_results = self.execute_experiments_with_validation(
+                combined_lhs_configs, "combined_lhs_exploration"
+            )
             self.all_results.extend(combined_lhs_results)
 
         # Generate summary
@@ -1148,6 +1264,21 @@ class ValidatedPaperRunner:
 
             logger.info(f"📋 Detailed results saved: {results_file}")
 
+        # Save consolidated validation reports
+        if self.validation_reports:
+            validation_file = self.output_dir / f"consolidated_validation_reports_{timestamp}.txt"
+            with open(validation_file, "w") as f:
+                f.write("=" * 80 + "\n")
+                f.write("CONSOLIDATED REPLICATION VALIDATION REPORTS\n")
+                f.write("=" * 80 + "\n\n")
+
+                for i, report in enumerate(self.validation_reports):
+                    if i > 0:
+                        f.write("\n" + "=" * 80 + "\n\n")
+                    f.write(report)
+
+            logger.info(f"📊 Consolidated validation reports saved: {validation_file}")
+
 
 @beartype
 def run_validated_paper_experiments(
@@ -1161,6 +1292,7 @@ def run_validated_paper_experiments(
     replications: int = 10,
     generations: int = 3000,
     num_parallel_jobs: int = 1,
+    strict_validation: bool = False,
 ) -> dict[str, Any]:
     """
     Run validated paper experiments with Pydantic configuration system.
@@ -1200,6 +1332,7 @@ def run_validated_paper_experiments(
         replications_per_condition=replications,
         n_generations=generations,
         num_parallel_jobs=num_parallel_jobs,
+        strict_validation=strict_validation,
     )
 
     runner = ValidatedPaperRunner(config)
@@ -1275,6 +1408,11 @@ Performance optimization:
         default=1,
         help="Number of experiments to run in parallel. Each job gets a fraction of POLARS_MAX_THREADS.",
     )
+    parser.add_argument(
+        "--strict-validation",
+        action="store_true",
+        help="Use strict validation criteria (higher success rate thresholds)",
+    )
 
     args = parser.parse_args()
 
@@ -1291,6 +1429,7 @@ Performance optimization:
             replications=args.replications,
             generations=args.generations,
             num_parallel_jobs=args.parallel_jobs,
+            strict_validation=args.strict_validation,
         )
 
         # Display results
