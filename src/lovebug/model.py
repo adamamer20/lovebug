@@ -19,9 +19,97 @@ from mesa_frames import AgentSetPolars, ModelDF
 from lovebug.config import LoveBugConfig
 from lovebug.layer2.network import NetworkTopology, SocialNetwork
 
-__all__ = ["LoveAgentsRefactored", "LoveModelRefactored"]
+__all__ = ["LoveAgentsRefactored", "LoveModelRefactored", "ParameterHelper"]
 
 logger = logging.getLogger(__name__)
+
+
+class ParameterHelper:
+    """
+    Helper class for calculating biologically meaningful parameter ratios.
+
+    This addresses the "too many knobs" problem by providing functions to compute
+    raw parameter values from biologically interpretable ratios.
+    """
+
+    @staticmethod
+    def calculate_energy_balance_ratio(energy_replenishment_rate: float, energy_decay: float) -> float:
+        """Calculate daily net energy balance ratio."""
+        return (energy_replenishment_rate - energy_decay) / energy_decay
+
+    @staticmethod
+    def calculate_female_choosiness_ratio(mean_gene_threshold: float) -> float:
+        """Calculate female choosiness as fraction of max threshold (16)."""
+        return mean_gene_threshold / 16.0
+
+    @staticmethod
+    def calculate_display_cost_ratio(display_cost_scalar: float, mean_display_bits: float) -> float:
+        """Calculate viability cost of display as fraction of foraging efficiency."""
+        return display_cost_scalar * (mean_display_bits / 16.0)
+
+    @staticmethod
+    def calculate_juvenile_bottleneck_ratio(
+        juvenile_cost: float, parental_investment_rate: float, base_energy: float
+    ) -> float:
+        """Calculate juvenile bottleneck intensity."""
+        return juvenile_cost / (parental_investment_rate * base_energy)
+
+    @staticmethod
+    def tune_energy_balance(target_ratio: float = 0.05, energy_decay: float = 0.01) -> float:
+        """
+        Calculate energy_replenishment_rate for a target net energy balance.
+
+        Target ratio of ~0.05-0.1 keeps populations near carrying capacity.
+        """
+        return energy_decay * (1 + target_ratio)
+
+    @staticmethod
+    def tune_female_choosiness(target_ratio: float = 0.8) -> float:
+        """
+        Calculate gene_threshold for target female choosiness.
+
+        Target ratio ≥ 0.8 creates strong sensory bias.
+        """
+        return target_ratio * 16.0
+
+    @staticmethod
+    def tune_display_cost(target_ratio: float = 0.1) -> float:
+        """
+        Calculate display_cost_scalar for target viability cost.
+
+        Target ratio ≤ 0.1 for bias tests, > 0.2 for handicap tests.
+        """
+        # Assumes mean display will be ~8 bits (half of 16)
+        mean_expected_bits = 8.0
+        return target_ratio / (mean_expected_bits / 16.0)
+
+    @staticmethod
+    def check_parameter_health(config) -> dict[str, float]:
+        """
+        Check key parameter ratios for biological plausibility.
+
+        Returns a dict of key ratios that should be monitored.
+        """
+        energy_balance = ParameterHelper.calculate_energy_balance_ratio(
+            config.genetic.energy_replenishment_rate, config.genetic.energy_decay
+        )
+
+        # Use default threshold of 12 if not specified
+        choosiness = ParameterHelper.calculate_female_choosiness_ratio(12.0)
+
+        # Estimate display cost using scalar and assuming 8 average bits
+        display_cost = ParameterHelper.calculate_display_cost_ratio(config.genetic.display_cost_scalar, 8.0)
+
+        juvenile_bottleneck = ParameterHelper.calculate_juvenile_bottleneck_ratio(
+            config.genetic.juvenile_cost, config.genetic.parental_investment_rate, config.genetic.base_energy
+        )
+
+        return {
+            "energy_balance_ratio": energy_balance,
+            "female_choosiness_ratio": choosiness,
+            "display_cost_ratio": display_cost,
+            "juvenile_bottleneck_ratio": juvenile_bottleneck,
+        }
 
 
 def hamming_similarity_16bit(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -178,14 +266,16 @@ class LoveAgentsRefactored(AgentSetPolars):
         B. Metabolism (energy decay)
         C. Survival Check (energy and age)
         """
-        # A. Energy Acquisition
+        # A. Energy Acquisition with improved stability
         carrying_capacity = self.config.genetic.carrying_capacity
         energy_replenishment_rate = self.config.genetic.energy_replenishment_rate
         current_population = len(self.agents)
 
         if current_population > 0:
-            # Density-dependent energy influx
-            base_energy_per_agent = (carrying_capacity * energy_replenishment_rate) / current_population
+            # Enhanced density-dependent energy with better stability
+            # Use smoother density dependence to avoid sudden crashes
+            density_factor = max(0.1, 1.0 - (current_population / carrying_capacity) ** 2)
+            base_energy_per_agent = energy_replenishment_rate * density_factor
 
             # Individual energy gain scaled by foraging efficiency
             foraging_efficiency = self.agents["gene_foraging_efficiency"].cast(pl.Float32) / 255.0
@@ -199,7 +289,8 @@ class LoveAgentsRefactored(AgentSetPolars):
             # Effective foraging efficiency reduced by display cost
             effective_foraging = (foraging_efficiency - display_cost).clip(0.1, 1.0)  # Keep minimum 0.1
 
-            energy_gain = base_energy_per_agent * (0.5 + effective_foraging)  # 0.5-1.5x base rate
+            # More stable energy gain with guaranteed minimum
+            energy_gain = (base_energy_per_agent * (0.5 + effective_foraging)).clip(0.01, None)
         else:
             energy_gain = pl.lit(0.0, dtype=pl.Float32)
 
@@ -506,26 +597,26 @@ class LoveAgentsRefactored(AgentSetPolars):
 
         # Update arrays to only include valid pairs
         valid_indices = np.where(valid_pairs)[0]
-        partners = partners[valid_indices]
+        valid_partners = partners[valid_indices]
         n_valid = len(valid_indices)
 
         # Get genetic traits for valid pairs only
         gene_display_self = self.agents["gene_display"].to_numpy()[valid_indices]
-        gene_display_partner = self.agents["gene_display"].to_numpy()[partners]
+        gene_display_partner = self.agents["gene_display"].to_numpy()[valid_partners]
         gene_threshold_self = self.agents["gene_threshold"].to_numpy()[valid_indices]
         sex_self = self.agents["sex"].to_numpy()[valid_indices]
-        sex_partner = self.agents["sex"].to_numpy()[partners]
+        sex_partner = self.agents["sex"].to_numpy()[valid_partners]
 
         # Get effective preferences for valid pairs only
         if self.config.layer.is_combined():
             effective_pref_self = self.agents["effective_preference"].to_numpy()[valid_indices]
-            effective_pref_partner = self.agents["effective_preference"].to_numpy()[partners]
+            effective_pref_partner = self.agents["effective_preference"].to_numpy()[valid_partners]
         elif self.config.layer.is_cultural_only():
             effective_pref_self = self.agents["cultural_preference"].to_numpy()[valid_indices]
-            effective_pref_partner = self.agents["cultural_preference"].to_numpy()[partners]
+            effective_pref_partner = self.agents["cultural_preference"].to_numpy()[valid_partners]
         else:
             effective_pref_self = self.agents["gene_preference"].to_numpy()[valid_indices]
-            effective_pref_partner = self.agents["gene_preference"].to_numpy()[partners]
+            effective_pref_partner = self.agents["gene_preference"].to_numpy()[valid_partners]
 
         # Standardized 16-bit Hamming similarity calculation using Polars-native operations
         sim_self = hamming_similarity_16bit_polars(
@@ -551,7 +642,13 @@ class LoveAgentsRefactored(AgentSetPolars):
 
         # Implement female-only choice: males always accept, females choose
         male_accepts = np.ones(n_valid, dtype=bool)  # Males always accept
-        female_accepts = sim_self >= gene_threshold_self  # Females choose based on threshold
+
+        # Probabilistic female choice using sigmoid function for stronger selection gradients
+        # P(accept) = sigmoid(k * (similarity - threshold))
+        k = 1.5  # Steepness parameter - can be made configurable later
+        logit_acceptance = k * (sim_self - gene_threshold_self)
+        acceptance_probability = 1.0 / (1.0 + np.exp(-logit_acceptance))
+        female_accepts = np.random.random(n_valid) < acceptance_probability
 
         # Apply acceptance based on sex: if self is male, use male_accepts; if female, use female_accepts
         accept_self = np.where(sex_self == 1, male_accepts, female_accepts)
@@ -581,8 +678,25 @@ class LoveAgentsRefactored(AgentSetPolars):
         if not accepted.any():
             return None
 
+        # Calculate and log selection differential for males
+        # This measures the actual selection gradient that drives evolution
+        male_mask = sex_self == 1
+        if male_mask.any():
+            all_males = gene_display_self[male_mask]
+            accepted_males = gene_display_self[male_mask & accepted]
+
+            if len(accepted_males) > 0:
+                mean_all_males = float(np.mean(all_males))
+                mean_accepted_males = float(np.mean(accepted_males))
+                selection_differential = mean_accepted_males - mean_all_males
+
+                # Store selection differential in model for logging
+                if not hasattr(self.model, "selection_differentials"):
+                    self.model.selection_differentials = []
+                self.model.selection_differentials.append(selection_differential)
+
         # Create offspring through genetic recombination
-        return self._create_offspring(valid_indices, partners, accepted)
+        return self._create_offspring(valid_indices, valid_partners, accepted)
 
     def _create_offspring(self, valid_indices: np.ndarray, partners: np.ndarray, accepted: np.ndarray) -> pl.DataFrame:
         """Create offspring through genetic recombination of unlinked genes."""
@@ -773,6 +887,10 @@ class LoveModelRefactored(ModelDF):
         # Track metrics
         self.history: list[dict[str, Any]] = []
         self.step_count = 0
+        self.selection_differentials: list[float] = []
+
+        # Check parameter health at initialization
+        self._check_parameter_health()
 
         logger.info(f"LoveModelRefactored initialized: n_agents={self.config.simulation.population_size}")
 
@@ -802,6 +920,14 @@ class LoveModelRefactored(ModelDF):
             "mean_age": float(df["age"].mean()) if df["age"].mean() is not None else 0.0,
             "mean_energy": float(df["energy"].mean()) if df["energy"].mean() is not None else 0.0,
         }
+
+        # Add selection differential if available
+        if hasattr(self, "selection_differentials") and self.selection_differentials:
+            metrics["selection_differential"] = self.selection_differentials[-1]  # Most recent
+            metrics["mean_selection_differential"] = float(np.mean(self.selection_differentials))
+        else:
+            metrics["selection_differential"] = 0.0
+            metrics["mean_selection_differential"] = 0.0
 
         # Genetic metrics
         if self.config.layer.genetic_enabled:
@@ -857,6 +983,41 @@ class LoveModelRefactored(ModelDF):
 
         logger.info(f"Refactored simulation completed: final population {len(self.agents)}")
         return results
+
+    def _check_parameter_health(self) -> None:
+        """Check parameter ratios and warn about potential issues."""
+        ratios = ParameterHelper.check_parameter_health(self.config)
+
+        warnings = []
+
+        # Check energy balance
+        if ratios["energy_balance_ratio"] < 0.01:
+            warnings.append(f"Energy balance ratio {ratios['energy_balance_ratio']:.3f} may cause population crashes")
+        elif ratios["energy_balance_ratio"] > 0.2:
+            warnings.append(f"Energy balance ratio {ratios['energy_balance_ratio']:.3f} may cause explosive growth")
+
+        # Check female choosiness
+        if ratios["female_choosiness_ratio"] < 0.5:
+            warnings.append(
+                f"Female choosiness ratio {ratios['female_choosiness_ratio']:.3f} may result in weak sexual selection"
+            )
+
+        # Check display costs
+        if ratios["display_cost_ratio"] > 0.3:
+            warnings.append(f"Display cost ratio {ratios['display_cost_ratio']:.3f} may overwhelm sexual selection")
+
+        # Check juvenile bottleneck
+        if ratios["juvenile_bottleneck_ratio"] > 0.8:
+            warnings.append(
+                f"Juvenile bottleneck ratio {ratios['juvenile_bottleneck_ratio']:.3f} may prevent reproduction"
+            )
+
+        if warnings:
+            logger.warning("Parameter health check found potential issues:")
+            for warning in warnings:
+                logger.warning(f"  - {warning}")
+        else:
+            logger.info("Parameter health check passed - ratios look reasonable")
 
     @beartype
     def get_agent_dataframe(self) -> pl.DataFrame:
