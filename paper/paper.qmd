@@ -124,14 +124,19 @@ Each agent is an autonomous entity defined by a combination of heritable genes a
 To avoid the artificial constraints of perfect linkage, we model an agent's core heritable traits as a set of unlinked genes, each represented by a column in the agent DataFrame. This allows for independent assortment and recombination, enabling the study of linkage disequilibrium as an emergent property of the system. The primary genes are:
 
 -   **`gene_display: uint16`**: A 16-bit unsigned integer representing a phenotypic display used in courtship. This allows for 2¹⁶ unique signals.
+
 -   **`gene_preference: uint16`**: A 16-bit unsigned integer encoding the agent's innate, genetically determined preference for a partner's display. Its identical bit-length to `gene_display` ensures a direct, linear comparison space.
+
 -   **`gene_threshold: uint8`**: An 8-bit integer (0-255) determining the agent's "choosiness"—the minimum similarity score required to accept a mate.
+
 -   **`gene_foraging_efficiency: uint8`**: An 8-bit integer representing an agent's innate ability to acquire energy from the environment. This gene is the primary target of natural selection for survival.
 
 ##### **Dynamic State Variables**
 
 -   **`age: uint16`**: The agent's age in generations.
+
 -   **`energy: float32`**: The agent's current energy level, which is consumed by metabolism and required for survival and reproduction.
+
 -   **`cultural_preference: uint16`**: A learned 16-bit preference, acquired through social learning. This state can change throughout an agent's life.
 
 #### **The Environment: A Multi-Layered Context**
@@ -143,7 +148,9 @@ The simulation unfolds within a multi-layered environment that imposes ecologica
 2.  **The Social Environment & Cultural Transmission:** Agents are embedded in a **Social Network**, a graph structure that dictates the pathways for cultural information flow. The network's topology (`network_type`: "random", "small_world", "scale_free") is a configurable experimental parameter. An agent can only learn from individuals to whom it is connected.
 
 3.  **The Perceptual Environment:** Mate assessment is subject to a global perceptual filter defined by two parameters:
+
     -   **`sigma_perception` (Perceptual Noise):** Introduces Gaussian noise to an agent's assessment of a potential mate, modeling sensory error or environmental interference.
+
     -   **`theta_detect` (Detection Threshold):** Represents the minimum signal strength required for a display to be perceived. A similarity score below this threshold is treated as zero.
 
 #### **Mate Choice and Reproduction**
@@ -153,9 +160,13 @@ Mate selection is a multi-stage process involving the integration of genetic and
 1.  **Effective Preference Formation:** For each mating decision, an agent blends its innate `gene_preference` and its learned `cultural_preference` to form a single `effective_preference` for that round. The blending mode (e.g., "weighted average", "probabilistic switching") is a configurable parameter.
 
 2.  **Mutual Courtship:** Agents are randomly paired, simulating panmixia. For each pair (A, B):
+
     -   Agent A assesses B by calculating the Hamming similarity (16 minus the number of differing bits) between its `effective_preference` and B's `gene_display`.
+
     -   This raw similarity score is passed through the Perceptual Environment, where noise is added and the detection threshold is applied, resulting in a *perceived similarity score*.
+
     -   Agent A accepts B if this perceived score is greater than or equal to its `gene_threshold`.
+
     -   Mating occurs only if A accepts B *and* B accepts A.
 
 3.  **Inheritance and Mutation:** Successful pairs produce a single offspring. The offspring's genome is formed via **recombination** of the parents' unlinked genes, where each gene has an independent chance of being inherited from either parent. Each new gene is then subject to a small probability of **point mutation**, where its value is replaced with a new random value.
@@ -165,8 +176,11 @@ Mate selection is a multi-stage process involving the integration of genetic and
 The model implements a framework for testing distinct theories of social learning. A single, population-wide **`learning_strategy`** is set as an experimental condition. The primary strategies are:
 
 -   **Conformist Transmission:** An agent adopts the most frequent `cultural_preference` among its neighbors in the social network.
+
 -   **Success-Biased Transmission:** An agent copies the `cultural_preference` of its neighbor with the highest recent `mating_success`.
+
 -   **Condition-Dependent Transmission:** An agent copies the `cultural_preference` of its neighbor with the highest current `energy` level, using energy as an honest signal of viability.
+
 -   **Age-Biased Transmission:** An agent copies the `cultural_preference` of its oldest neighbor, using age as a proxy for long-term survival success.
 
 #### **Model Validation and Data Collection**
