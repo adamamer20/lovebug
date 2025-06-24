@@ -77,45 +77,91 @@ make format        # Format code
 make docs          # Serve documentation locally
 ```
 
-### Running Simulations
+### Research Experiments: Multi-Phase Protocol
+
+The experimental framework (`experiments/paper_experiments.py`) implements a comprehensive research protocol with three distinct phases:
+
+#### Phase 1: Literature Replications (--run-empirical)
+Validates our model against established experiments from the evolutionary biology literature:
+
+- **Dugatkin Mate-Choice Copying** (`experiments/replications/dugatkin_replication.py`): Tests whether agents can copy mate preferences from high-prestige individuals, replicating Dugatkin's (1992) guppy experiments
+- **Witte Cultural Transmission** (`experiments/replications/witte_replication.py`): Examines how cultural learning affects mate choice evolution in social networks
+- **Rodd Sensory Bias** (`experiments/replications/rodd_replication.py`): Tests whether pre-existing sensory biases can drive evolution of ornaments without genetic correlation
+
+#### Phase 2: Parameter Space Exploration (--run-lhs)
+Systematic exploration using Latin Hypercube Sampling across key parameter dimensions:
+
+- **Genetic-only LHS**: Explores mutation rates, crossover rates, population sizes, energy dynamics
+- **Cultural-only LHS**: Explores learning rates, innovation rates, social network topologies
+- **Combined genetic-cultural LHS**: Explores blending weights between genetic and cultural evolution
+
+#### Lande-Kirkpatrick Validation (--run-lk)
+Tests three classic sexual selection scenarios with our unlinked gene model:
+- **Stasis**: Moderate heritability, balanced energy → no trait-preference correlation
+- **Runaway**: High heritability, abundant energy → trait elaboration
+- **Costly Choice**: High heritability, scarce energy → constrained evolution
+
+#### Execution Commands
 ```bash
-# Basic model execution
-uv run python -m lovebug.unified_mesa_model
+# Full experimental pipeline (recommended)
+uv run python experiments/paper_experiments.py --run-empirical --run-lhs
 
-# Interactive notebooks
-uv run python notebooks/Lande-Kirkpatrick.py
-uv run marimo run notebooks/Layer2-Social-Learning.py
+# Individual phases
+uv run python experiments/paper_experiments.py --run-empirical                       # Literature replications only
+uv run python experiments/paper_experiments.py --run-lhs --lhs-samples 100          # Parameter exploration only
+uv run python experiments/paper_experiments.py --run-lk                             # Lande-Kirkpatrick validation
 
-# Research experiments - Multi-phase protocol
-uv run python experiments/paper_experiments.py --output experiments/results/paper_data  # Phase 1 validation only
-uv run python experiments/paper_experiments.py --quick-test                              # Quick validation test
-uv run python experiments/paper_experiments.py --run-lhs --lhs-samples 100             # Phase 2 LHS exploration
-uv run python experiments/paper_experiments.py --no-validation --run-lhs               # LHS only (skip validation)
+# Testing and debugging
+uv run python experiments/paper_experiments.py --quick-test                          # Quick validation (reduced parameters)
+uv run python experiments/paper_experiments.py --quick-test --run-empirical         # Quick replication tests
+
+# Performance optimization
+export POLARS_MAX_THREADS=20 RAYON_NUM_THREADS=20  # Single job optimal
+export POLARS_MAX_THREADS=10 RAYON_NUM_THREADS=10  # Dual concurrent jobs
 ```
+
+#### Experiment Validation & Results
+Each experiment generates:
+- **Statistical validation reports** with replication success rates and confidence intervals
+- **Timestamped session directories** with detailed results and logs
+- **Consolidated validation reports** combining all phases
+- **JSON summaries** for downstream analysis and visualization
 
 ## Key Development Patterns
 
 ### Model Configuration
 ```python
-from lovebug import LoveModel, LayerActivationConfig, Layer2Config
+from lovebug import LoveModel, LoveBugConfig, GeneticParams, CulturalParams, LayerConfig, SimulationParams
 
 # Genetic-only evolution
-model = LoveModel(
-    population_size=5000,
-    layer_config=LayerActivationConfig(genetic_enabled=True, cultural_enabled=False)
+config = LoveBugConfig(
+    name="genetic_only_simulation",
+    genetic=GeneticParams(
+        mutation_rate=0.01,
+        crossover_rate=0.7,
+    ),
+    cultural=CulturalParams(),
+    simulation=SimulationParams(population_size=5000),
+    layer=LayerConfig(genetic_enabled=True, cultural_enabled=False)
 )
+model = LoveModel(config=config)
 
 # Combined evolution with cultural learning
-cultural_config = Layer2Config(
-    horizontal_transmission_rate=0.2,
-    innovation_rate=0.05,
-    network_type="small_world"
+config = LoveBugConfig(
+    name="combined_simulation",
+    genetic=GeneticParams(
+        mutation_rate=0.01,
+        crossover_rate=0.7,
+    ),
+    cultural=CulturalParams(
+        horizontal_transmission_rate=0.2,
+        innovation_rate=0.05,
+        network_type="small_world"
+    ),
+    simulation=SimulationParams(population_size=5000),
+    layer=LayerConfig(genetic_enabled=True, cultural_enabled=True)
 )
-model = LoveModel(
-    population_size=5000,
-    layer_config=LayerActivationConfig(genetic_enabled=True, cultural_enabled=True),
-    cultural_params=cultural_config
-)
+model = LoveModel(config=config)
 ```
 
 ### Genetic Encoding
