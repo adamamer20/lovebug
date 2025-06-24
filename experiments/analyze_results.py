@@ -25,22 +25,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-
-# Optional sklearn imports for sensitivity analysis
-try:
-    from sklearn.ensemble import RandomForestRegressor
-
-    SKLEARN_AVAILABLE = True
-except ImportError:
-    SKLEARN_AVAILABLE = False
+from sklearn.ensemble import RandomForestRegressor
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Warn about sklearn after logger is set up
-if not SKLEARN_AVAILABLE:
-    logger.warning("scikit-learn not available - sensitivity analysis will use simplified methods")
 
 # Configure plotting style
 plt.style.use("seaborn-v0_8-whitegrid")
@@ -523,19 +513,11 @@ class ResultsAnalyzer:
         plt.show()
 
         # Figure 6: Variable importance
-        if SKLEARN_AVAILABLE:
-            # Use Random Forest for variable importance
-            X = np.column_stack([params[p] for p in param_names])
-            rf = RandomForestRegressor(n_estimators=100, random_state=42)
-            rf.fit(X, final_trait)
-            importances = rf.feature_importances_
-        else:
-            # Use correlation-based importance as fallback
-            importances = []
-            for param in param_names:
-                corr = np.corrcoef(params[param], final_trait)[0, 1]
-                importances.append(abs(corr))
-            importances = np.array(importances)
+        # Use Random Forest for variable importance
+        X = np.column_stack([params[p] for p in param_names])
+        rf = RandomForestRegressor(n_estimators=100, random_state=42)
+        rf.fit(X, final_trait)
+        importances = rf.feature_importances_
 
         fig, ax = plt.subplots(1, 1, figsize=(10, 6))
         y_pos = np.arange(len(param_names))
