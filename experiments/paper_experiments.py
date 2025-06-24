@@ -23,6 +23,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import logging
 import os
@@ -30,6 +31,7 @@ import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -98,6 +100,20 @@ console = Console()
 logger = logging.getLogger(__name__)
 
 
+@beartype
+def _run_single_experiment_worker(config: LoveBugConfig, threads_per_worker: int) -> Any:
+    os.environ["POLARS_MAX_THREADS"] = str(threads_per_worker)
+    os.environ["RAYON_NUM_THREADS"] = str(threads_per_worker)
+    worker_logger = logging.getLogger()
+    worker_logger.setLevel(logging.ERROR)
+    try:
+        runner = ValidatedExperimentRunner()
+        result = runner.run_experiment(config)
+        return result
+    except Exception as e:
+        return {"error": str(e), "failed_config_name": config.name}
+
+
 @dataclass(slots=True, frozen=False)
 class ValidatedPaperConfig:
     """Configuration for validated paper experiments."""
@@ -111,6 +127,9 @@ class ValidatedPaperConfig:
     replications_per_condition: int = 10
     n_generations: int = 3000
     max_duration_hours: float = 24.0
+
+    # Parallelism
+    num_parallel_jobs: int = 1
 
     # Population size configurations
     base_population_size: int = 1500  # Standard population for validation/cultural/combined
@@ -852,21 +871,16 @@ class ValidatedPaperRunner:
 
     @beartype
     def execute_experiments(self, configurations: list[Any]) -> list[Any]:
-        """
-        Execute a list of validated experiment configurations.
-
-        Parameters
-        ----------
-        configurations : list[GeneticExperimentConfig | CulturalExperimentConfig | LoveBugConfig]
-            List of validated experiment configurations to execute
-
-        Returns
-        -------
-        list[Any]
-            List of experiment results
-        """
+        if not configurations:
+            return []
         results = []
-
+        num_jobs = self.config.num_parallel_jobs
+        if num_jobs <= 0:
+            num_jobs = 1
+        total_threads = int(os.environ.get("POLARS_MAX_THREADS", os.cpu_count() or 1))
+        threads_per_worker = max(1, total_threads // num_jobs)
+        logger.info(f"Starting parallel execution with {num_jobs} jobs. Each worker gets {threads_per_worker} threads.")
+        worker_func = partial(_run_single_experiment_worker, threads_per_worker=threads_per_worker)
         progress = Progress(
             TextColumn("[bold blue]{task.description}"),
             BarColumn(),
@@ -875,27 +889,21 @@ class ValidatedPaperRunner:
             TimeRemainingColumn(),
             console=console,
         )
-
         with progress:
-            task = progress.add_task("Running validated experiments", total=len(configurations))
-
-            for config in configurations:
-                try:
-                    logger.info(f"🔬 Executing: {config.name}")
-
-                    # Run experiment using validated runner
-                    result = self.runner.run_experiment(config)
-                    results.append(result)
-                    self.completed_experiments += 1
-
-                    logger.info(f"✅ Completed: {config.name}")
-
-                except Exception as e:
-                    logger.error(f"❌ Failed: {config.name} - {e}")
-                    self.failed_experiments += 1
-
-                progress.advance(task)
-
+            task = progress.add_task("Running experiments", total=len(configurations))
+            with concurrent.futures.ProcessPoolExecutor(max_workers=num_jobs) as executor:
+                future_results = executor.map(worker_func, configurations)
+                for result in future_results:
+                    if isinstance(result, dict) and "error" in result:
+                        failed_name = result.get("failed_config_name", "Unknown")
+                        error_msg = result["error"]
+                        logger.error(f"❌ Failed: {failed_name} - {error_msg}")
+                        self.failed_experiments += 1
+                    else:
+                        results.append(result)
+                        self.completed_experiments += 1
+                        logger.info(f"✅ Completed: {result.config.name}")
+                    progress.advance(task)
         return results
 
     @beartype
@@ -1053,6 +1061,7 @@ def run_validated_paper_experiments(
     lhs_samples: int = 100,
     replications: int = 10,
     generations: int = 3000,
+    num_parallel_jobs: int = 1,
 ) -> dict[str, Any]:
     """
     Run validated paper experiments with Pydantic configuration system.
@@ -1073,6 +1082,8 @@ def run_validated_paper_experiments(
         Number of replications per parameter condition
     generations : int
         Number of generations per simulation
+    num_parallel_jobs : int
+        Number of experiments to run in parallel
 
     Returns
     -------
@@ -1088,6 +1099,7 @@ def run_validated_paper_experiments(
         lhs_samples=lhs_samples,
         replications_per_condition=replications,
         n_generations=generations,
+        num_parallel_jobs=num_parallel_jobs,
     )
 
     runner = ValidatedPaperRunner(config)
@@ -1154,6 +1166,12 @@ Performance optimization:
     parser.add_argument("--lhs-samples", type=int, default=100, help="Number of LHS parameter combinations")
     parser.add_argument("--replications", type=int, default=10, help="Number of replications per condition")
     parser.add_argument("--generations", type=int, default=3000, help="Number of generations per simulation")
+    parser.add_argument(
+        "--parallel-jobs",
+        type=int,
+        default=1,
+        help="Number of experiments to run in parallel. Each job gets a fraction of POLARS_MAX_THREADS.",
+    )
 
     args = parser.parse_args()
 
@@ -1168,6 +1186,7 @@ Performance optimization:
             lhs_samples=args.lhs_samples,
             replications=args.replications,
             generations=args.generations,
+            num_parallel_jobs=args.parallel_jobs,
         )
 
         # Display results
