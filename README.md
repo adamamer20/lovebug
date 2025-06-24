@@ -98,7 +98,7 @@ uv run python experiments/paper_experiments.py --run-lhs --lhs-samples 100
 
 ## 🧬 Model Architecture
 
-### System Overview
+### Simulation Flow
 
 ```mermaid
 flowchart TD
@@ -129,26 +129,29 @@ flowchart TD
     G --> H{Continue?}
     H -->|Yes| C
     H -->|No| I[Results Collection]
+```
 
-    subgraph "Agent Data Structure"
-        J[Genetic Traits]
-        K[Cultural Traits]
-        L[State Variables]
+### Agent Data Structure
 
-        J --> J1[gene_display: UInt16]
-        J --> J2[gene_preference: UInt16]
-        J --> J3[gene_threshold: UInt8]
-        J --> J4[gene_foraging_efficiency: UInt8]
+```mermaid
+graph LR
+    A[Agent] --> B[Genetic Traits]
+    A --> C[Cultural Traits]
+    A --> D[State Variables]
 
-        K --> K1[cultural_preference: UInt16]
-        K --> K2[social_network_neighbors: List]
-        K --> K3[effective_preference: UInt16]
+    B --> B1[gene_display: UInt16]
+    B --> B2[gene_preference: UInt16]
+    B --> B3[gene_threshold: UInt8]
+    B --> B4[gene_foraging_efficiency: UInt8]
 
-        L --> L1[energy: Float32]
-        L --> L2[age: UInt16]
-        L --> L3[sex: UInt8]
-        L --> L4[mating_success: UInt16]
-    end
+    C --> C1[cultural_preference: UInt16]
+    C --> C2[social_network_neighbors: List]
+    C --> C3[effective_preference: UInt16]
+
+    D --> D1[energy: Float32]
+    D --> D2[age: UInt16]
+    D --> D3[sex: UInt8]
+    D --> D4[mating_success: UInt16]
 ```
 
 ### Agent Representation
