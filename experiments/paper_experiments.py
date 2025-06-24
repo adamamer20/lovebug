@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import sys
 import time
 from dataclasses import dataclass
@@ -1095,6 +1096,26 @@ def run_validated_paper_experiments(
 
 def main() -> None:
     """Main CLI entry point for validated paper experiments."""
+    # Check thread configuration for optimal parallelization
+    polars_threads = os.environ.get("POLARS_MAX_THREADS")
+    rayon_threads = os.environ.get("RAYON_NUM_THREADS")
+
+    console.print("[bold green]🔬 LoveBug Validated Paper Experiments[/bold green]")
+    console.print("Using type-safe Pydantic validation system")
+    console.print("Population explosions are now prevented by design!")
+
+    if polars_threads and rayon_threads:
+        console.print(
+            f"[cyan]⚙️  Thread configuration:[/cyan] POLARS_MAX_THREADS={polars_threads}, RAYON_NUM_THREADS={rayon_threads}"
+        )
+        console.print("[cyan]💡 For dual concurrent runs, recommend setting both to 10 on i7-14700K[/cyan]")
+    else:
+        console.print("[yellow]⚠️  Thread configuration not set. For optimal performance:[/yellow]")
+        console.print("[yellow]   For two concurrent jobs: export POLARS_MAX_THREADS=10 RAYON_NUM_THREADS=10[/yellow]")
+        console.print("[yellow]   For single job: export POLARS_MAX_THREADS=20 RAYON_NUM_THREADS=20[/yellow]")
+
+    console.print("")
+
     parser = argparse.ArgumentParser(
         description="Validated paper experiments using Pydantic configuration system",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -1113,6 +1134,13 @@ Features of the validated system:
   • Clear validation error messages
   • Factory functions for common experiment scenarios
   • Automatic parameter normalization and validation
+
+Performance optimization:
+  • Population: 1500 agents (optimized for ~11h full suite)
+  • Generations: 3000 steps
+  • Replications: 10 per condition
+  • LHS samples: 100 per sweep
+  • For dual concurrent runs: POLARS_MAX_THREADS=10 RAYON_NUM_THREADS=10
         """,
     )
 
@@ -1130,11 +1158,6 @@ Features of the validated system:
     args = parser.parse_args()
 
     try:
-        # Show system information
-        console.print("[bold green]🔬 LoveBug Validated Paper Experiments[/bold green]")
-        console.print("Using type-safe Pydantic validation system")
-        console.print("Population explosions are now prevented by design!\n")
-
         # Run experiments
         results = run_validated_paper_experiments(
             output_dir=args.output,
