@@ -59,23 +59,32 @@ class WitteReplication:
         return LoveBugConfig(
             name="witte_cultural_transmission",
             genetic=GeneticParams(
-                mutation_rate=0.005,  # Small but non-zero to prevent genetic drift issues
-                crossover_rate=0.3,  # Modest recombination to maintain diversity
                 h2_trait=0.1,  # Low heritability - focus on cultural transmission
                 h2_preference=0.1,
+                mutation_rate=0.005,  # Small but non-zero to prevent genetic drift issues
+                crossover_rate=0.3,  # Modest recombination to maintain diversity
+                elitism=1,
                 energy_decay=0.012,  # Witte: Zebra finch aviary densities
-                energy_replenishment_rate=0.008,  # r = d * N₀/K = 0.012 * 100/150 = 0.008
+                mutation_variance=0.01,
+                max_age=100,
                 carrying_capacity=self.population_size + 50,  # K = 150
+                energy_replenishment_rate=0.008,  # r = d * N₀/K = 0.012 * 100/150 = 0.008
+                parental_investment_rate=0.6,
+                energy_min_mating=1.0,
+                juvenile_cost=0.5,
+                display_cost_scalar=0.2,
+                search_cost=0.01,
+                base_energy=10.0,
             ),
             cultural=CulturalParams(
-                learning_rate=0.3,  # Key parameter for cultural learning
-                horizontal_transmission_rate=0.3,  # Key parameter for transmission
-                oblique_transmission_rate=0.1,
                 innovation_rate=0.001,  # Very low innovation - test persistence
+                memory_span=5,
                 network_type="small_world",  # Realistic social network
                 network_connectivity=0.8,
                 cultural_memory_size=5,
                 memory_decay_rate=0.01,
+                horizontal_transmission_rate=0.3,  # Key parameter for transmission
+                oblique_transmission_rate=0.1,
                 local_learning_radius=5,
                 memory_update_strength=1.0,
                 learning_strategy="conformist",  # Conformist transmission for better spread
@@ -83,8 +92,11 @@ class WitteReplication:
             layer=LayerConfig(
                 genetic_enabled=True,
                 cultural_enabled=True,
+                blending_mode="weighted",
                 genetic_weight=0.0,  # Pure cultural evolution
                 cultural_weight=1.0,
+                sigma_perception=0.0,
+                theta_detect=0.0,
             ),
             simulation=SimulationParams(
                 population_size=self.population_size,

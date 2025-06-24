@@ -9,10 +9,8 @@ from importlib import metadata as _metadata
 from .config import (
     CulturalParams,
     GeneticParams,
-    LayerBlendingParams,
     LayerConfig,
     LoveBugConfig,
-    PerceptualParams,
     SimulationParams,
 )
 
@@ -35,8 +33,6 @@ __all__ = [
     "LoveBugConfig",
     "GeneticParams",
     "CulturalParams",
-    "LayerBlendingParams",
-    "PerceptualParams",
     "SimulationParams",
     "LayerConfig",
     # Vectorized components

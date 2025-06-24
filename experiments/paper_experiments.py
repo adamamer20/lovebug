@@ -48,10 +48,8 @@ from experiments.validated_runner import ValidatedExperimentRunner
 from lovebug.config import (
     CulturalParams,
     GeneticParams,
-    LayerBlendingParams,
     LayerConfig,
     LoveBugConfig,
-    PerceptualParams,
     SimulationParams,
 )
 
@@ -218,25 +216,21 @@ class ValidatedPaperRunner:
 
             # Run Dugatkin mate-choice copying replication
             logger.info("🐠 Running Dugatkin mate-choice copying replication")
-            dugatkin = DugatkinReplication(population_size=self.config.dugatkin_population_size, seed=42)
+            dugatkin = DugatkinReplication(seed=42)
             dugatkin_result = dugatkin.run_experiment()
             replication_results.append(dugatkin_result)
             logger.info(f"Dugatkin replication {'SUCCESS' if dugatkin_result.get('success', False) else 'FAILED'}")
 
             # Run Witte cultural transmission replication
             logger.info("🐟 Running Witte cultural transmission replication")
-            witte = WitteReplication(
-                population_size=self.config.witte_population_size, n_generations=self.config.n_generations, seed=42
-            )
+            witte = WitteReplication(n_generations=self.config.n_generations, seed=42)
             witte_result = witte.run_experiment()
             replication_results.append(witte_result)
             logger.info(f"Witte replication {'SUCCESS' if witte_result.get('success', False) else 'FAILED'}")
 
             # Run Rodd sensory bias replication
             logger.info("🐠 Running Rodd sensory bias replication")
-            rodd = RoddReplication(
-                population_size=self.config.rodd_population_size, n_generations=self.config.n_generations, seed=42
-            )
+            rodd = RoddReplication(n_generations=self.config.n_generations, seed=42)
             rodd_result = rodd.run_experiment()
             replication_results.append(rodd_result)
             logger.info(f"Rodd replication {'SUCCESS' if rodd_result.get('success', False) else 'FAILED'}")
@@ -302,9 +296,9 @@ class ValidatedPaperRunner:
 
         for rep in range(self.config.replications_per_condition):
             common_simulation = SimulationParams(
-                population_size=base_population,
+                population_size=self.config.lhs_population_size,
                 steps=self.config.n_generations,
-                carrying_capacity=base_population * 2,
+                seed=42,
             )
 
             # --- STASIS SCENARIO ---
@@ -319,23 +313,40 @@ class ValidatedPaperRunner:
                         h2_preference=0.2,  # Lower preference heritability = stasis
                         mutation_rate=0.01,
                         crossover_rate=0.7,
-                        population_size=base_population,
+                        elitism=1,
+                        energy_decay=stasis_energy_decay,
+                        mutation_variance=0.01,
+                        max_age=100,
                         carrying_capacity=base_population * 2,
                         energy_replenishment_rate=stasis_energy_replen,  # LK Stasis: Energy limited but not stressful
-                        energy_decay=stasis_energy_decay,
-                        max_age=100,
-                        elitism=1,
+                        parental_investment_rate=0.6,
+                        energy_min_mating=1.0,
+                        juvenile_cost=0.5,
+                        display_cost_scalar=0.2,
+                        search_cost=0.01,
+                        base_energy=10.0,
                     ),
                     cultural=CulturalParams(
-                        learning_strategy="conformist",
-                        learning_rate=0.0,  # Pure genetic evolution
                         innovation_rate=0.0,
+                        memory_span=5,
+                        network_type="small_world",
+                        network_connectivity=1.0,
+                        cultural_memory_size=5,
+                        memory_decay_rate=0.01,
+                        horizontal_transmission_rate=0.0,  # Pure genetic evolution
+                        oblique_transmission_rate=0.0,
+                        local_learning_radius=5,
+                        memory_update_strength=1.0,
+                        learning_strategy="conformist",
                     ),
                     layer=LayerConfig(
                         genetic_enabled=True,
                         cultural_enabled=False,
+                        blending_mode="weighted",
                         genetic_weight=1.0,
                         cultural_weight=0.0,
+                        sigma_perception=0.0,
+                        theta_detect=0.0,
                     ),
                 )
             )
@@ -352,23 +363,40 @@ class ValidatedPaperRunner:
                         h2_preference=0.8,  # High preference heritability enables runaway
                         mutation_rate=0.005,  # Lower mutation preserves favorable combinations
                         crossover_rate=0.9,  # High crossover explores new combinations
-                        population_size=base_population,
+                        elitism=2,  # Preserve best individuals
+                        energy_decay=runaway_energy_decay,  # Low energy decay = low cost
+                        mutation_variance=0.01,
+                        max_age=100,
                         carrying_capacity=base_population * 2,
                         energy_replenishment_rate=runaway_energy_replen,  # LK Runaway: plentiful food (twice maintenance)
-                        energy_decay=runaway_energy_decay,  # Low energy decay = low cost
-                        max_age=100,
-                        elitism=2,  # Preserve best individuals
+                        parental_investment_rate=0.6,
+                        energy_min_mating=1.0,
+                        juvenile_cost=0.5,
+                        display_cost_scalar=0.2,
+                        search_cost=0.01,
+                        base_energy=10.0,
                     ),
                     cultural=CulturalParams(
-                        learning_strategy="conformist",
-                        learning_rate=0.0,
                         innovation_rate=0.0,
+                        memory_span=5,
+                        network_type="small_world",
+                        network_connectivity=1.0,
+                        cultural_memory_size=5,
+                        memory_decay_rate=0.01,
+                        horizontal_transmission_rate=0.0,
+                        oblique_transmission_rate=0.0,
+                        local_learning_radius=5,
+                        memory_update_strength=1.0,
+                        learning_strategy="conformist",
                     ),
                     layer=LayerConfig(
                         genetic_enabled=True,
                         cultural_enabled=False,
+                        blending_mode="weighted",
                         genetic_weight=1.0,
                         cultural_weight=0.0,
+                        sigma_perception=0.0,
+                        theta_detect=0.0,
                     ),
                 )
             )
@@ -385,23 +413,40 @@ class ValidatedPaperRunner:
                         h2_preference=0.8,  # High heritability like runaway
                         mutation_rate=0.005,  # Low mutation like runaway
                         crossover_rate=0.9,  # High crossover like runaway
-                        population_size=base_population,
                         carrying_capacity=base_population * 2,
                         energy_replenishment_rate=costly_energy_replen,  # LK Costly choice: high metabolic drain
                         energy_decay=costly_energy_decay,  # High energy decay makes it a costly choice
                         max_age=100,
                         elitism=2,
+                        mutation_variance=0.01,
+                        parental_investment_rate=0.6,
+                        energy_min_mating=1.0,
+                        juvenile_cost=0.5,
+                        display_cost_scalar=0.2,
+                        search_cost=0.01,
+                        base_energy=10.0,
                     ),
                     cultural=CulturalParams(
-                        learning_strategy="conformist",
-                        learning_rate=0.0,
                         innovation_rate=0.0,
+                        memory_span=5,
+                        network_type="small_world",
+                        network_connectivity=1.0,
+                        cultural_memory_size=5,
+                        memory_decay_rate=0.01,
+                        horizontal_transmission_rate=0.0,
+                        oblique_transmission_rate=0.0,
+                        local_learning_radius=5,
+                        memory_update_strength=1.0,
+                        learning_strategy="conformist",
                     ),
                     layer=LayerConfig(
                         genetic_enabled=True,
                         cultural_enabled=False,
+                        blending_mode="weighted",
                         genetic_weight=1.0,
                         cultural_weight=0.0,
+                        sigma_perception=0.0,
+                        theta_detect=0.0,
                     ),
                 )
             )
@@ -460,17 +505,22 @@ class ValidatedPaperRunner:
                     h2_preference=0.5,
                     mutation_rate=float(param_dict["mutation_rate"]),
                     crossover_rate=float(param_dict["crossover_rate"]),
-                    population_size=pop_size,
                     elitism=int(param_dict["elitism"]),
                     energy_decay=energy_decay,
                     energy_replenishment_rate=energy_replen,
                     mutation_variance=0.01,
                     max_age=100,
                     carrying_capacity=carrying_cap,
+                    parental_investment_rate=0.6,
+                    energy_min_mating=1.0,
+                    juvenile_cost=0.5,
+                    display_cost_scalar=0.2,
+                    search_cost=0.01,
+                    base_energy=10.0,
                 ),
                 cultural=CulturalParams(
-                    learning_rate=0.05,
                     innovation_rate=0.01,
+                    memory_span=5,
                     network_type="scale_free",
                     network_connectivity=1.0,
                     cultural_memory_size=5,
@@ -479,9 +529,8 @@ class ValidatedPaperRunner:
                     oblique_transmission_rate=0.1,
                     local_learning_radius=5,
                     memory_update_strength=1.0,
+                    learning_strategy="conformist",
                 ),
-                blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
-                perceptual=PerceptualParams(),
                 simulation=SimulationParams(
                     population_size=self.config.lhs_population_size,
                     steps=self.config.n_generations,
@@ -522,30 +571,43 @@ class ValidatedPaperRunner:
                             h2_preference=0.5,
                             mutation_rate=0.01,
                             crossover_rate=0.7,
-                            population_size=base_population,
                             elitism=1,
                             energy_decay=self.config.default_energy_decay,
                             energy_replenishment_rate=self.config.default_energy_replenishment_rate,
                             mutation_variance=0.01,
                             max_age=100,
                             carrying_capacity=base_population,
+                            parental_investment_rate=0.6,
+                            energy_min_mating=1.0,
+                            juvenile_cost=0.5,
+                            display_cost_scalar=0.2,
+                            search_cost=0.01,
+                            base_energy=10.0,
                         ),
                         cultural=CulturalParams(
-                            learning_rate=transmission_rate,
                             innovation_rate=0.05,
+                            memory_span=5,
                             network_type=network_type,
                             network_connectivity=1.0,
                             cultural_memory_size=5,
                             memory_decay_rate=0.01,
-                            horizontal_transmission_rate=0.1,
+                            horizontal_transmission_rate=transmission_rate,
                             oblique_transmission_rate=0.1,
                             local_learning_radius=5,
                             memory_update_strength=1.0,
+                            learning_strategy="conformist",
                         ),
-                        blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
-                        perceptual=PerceptualParams(),
+                        layer=LayerConfig(
+                            genetic_enabled=True,
+                            cultural_enabled=True,  # CRITICAL: Enable cultural evolution
+                            blending_mode="weighted",
+                            genetic_weight=0.2,
+                            cultural_weight=0.8,
+                            sigma_perception=0.0,
+                            theta_detect=0.0,
+                        ),
                         simulation=SimulationParams(
-                            population_size=base_population,
+                            population_size=self.config.lhs_population_size,
                             steps=self.config.n_generations,
                             seed=rep,
                         ),
@@ -590,33 +652,43 @@ class ValidatedPaperRunner:
                         h2_preference=0.5,
                         mutation_rate=0.01,
                         crossover_rate=0.7,
-                        population_size=base_population,
                         elitism=1,
                         energy_decay=self.config.default_energy_decay,
                         energy_replenishment_rate=self.config.default_energy_replenishment_rate,
                         mutation_variance=0.01,
                         max_age=100,
                         carrying_capacity=base_population,
+                        parental_investment_rate=0.6,
+                        energy_min_mating=1.0,
+                        juvenile_cost=0.5,
+                        display_cost_scalar=0.2,
+                        search_cost=0.01,
+                        base_energy=10.0,
                     ),
                     cultural=CulturalParams(
-                        learning_rate=cultural_weight,
                         innovation_rate=0.1,
+                        memory_span=5,
                         network_type="scale_free",
                         network_connectivity=1.0,
                         cultural_memory_size=5,
                         memory_decay_rate=0.01,
-                        horizontal_transmission_rate=0.1,
+                        horizontal_transmission_rate=cultural_weight,
                         oblique_transmission_rate=0.1,
                         local_learning_radius=5,
                         memory_update_strength=1.0,
+                        learning_strategy="conformist",
                     ),
-                    blending=LayerBlendingParams(
-                        blend_mode="weighted",
-                        blend_weight=genetic_weight,
+                    layer=LayerConfig(
+                        genetic_enabled=True,
+                        cultural_enabled=True,  # CRITICAL: Enable both genetic and cultural evolution
+                        blending_mode="weighted",
+                        genetic_weight=genetic_weight,
+                        cultural_weight=cultural_weight,
+                        sigma_perception=0.0,
+                        theta_detect=0.0,
                     ),
-                    perceptual=PerceptualParams(),
                     simulation=SimulationParams(
-                        population_size=base_population,
+                        population_size=self.config.lhs_population_size,
                         steps=self.config.n_generations,
                         seed=rep,
                     ),
@@ -663,28 +735,32 @@ class ValidatedPaperRunner:
                     h2_preference=0.5,
                     mutation_rate=0.01,
                     crossover_rate=0.7,
-                    population_size=self.config.lhs_population_size,
                     elitism=1,
                     energy_decay=self.config.default_energy_decay,
                     energy_replenishment_rate=self.config.default_energy_replenishment_rate,
                     mutation_variance=0.01,
                     max_age=100,
                     carrying_capacity=self.config.lhs_population_size,
+                    parental_investment_rate=0.6,
+                    energy_min_mating=1.0,
+                    juvenile_cost=0.5,
+                    display_cost_scalar=0.2,
+                    search_cost=0.01,
+                    base_energy=10.0,
                 ),
                 cultural=CulturalParams(
-                    learning_rate=float(param_dict["learning_rate"]),
                     innovation_rate=float(param_dict["innovation_rate"]),
+                    memory_span=5,
                     network_type="scale_free",
                     network_connectivity=1.0,
                     cultural_memory_size=5,
                     memory_decay_rate=0.01,
-                    horizontal_transmission_rate=0.1,
+                    horizontal_transmission_rate=float(param_dict["learning_rate"]),
                     oblique_transmission_rate=0.1,
                     local_learning_radius=5,
                     memory_update_strength=1.0,
+                    learning_strategy="conformist",
                 ),
-                blending=LayerBlendingParams(blend_mode="weighted", blend_weight=0.5),
-                perceptual=PerceptualParams(),
                 simulation=SimulationParams(
                     population_size=self.config.lhs_population_size,
                     steps=self.config.n_generations,
@@ -736,31 +812,32 @@ class ValidatedPaperRunner:
                     h2_preference=0.5,
                     mutation_rate=float(param_dict["mutation_rate"]),
                     crossover_rate=float(param_dict["crossover_rate"]),
-                    population_size=self.config.lhs_population_size,
                     elitism=1,
                     energy_decay=self.config.default_energy_decay,
                     energy_replenishment_rate=self.config.default_energy_replenishment_rate,
                     mutation_variance=0.01,
                     max_age=100,
                     carrying_capacity=self.config.lhs_population_size,
+                    parental_investment_rate=0.6,
+                    energy_min_mating=1.0,
+                    juvenile_cost=0.5,
+                    display_cost_scalar=0.2,
+                    search_cost=0.01,
+                    base_energy=10.0,
                 ),
                 cultural=CulturalParams(
-                    learning_rate=float(param_dict["learning_rate"]),
                     innovation_rate=float(param_dict["innovation_rate"]),
+                    memory_span=5,
                     network_type="scale_free",
                     network_connectivity=1.0,
                     cultural_memory_size=5,
                     memory_decay_rate=0.01,
-                    horizontal_transmission_rate=0.1,
+                    horizontal_transmission_rate=float(param_dict["learning_rate"]),
                     oblique_transmission_rate=0.1,
                     local_learning_radius=5,
                     memory_update_strength=1.0,
+                    learning_strategy="conformist",
                 ),
-                blending=LayerBlendingParams(
-                    blend_mode="weighted",
-                    blend_weight=float(param_dict["blend_weight"]),
-                ),
-                perceptual=PerceptualParams(),
                 simulation=SimulationParams(
                     population_size=self.config.lhs_population_size,
                     steps=self.config.n_generations,

@@ -61,26 +61,44 @@ class DugatkinReplication:
         return LoveBugConfig(
             name="dugatkin_preference_copying",
             genetic=GeneticParams(
+                h2_trait=0.8,
+                h2_preference=0.8,
                 mutation_rate=0.001,  # Very low to maintain initial preferences
                 crossover_rate=0.0,  # No recombination to keep preferences stable
-                max_age=1000,  # Effectively immortal for short experiment
+                elitism=1,
                 energy_decay=0.010,  # Reduced from 0.015 for stability
-                energy_replenishment_rate=0.0033,  # r = d * N₀/K = 0.010 * 20/60 = 0.0033
+                mutation_variance=0.01,
+                max_age=1000,  # Effectively immortal for short experiment
                 carrying_capacity=60,  # Increased from 40 for more stable environment
+                energy_replenishment_rate=0.0033,  # r = d * N₀/K = 0.010 * 20/60 = 0.0033
+                parental_investment_rate=0.6,
+                energy_min_mating=1.0,
+                juvenile_cost=0.5,
+                display_cost_scalar=0.2,
+                search_cost=0.01,
+                base_energy=10.0,
             ),
             cultural=CulturalParams(
-                enabled=True,
-                horizontal_transmission_rate=0.9,  # Very high - models high salience
                 innovation_rate=0.0,  # No innovation during observation phase
+                memory_span=5,
                 network_type="random",  # Fully connected-like for small population
                 network_connectivity=1.0,
+                cultural_memory_size=5,
+                memory_decay_rate=0.01,
+                horizontal_transmission_rate=0.9,  # Very high - models high salience
+                oblique_transmission_rate=0.1,
+                local_learning_radius=5,
+                memory_update_strength=1.0,
                 learning_strategy="success-biased",  # Copy successful individuals
             ),
             layer=LayerConfig(
                 genetic_enabled=True,
                 cultural_enabled=True,
+                blending_mode="weighted",
                 genetic_weight=0.2,  # Cultural learning can override genetics
                 cultural_weight=0.8,
+                sigma_perception=0.0,
+                theta_detect=0.0,
             ),
             simulation=SimulationParams(
                 population_size=self.population_size,

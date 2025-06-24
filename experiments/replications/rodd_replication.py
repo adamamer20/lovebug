@@ -62,22 +62,32 @@ class RoddReplication:
         return LoveBugConfig(
             name="rodd_sensory_bias",
             genetic=GeneticParams(
+                h2_trait=0.5,
+                h2_preference=0.5,
                 mutation_rate=0.01,  # Moderate mutation for trait evolution
                 crossover_rate=0.7,  # Allow recombination of unlinked genes
-                max_age=50,  # Reasonable lifespan
+                elitism=1,
                 energy_decay=0.01,  # Rodd: High-flow Trinidad pools
-                energy_replenishment_rate=0.0067,  # Rule: energy_decay * N₀/K = 0.01 * 2000/3000
+                mutation_variance=0.01,
+                max_age=50,  # Reasonable lifespan
                 carrying_capacity=self.population_size + 1000,  # K = 3000
+                energy_replenishment_rate=0.0067,  # Rule: energy_decay * N₀/K = 0.01 * 2000/3000
+                parental_investment_rate=0.6,
+                energy_min_mating=1.0,
+                juvenile_cost=0.5,
+                display_cost_scalar=0.2,
+                search_cost=0.01,
+                base_energy=10.0,
             ),
             cultural=CulturalParams(
-                learning_rate=0.0,  # Pure genetic evolution - no cultural learning
-                horizontal_transmission_rate=0.0,
-                oblique_transmission_rate=0.0,
                 innovation_rate=0.0,
+                memory_span=5,
                 network_type="random",
                 network_connectivity=0.0,
                 cultural_memory_size=1,
                 memory_decay_rate=0.0,
+                horizontal_transmission_rate=0.0,  # Pure genetic evolution - no cultural learning
+                oblique_transmission_rate=0.0,
                 local_learning_radius=1,
                 memory_update_strength=0.0,
                 learning_strategy="conformist",
@@ -85,6 +95,11 @@ class RoddReplication:
             layer=LayerConfig(
                 genetic_enabled=True,
                 cultural_enabled=False,  # Genetic-only evolution
+                blending_mode="weighted",
+                genetic_weight=1.0,
+                cultural_weight=0.0,
+                sigma_perception=0.0,
+                theta_detect=0.0,
             ),
             simulation=SimulationParams(
                 population_size=self.population_size,

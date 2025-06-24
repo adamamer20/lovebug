@@ -84,7 +84,7 @@ class LoveAgentsRefactored(AgentSetPolars):
         ages = np.random.randint(0, max_age, size=n, dtype=np.uint16)
 
         # Initialize energy based on age and foraging efficiency
-        base_energy = 10.0
+        base_energy = self.config.genetic.base_energy
         age_penalty = ages * self.config.genetic.energy_decay
         efficiency_bonus = (gene_foraging_efficiency / 255.0) * 5.0
         initial_energy = base_energy - age_penalty + efficiency_bonus
@@ -183,7 +183,7 @@ class LoveAgentsRefactored(AgentSetPolars):
             foraging_efficiency = self.agents["gene_foraging_efficiency"].cast(pl.Float32) / 255.0
 
             # Display-survival trade-off: higher display traits reduce foraging efficiency
-            display_cost_scalar = 0.2  # Scale factor for display cost
+            display_cost_scalar = self.config.genetic.display_cost_scalar
             display_bits = self.agents["gene_display"]
             # Count number of set bits as proxy for display elaboration
             display_cost = display_bits.bitwise_count_ones().cast(pl.Float32) / 16.0 * display_cost_scalar
@@ -549,7 +549,7 @@ class LoveAgentsRefactored(AgentSetPolars):
         female_can_mate = np.where(sex_self == 0, can_mate, True)  # Females limited, males unrestricted
 
         # Apply search/assessment energy cost to females before acceptance
-        search_cost = 0.01  # Small cost for courtship assessment
+        search_cost = self.config.genetic.search_cost
         female_indices = valid_indices[sex_self == 0]  # Get female indices
 
         if len(female_indices) > 0:
@@ -574,7 +574,7 @@ class LoveAgentsRefactored(AgentSetPolars):
         partner_idx = partners[accepted_mask]
 
         # Minimum energy gate: both parents must have sufficient energy to reproduce
-        E_MIN = 1.0  # Minimum energy threshold (≥ one day's metabolism)
+        E_MIN = self.config.genetic.energy_min_mating
         parent_energy_a = self.agents["energy"].to_numpy()[idx]
         parent_energy_b = self.agents["energy"].to_numpy()[partner_idx]
         viable = (parent_energy_a > E_MIN) & (parent_energy_b > E_MIN)
@@ -652,7 +652,7 @@ class LoveAgentsRefactored(AgentSetPolars):
         offspring_energy = parent_a_investment + parent_b_investment
 
         # Juvenile start-up debit: subtract fixed cost for yolk/early mortality
-        juvenile_cost = 0.5
+        juvenile_cost = self.config.genetic.juvenile_cost
         offspring_energy = offspring_energy - juvenile_cost
 
         # Filter out offspring with insufficient energy to survive
